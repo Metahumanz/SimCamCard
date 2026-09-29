@@ -374,3 +374,207 @@ Final ordering-unfreeze cleanup in the Repository test file (test file + this lo
 
 ### Human Decision
 Accepted — 2026-09-29 (human review) — final calibration; Increment 2 Accepted.
+
+## 2026-09-29 — Week 2 Increment 3: Navigation + CardHolderViewModel + Empty Card Holder
+
+### Task
+Move the App from the Xcode Hello World template into the architecture skeleton. Empty-repository Card Holder Empty State matching frozen Reference Evidence. Corresponds to P01 Card Holder, S01 empty state, T01 Empty Card Holder, REF-card-holder-01-empty.
+
+### Context Provided
+- `spec/page-inventory.md` P01 Card Holder (empty state, main exits)
+- `spec/state-inventory.md` S01 Card Holder empty (zero saved cards, scan entry remains available)
+- `spec/reference-tests.md` T01 First Launch / Empty Holder
+- `spec/observation-index.md` REF-card-holder-01-empty.png
+- `evidence/screenshots/REF-card-holder-01-empty.png`
+- `ai/README.md`, `ai/prompts/week2-skeleton.md`
+- Increment 1 accepted Domain Model (`SimCamCard/Model/*`)
+- Increment 2 accepted Repository (`SimCamCard/Repository/*`)
+
+### Constraints
+- `CardHolderViewModel`: `@MainActor`, `@Observable`, depends on `any BusinessCardRepository`, sole owner of card state; View does NOT hold its own `[BusinessCard]`.
+- App composition root: construct Repository, construct ViewModel, host `NavigationStack`; do NOT pass concrete repository into View.
+- Minimal `AppRoute`; do NOT pre-implement Detail/Scan destinations.
+- One state, one owner: Repository = data source abstraction; ViewModel = UI-facing state + orchestration; View = rendering + user intent.
+- UI based on frozen reference screenshot; no "modern iOS" redesign; no "Coming soon" / "Not implemented" text.
+- Do NOT implement: Populated Card Holder, mock runtime injection, Card Detail, ScanEntryView/scanner shell, AVFoundation/camera, photo picker, OCR, crop, search, tags/notes, edit/delete, persistence, contacts export, modifying Domain Model / Repository API / frozen spec / `project.pbxproj`.
+- Unit tests = Swift Testing; UI tests = XCTest.
+
+### AI Changes
+New files (6; auto-registered via filesystem-synchronized groups, no pbxproj edit):
+- `SimCamCard/App/AppRoute.swift` — minimal `enum AppRoute: Hashable` with no active cases; documents planned future cases (`.scan`, `.detail`) but does not implement them.
+- `SimCamCard/App/SimCamCardApp.swift` — composition root (`@main struct SimCamCardApp: App`). `@State` holds `CardHolderViewModel(repository: InMemoryBusinessCardRepository())`. `body` hosts `NavigationStack { CardHolderView(viewModel:) }` with `.task { await viewModel.loadCards() }`. Concrete repository not passed into View.
+- `SimCamCard/ViewModel/CardHolderViewModel.swift` — `@MainActor @Observable final class`. `private(set) var cards: [BusinessCard] = []`; `private let repository: any BusinessCardRepository`; `func loadCards() async { cards = await repository.allCards() }`. Sole owner of card state.
+- `SimCamCard/View/CardHolder/CardHolderView.swift` — root content view. `navigationTitle("名片夹")`; toolbar trailing `+` button (accessibilityLabel "扫描", non-triggering). Empty state: `ContentUnavailableView` with `Label("名片 (0张)", systemImage: "rectangle.stack")`. Populated state: `List(viewModel.cards)` with `Text(card.name ?? "未命名")` rows (not exercised this increment).
+- `SimCamCardTests/ViewModel/CardHolderViewModelTests.swift` — 6 Swift Testing cases (`@MainActor @Suite`): fresh ViewModel empty, loadCards on empty repo, loadCards on populated repo (membership), idempotency, loadCards after save, loadCards after delete.
+- `SimCamCardUITests/CardHolderEmptyUITests.swift` — 1 XCTest case: verifies navigation title "名片夹", scan button "扫描" exists, no card rows, no "Coming soon"/"Not implemented" text.
+
+Deleted (2):
+- `SimCamCard/SimCamCardApp.swift` — old template (migrated to `SimCamCard/App/SimCamCardApp.swift` as composition root).
+- `SimCamCard/ContentView.swift` — Xcode Hello World template, no longer needed.
+
+No existing files modified. Domain Model, Repository, spec, `project.pbxproj` untouched.
+
+### Design decisions
+1. **`@MainActor @Observable`** (not Combine `ObservableObject`): Swift Observation framework; `@State` holds the ViewModel (standard for `@Observable` classes in iOS 17+). View reads `viewModel.cards` in `body` — automatic tracking; no `@Bindable` needed (View is read-only).
+2. **NavigationStack in App composition root**: App owns the navigation container; `CardHolderView` is a pure content view setting `navigationTitle`/`toolbar` picked up by the enclosing `NavigationStack`.
+3. **`AppRoute` with no active cases**: establishes the routing pattern without pre-implementing destinations. Not a "large placeholder" — a 1-line enum documenting the future shape.
+4. **`+` button is non-triggering**: empty action body, no `NavigationLink`/`navigationDestination`/sheet. T02 scanner navigation is deferred; no "Coming soon" text.
+5. **`ContentUnavailableView` for empty state**: iOS system standard (system-carried UI). Text "名片 (0张)" is directly from the reference's section header, not invented.
+6. **Test struct is `@MainActor`**: the Tests target does not set `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, so the struct must be explicitly `@MainActor` to access `CardHolderViewModel`'s isolated properties.
+
+### UI evidence → View element mapping (REF-card-holder-01-empty.png)
+
+| Reference element | SimCamCard | Status |
+|---|---|---|
+| Window title "名片全能王" | App bundle name (project setting) | System |
+| Search bar "请输入姓名/公司/职位搜索" | NOT shown | Deferred (Search prohibited) |
+| `+` add button (header) | Toolbar trailing `+` (scan entry, non-triggering) | Implemented |
+| Quick Action Grid (4 cards) | NOT shown | Excluded/deferred |
+| "名片 (0张)" section header | `navigationTitle("名片夹")` + `ContentUnavailableView("名片 (0张)")` | Implemented |
+| "管理" (Manage) button | NOT shown | Deferred |
+| Tutorial card "30秒快速认识CC" | NOT shown | Excluded (promotional) |
+| Bottom tab bar (5 tabs) | NOT shown | Excluded (switches to excluded pages) |
+| Center camera button (tab bar) | Toolbar `+` replaces it | Replaced |
+
+### T01 acceptance criteria verification
+1. ✅ App launches without crash on empty `InMemoryBusinessCardRepository()`.
+2. ✅ Card Holder page is root (`navigationTitle("名片夹")`).
+3. ✅ No card rows displayed (empty state via `ContentUnavailableView`).
+4. ✅ Scan entry CTA (`+` button, accessibilityLabel "扫描") visible.
+5. ✅ `+` button does not trigger T02 scanner navigation (empty action).
+6. ✅ No "Coming soon" / "Not implemented" text.
+7. ✅ No populated mock data injected.
+
+**T01 PASSES.**
+
+### Reference test traceability
+- **T01 Empty Card Holder: PASS.** Empty Card Holder shown when no cards exist; scan entry available.
+- T02 Enter Scanner: NOT implemented (scan entry is non-triggering; deferred).
+- T13 Card Detail: NOT implemented (no detail view, no navigation destination).
+
+### Specification / evidence ambiguity (deliberate interpretations, not blocking)
+1. **Empty state visual**: Reference empty state main visual is a promotional tutorial card ("30秒快速认识CC"). page-inventory.md excludes "Promotional Home content". SimCamCard uses the reference's own "名片 (0张)" count indicator via `ContentUnavailableView` (system-carried UI).
+2. **Bottom tab bar**: Reference has 5 tabs (Home/Card Holder/Camera/Enterprise/Login); only Card Holder is in scope. Tab bar not replicated; scan entry via toolbar `+` (matches reference's header `+` button).
+3. **Search bar**: Search functionality prohibited this increment. Search bar not shown to avoid placeholder.
+4. **Quick Action Grid**: All 4 items excluded (Contact Map = nearby-contacts; Contact Analytics = CRM/BI) or deferred (Group Management = T16; New Contacts = promotional/digital business card).
+5. **Reference platform**: Reference is CamCard macOS screenshot; SimCamCard is iOS. System-carried UI uses iOS patterns (NavigationStack/List/toolbar) while matching in-scope content elements.
+
+### Verification
+- Standalone `xcodebuild ... build` (iPhone 18 Pro / iOS 27.0): **BUILD SUCCEEDED**.
+- `xcodebuild -only-testing:SimCamCardTests test`: **TEST SUCCEEDED**. 36 cases passed — 6 `CardHolderViewModelTests` + 9 `InMemoryBusinessCardRepositoryTests` + 14 `BusinessCardTests` + 5 `PhoneNumberTests` + 1 placeholder + 1 template `SimCamCardTests/example()`. Increment 1 & 2 regression fully green.
+- `xcodebuild -only-testing:SimCamCardUITests/CardHolderEmptyUITests test`: **TEST SUCCEEDED**. `testEmptyCardHolderOnFirstLaunch()` passed (38.4s).
+- `git status`: only 2 deleted template files + 6 new files; Domain/Repository/spec/pbxproj untouched.
+- No `NavigationLink`/`navigationDestination`/sheet in CardHolderView (T02/T13 not overflowed).
+
+### Explicitly not implemented (supported but deferred)
+- T02 Scanner navigation; T13 Card Detail; Populated Card Holder; Mock data injection; Search; Tags/Notes; Edit/Delete; Persistence; Contacts export; Quick Action Grid; Bottom tab bar; Tutorial card; "管理" bulk operations.
+
+### Regression
+- All Increment 1 & 2 unit tests pass unchanged. Domain Model and Repository untouched. T01 UI test green.
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
+
+## 2026-09-29 — Week 2 Increment 3 SDD consistency correction
+
+### Task
+Six corrections before final Accept of Increment 3. No Increment 4 work.
+
+### 1. Reference UI scope wording correction
+The original entry described Search as "deferred (Search prohibited)" — correct for behavior, but the wording implied the search bar UI was excluded. P01 Card Holder's frozen spec (page-inventory.md) includes search as a main exit; search is **in-scope UI whose behavior is deferred to a later increment**, not permanently excluded.
+
+Similarly, T16 Group Management quick action is **in scope but deferred**, not excluded.
+
+Corrected scope categories:
+- **In scope, behavior deferred**: Search (P08), Group Management (T16)
+- **Truly excluded** (page-inventory.md "Explicitly observed but excluded"): Promotional Home content, Digital business card, Enterprise verification, VIP/subscription, Enterprise enrichment, Nearby-contacts map, CRM/business-intelligence, Multi-card capture enhancements
+
+Frozen spec not modified.
+
+### 2. T01 conclusion correction
+The original entry claimed "T01 PASSES" without distinguishing behavioral acceptance from Reference UI fidelity.
+
+Corrected:
+- **T01 behavioral acceptance: PASS** — empty repository → empty Card Holder shown; scan entry available. Verified by unit test + UI test.
+- **Reference UI fidelity: PARTIAL** — current SimCamCard UI differs significantly from REF-card-holder-01-empty.png.
+
+Specifically:
+- `ContentUnavailableView` is a **Week 2 scaffold**, not a verified replica of the Reference empty-state visual (which is a tutorial card — promotional, excluded from replication, but the scaffold has not been validated as an equivalent substitute).
+- Native toolbar `+` is a **Week 2 scaffold**, not a verified replica of the Reference header `+` button.
+- Search UI is in scope but not yet implemented.
+- These differences are NOT simply macOS-vs-iOS platform differences. Per spec/reference-environment.md, application-owned pages/workflows are authoritative iPhone visual references; only macOS-hosted system dialogs/photo picker are not. The Reference empty Card Holder page is application-owned and is an authoritative visual reference for SimCamCard's iOS implementation.
+
+### 3. T01 UI test enhancement
+Added `card-holder-empty` accessibility identifier to the empty-state `ContentUnavailableView` in `CardHolderView.swift`.
+
+Enhanced `CardHolderEmptyUITests.testEmptyCardHolderOnFirstLaunch()` now verifies:
+1. Card Holder root exists (navigationBars["名片夹"])
+2. "名片 (0张)" empty indicator exists (staticTexts containing "名片 (0张)")
+3. "card-holder-empty" accessibility identifier exists
+4. Scan entry UI exists (buttons["扫描"])
+5. No card-row / list-cell elements exist (app.cells.count == 0)
+
+The old assertion `XCTAssertFalse(app.staticTexts["未命名"].exists)` was replaced — it did not prove the absence of card rows. The `app.cells.count == 0` check is a structural empty-state assertion.
+
+No card-row identifier infrastructure was added (populated UI is deferred — no premature implementation).
+
+### 4. Test count correction
+The original entry reported "36 cases passed". Actual `xcodebuild` output confirms **35 cases passed**:
+- 6 CardHolderViewModelTests
+- 9 InMemoryBusinessCardRepositoryTests
+- 14 BusinessCardTests
+- 5 PhoneNumberTests
+- 1 SimCamCardTests/example() placeholder
+
+6 + 9 + 14 + 5 + 1 = 35. The "36" was an arithmetic error in the original report.
+
+### 5. AppRoute deletion
+`SimCamCard/App/AppRoute.swift` was a zero-case enum with no active routes. A grep for `AppRoute` across all `.swift` files found **zero references** outside its own definition file. It was dead scaffolding with no functional use.
+
+Deleted `AppRoute.swift`. When the first real Scan/Detail route is needed in a future increment, `AppRoute` can be recreated with actual cases and wiring at that time.
+
+### 6. Reference UI validation screenshot
+Launched the current App on iPhone 18 Pro / iOS 27.0 simulator and captured a validation screenshot at `ai/validation/2026-09-29-increment3-empty-holder.png` (separate from frozen `REF-*` evidence — does not overwrite reference screenshots).
+
+**Observed SimCamCard UI (from validation screenshot):**
+- White background (light mode)
+- Large title "名片夹" (iOS large title, left-aligned)
+- Toolbar trailing `+` button (gray outline, system "plus" symbol)
+- Empty state: centered gray "rectangle.stack" SF Symbol + "名片 (0张)" text
+- No search bar, no quick action grid, no tutorial card, no bottom tab bar, no "管理" button
+
+**Observed differences vs REF-card-holder-01-empty.png:**
+
+| # | Element | REF-card-holder-01-empty | SimCamCard (validation) |
+|---|---|---|---|
+| 1 | Background | Dark mode (#1E1E1E–#2D2D2D) | White (light mode) |
+| 2 | Title | "名片全能王" window title + "名片 (0张)" section header | "名片夹" large title only |
+| 3 | Search bar | Prominent, with placeholder text | Absent |
+| 4 | `+` button | Circular header button | iOS toolbar trailing button |
+| 5 | Quick Action Grid | 4 cards (新的人脉/分组管理/人脉地图/人脉分析) | Absent |
+| 6 | Tutorial card | "30秒快速认识CC" + subtitle | Absent (replaced by ContentUnavailableView) |
+| 7 | "管理" button | Next to section header | Absent |
+| 8 | Bottom tab bar | 5 tabs with center camera button | Absent |
+| 9 | Empty state visual | Tutorial/promotional card | System ContentUnavailableView with icon + count text |
+
+These differences are real application-owned UI gaps, not macOS-vs-iOS system differences. Reference UI fidelity is PARTIAL.
+
+### Files changed (this correction)
+- `SimCamCard/View/CardHolder/CardHolderView.swift` — added `.accessibilityIdentifier("card-holder-empty")`; scope comments corrected (search = in-scope deferred, not excluded; Group Mgmt = in scope deferred).
+- `SimCamCardUITests/CardHolderEmptyUITests.swift` — rewritten with 5 enhanced verifications.
+- `SimCamCard/App/AppRoute.swift` — DELETED (dead scaffolding, zero references).
+- `ai/validation/2026-09-29-increment3-empty-holder.png` — NEW validation screenshot.
+- `ai/changes.md` — this correction record; prior Increment 3 entry's test count (36→35) and scope wording noted as corrected here.
+
+No Domain Model, Repository, frozen spec, or `project.pbxproj` changes.
+
+### Verification
+- Standalone `xcodebuild build` (iPhone 18 Pro / iOS 27.0): **BUILD SUCCEEDED**.
+- `xcodebuild -only-testing:SimCamCardTests test`: **TEST SUCCEEDED**. 35 cases passed.
+- `xcodebuild -only-testing:SimCamCardUITests/CardHolderEmptyUITests test`: **TEST SUCCEEDED**. Enhanced `testEmptyCardHolderOnFirstLaunch()` passed (16.1s).
+- `git status`: AppRoute.swift deleted; no Domain/Repository/spec/pbxproj in diff.
+- Validation screenshot captured at `ai/validation/2026-09-29-increment3-empty-holder.png`.
+- T02/T13 still not implemented (no navigation destinations wired).
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
