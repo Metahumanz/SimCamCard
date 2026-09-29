@@ -5,12 +5,11 @@
 //  Root content view for the Card Holder page (P01).
 //
 //  Spec sources:
-//   - spec/page-inventory.md P01 Card Holder (empty / populated)
-//   - spec/state-inventory.md S01 empty (zero saved cards, scan entry
-//     remains available) / S01 populated (one or more cards shown)
-//   - spec/reference-tests.md T01 Empty Card Holder / T12 Save (card
-//     immediately appears in holder — repository-level prerequisite
-//     verified by ViewModel loadCards path)
+//   - spec/page-inventory.md P01 Card Holder (empty / populated;
+//     main exit: Detail)
+//   - spec/state-inventory.md S01 empty / populated
+//   - spec/reference-tests.md T01 Empty Card Holder / T13 Detail
+//     (selecting a card opens Card Detail)
 //   - Evidence: evidence/screenshots/REF-card-holder-01-empty.png,
 //     evidence/screenshots/REF-card-holder-02-after-save.png
 //
@@ -28,9 +27,16 @@
 //                                   Contact Map / Analytics = excluded
 //   - Tutorial card                → excluded (promotional content)
 //   - Bottom tab bar               → excluded (switches to excluded pages)
-//   - Card row (populated)         → BusinessCardRow (Name + Title · Company);
-//                                   Week 2 scaffold — no thumbnail, no
-//                                   three-dot menu (deferred)
+//   - Card row (populated)         → BusinessCardRow inside a NavigationLink
+//                                   to AppRoute.cardDetail(card.id)
+//
+//  Navigation (Week 2 Increment 5):
+//   - Rows are NavigationLinks carrying the card's stable UUID
+//     (AppRoute.cardDetail(UUID)) — never a row index; Repository
+//     ordering remains unspecified.
+//   - `navigationDestination` resolves the UUID against the cards this
+//     holder already owns and constructs CardDetailViewModel with the
+//     full BusinessCard value (no second repository fetch).
 //
 //  State ownership (one state, one owner):
 //   - Repository = data source abstraction
@@ -41,16 +47,11 @@
 //  Card row accessibility:
 //   - Each row carries `card-row-<UUID>` so T01 empty UI test can verify
 //     NO card rows exist (NSPredicate identifier BEGINSWITH "card-row-"),
-//     and populated UI tests can verify specific rows exist by stable id.
-//   - UI tests verify membership only — Repository contract defines no
-//     order, so no row-position assertions.
+//     and populated / detail UI tests can locate and tap specific rows
+//     by stable id. UI tests verify membership only, never row position.
 //
-//  Increment 4 does NOT implement T02 scanner navigation. The "+" button
-//  is a minimal non-triggering UI element — it does not navigate to a
-//  scanner and does not display "Coming soon" / "Not implemented".
-//  Increment 4 does NOT implement T13 Detail navigation — the list rows
-//  are not tappable. T15 Search behavior and T16 Group behavior are
-//  deferred.
+//  T02 scanner navigation, T15 Search behavior and T16 Group behavior
+//  remain deferred. The toolbar "+" is a non-triggering element.
 //
 
 import SwiftUI
@@ -71,12 +72,27 @@ struct CardHolderView: View {
                 .accessibilityIdentifier("card-holder-empty")
             } else {
                 List(viewModel.cards) { card in
-                    BusinessCardRow(card: card)
-                        .accessibilityIdentifier("card-row-\(card.id.uuidString)")
+                    NavigationLink(value: AppRoute.cardDetail(card.id)) {
+                        BusinessCardRow(card: card)
+                    }
+                    .accessibilityIdentifier("card-row-\(card.id.uuidString)")
                 }
             }
         }
         .navigationTitle("名片夹")
+        .navigationDestination(for: AppRoute.self) { route in
+            switch route {
+            case .cardDetail(let id):
+                // Resolve the stable id to the complete aggregate this
+                // holder already owns. UUID selection (not index) keeps
+                // navigation independent of unspecified repository order.
+                if let card = viewModel.cards.first(where: { $0.id == id }) {
+                    CardDetailView(viewModel: CardDetailViewModel(card: card))
+                }
+                // A missing id cannot occur via holder row taps; an empty
+                // fallback is sufficient for the typed initializer.
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -96,8 +112,8 @@ struct CardHolderView: View {
 // MARK: - SwiftUI Previews
 //
 // Both Previews wrap CardHolderView in NavigationStack because
-// `navigationTitle` / `toolbar` rely on the enclosing navigation
-// container environment.
+// `navigationTitle` / `toolbar` / `navigationDestination` rely on the
+// enclosing navigation container environment.
 //
 // Populated Preview uses the real Repository → CardHolderViewModel → View
 // data path. The View never hardcodes a [BusinessCard] source of truth;

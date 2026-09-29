@@ -705,3 +705,130 @@ Final conclusions (unchanged on acceptance):
 - Repository ordering remains unspecified
 - UI tests verify per-UUID membership, not row position or accessibility node count
 - Simulator / parallel clone failures were test-infrastructure issues, not business failures
+
+## 2026-09-29 — Week 2 Increment 5: Card Detail Skeleton + Card Selection Navigation
+
+### Task
+From the populated Card Holder, select a BusinessCard and push a read-only Card Detail page presenting frozen-evidence-supported structured fields through the same Domain Model. Detail skeleton only — no Edit / Delete / Group / Notes / Export. Covers P07, S06 `detailCollapsed`, T13.
+
+### Context Provided
+- `spec/page-inventory.md` P07 Card Detail ("View structured data and card actions"; exits Edit/Group/Note/Delete/Export)
+- `spec/state-inventory.md` S06 (`saveSucceeded` / `detailCollapsed` / `detailExpanded` / `editing` / `deleted`)
+- `spec/reference-tests.md` T13 Detail ("Saved structured fields are visible in detail view.")
+- `spec/data-model.md` §BusinessCard, §Multi-value observation (`phones[]` mobile/office/fax/other, `emails[]`), §Missing-field rule
+- `spec/observation-index.md` Detail evidence list
+- `evidence/screenshots/REF-detail-01-collapsed.png`, `REF-detail-02-phone-picker.png`, `REF-detail-03-after-edit-expanded.png`, `REF-detail-04-more-actions.png`
+- `dataset/ground-truth/card-001.json`
+- Current BusinessCard / PhoneNumber, CardHolderView / BusinessCardRow, CardHolderViewModel, MockBusinessCards, `ai/README.md`
+
+### Evidence re-read summary
+- REF-detail-01 (collapsed): dark header card with surname avatar, name/title/company, primary phone + address; action grid (电话/地址/备注/编辑); 未分组 row; notes row; collapsed field list (1 phone + email + address) with 「展开」; 更多资料/昵称; bottom bar (存入通讯录/递名片/分享名片).
+- REF-detail-03 (expanded): both phones with kind labels (+86 138 0013 8000 **手机**, +86 2155551234 **工作电话**), email (**工作邮箱**), address (**公司地址**), company rows incl. English company name, website (**首页**), 「收起」.
+- REF-detail-02 confirms phone-kind labels via the phone picker; REF-detail-04 confirms the deferred more-actions menu (保存通讯录/编辑/分组/备注/提醒/删除).
+
+### Constraints
+- Only add routes actually used: `AppRoute.cardDetail(UUID)` — no `.scan/.edit/.group/.notes/.export`.
+- Selection by stable UUID/BusinessCard value, never row index; Repository ordering remains unspecified.
+- Multi-value fields rendered as `phones[]` / `emails[]` — no invented single mobile/email properties.
+- Missing fields hidden, never fabricated (T20 Card 004 negative case).
+- No fake image/thumbnail (Domain holds String references only); no "Coming soon"/"Not implemented".
+- Do NOT modify: Domain Model, Repository protocol/semantics, frozen spec, `project.pbxproj`.
+
+### AI Changes
+
+New files (6; auto-registered via filesystem-synchronized groups):
+- `SimCamCard/App/AppRoute.swift` — `enum AppRoute: Hashable { case cardDetail(UUID) }`. First real route; UUID-based selection.
+- `SimCamCard/ViewModel/CardDetailViewModel.swift` — `@MainActor @Observable final class`; holds `private(set) var card: BusinessCard`; read-only; no DTO, no repository, no actions.
+- `SimCamCard/View/CardDetail/CardDetailView.swift` — read-only Detail: identity header (name/jobTitle/company, nil-hidden) + structured-field List (all phones with kind labels, all emails, website, address). Accessibility identifiers on root/header/each field. Two `#Preview`s (card001 full / card004 minimal) in NavigationStack.
+- `SimCamCard/View/CardDetail/CardDetailFieldRow.swift` — stateless row: SF Symbol + value + secondary Chinese label.
+- `SimCamCardTests/ViewModel/CardDetailViewModelTests.swift` — 3 Swift Testing cases (full fixture value fidelity; 3 phones + 2 emails preservation; card004 minimal no-fabrication).
+- `SimCamCardUITests/CardDetailUITests.swift` — 2 XCTest cases (full 001 field presence + back navigation; 004 minimal negative case). Both attach a `keepAlways` screenshot used for validation evidence.
+
+Modified files (3):
+- `SimCamCard/View/CardHolder/CardHolderView.swift` — populated rows are now `NavigationLink(value: AppRoute.cardDetail(card.id))` wrapping `BusinessCardRow`, retaining `card-row-<UUID>`. Added `.navigationDestination(for: AppRoute.self)` resolving UUID via `viewModel.cards.first(where:)` and constructing `CardDetailViewModel(card:)` with the full value.
+- `SimCamCard/View/CardHolder/BusinessCardRow.swift` — comments only (row now navigates); no visual/behavior change to the row itself.
+- `ai/changes.md` — this record.
+
+New validation artifacts (2): `ai/validation/2026-09-29-increment5-card-detail-001-full.png`, `ai/validation/2026-09-29-increment5-card-detail-004-minimal.png` (exported from XCTAttachments; separate from frozen `REF-*`).
+
+No Domain Model, Repository, frozen spec, `project.pbxproj`, or `MockBusinessCards.swift` changes.
+
+### Design decisions
+1. **No second repository lookup for Detail.** The holder already owns the complete aggregate; navigation carries the stable UUID and the holder resolves it to the full `BusinessCard` value it already holds. Frozen spec defines no re-fetch requirement for detail open; Week 2 has no edit/persistence flow. `CardDetailViewModel(card:)` takes the value directly. Future T14/T18 can introduce repository access if an actual need appears.
+2. **Typed route with UUID, not value or index.** `AppRoute.cardDetail(UUID)` keeps selection stable regardless of unspecified Repository `allCards()` ordering; resolution happens at the holder (the cards' owner).
+3. **All multi-value fields shown; no collapse interaction.** REF-detail-01's collapsed view hides secondary phones behind 「展开」, while the brief explicitly requires `phones[]/emails[]` to render without loss and to be UI-tested. The skeleton therefore renders every structured field at once (content-wise closer to REF-detail-03 expanded) without implementing 展开/收起. Consequence recorded honestly against S06: `detailCollapsed` is PARTIAL / not implemented as a distinct state, `detailExpanded` is a PARTIAL scaffold, and the expand/collapse interaction is NOT IMPLEMENTED (allowed Week 2 skeleton gap). Multi-value visibility is deliberately retained and must not be regressed to mimic the collapsed screenshot.
+4. **View-layer phone-kind labels.** Chinese labels (mobile→手机, office→工作电话, fax→传真, other→其他) live in a `private extension PhoneNumber.Kind` inside `CardDetailView.swift`; the Domain Model stays UI-independent. Email label is neutral 「邮箱」 because frozen Domain `emails: [String]` has no kind (Reference shows 工作邮箱; kind not in model — see ambiguity).
+5. **Absent fields = hidden rows.** No empty placeholders; Card 004 renders header name + one mobile row only.
+6. **No behaviorless control farm; gaps classified as P07 in-scope.** The dark header/avatar/card image, 电话/地址/备注/编辑 action buttons, group row, notes row, favorite star, more menu, bottom action area, and expand/collapse control are all **P07 application-owned UI** present in the Reference. They are recorded as `P07 in-scope visual gap / behavior deferred` — their *behaviors* map to T14/T16/T17/T19/P10 (and the image pipeline to Week 3), but the visual elements themselves are **not** out of scope merely because their behaviors land later. None are stubbed as non-functional controls in this skeleton.
+7. **Accessibility contract:** root `card-detail`; header `card-detail-name/-job-title/-company`; `card-detail-phone-<PhoneNumber.id>`; `card-detail-email-<array-index>` (emails are untyped Strings); `card-detail-website`; `card-detail-address`. Holder rows keep `card-row-<UUID>` so the test flow is tap-by-stable-id with no positional assumptions.
+
+### UI evidence → View element mapping (REF-detail-01 / REF-detail-03)
+
+| Reference element | SimCamCard | Status |
+|---|---|---|
+| Nav title 名片详情 + back | `navigationTitle("名片详情")` inline; system back | Implemented (native scaffold) |
+| Header name / title / company | VStack of Text, nil-hidden | Implemented (plain light scaffold) |
+| Surname avatar (张) | NOT shown | P07 in-scope visual gap / behavior deferred (scaffold; derived styling only) |
+| Dark header card / card image strip | NOT shown | P07 in-scope visual gap / behavior deferred (String image refs only; no fabricated image; pipeline is Week 3) |
+| phones[] with 手机/工作电话 labels | One `CardDetailFieldRow` per PhoneNumber | Implemented, all kinds |
+| emails[] with label | One row per email, label 邮箱 | Implemented (neutral label — no email kind in Domain) |
+| website (首页) | Row when non-nil | Implemented |
+| address (公司地址) | Row when non-nil | Implemented |
+| English company (Shanghai Zhiyun…) / 昵称 | NOT shown | Excluded from frozen Domain (Revision 8) — not a P07 gap |
+| 展开/收起 toggle | NOT implemented | P07 in-scope visual gap; expand/collapse interaction NOT IMPLEMENTED; all fields shown directly |
+| Action buttons (电话/地址/备注/编辑) / star / more menu / group row / notes row / bottom action area | NOT shown | P07 in-scope visual gaps / behaviors deferred (T14/T16/T17/T19/P10); no behaviorless stubs |
+
+### T13 acceptance
+
+- **T13 read-only detail field visibility/navigation: PASS** — selecting a holder row pushes Detail via real in-app NavigationStack navigation; every fixture-backed structured field is visible; multi-phone (mobile+office) and multi-value email are preserved (no loss); back returns to the populated holder; Card 004 minimal path shows only name + mobile with zero fabricated fields.
+- **T12 → T13 saved-card end-to-end workflow: NOT IMPLEMENTED** — the Detail screen is driven by deterministic mock fixtures, not by a card persisted through the T12 Save workflow (T12 Save itself remains unimplemented). The PASS above is scoped to read-only rendering and navigation only; it must not be read as a complete save-then-view end-to-end T13 workflow.
+
+### S06 state coverage
+
+- **`detailCollapsed`: PARTIAL / not implemented as a distinct state** — there is no collapsed representation that hides secondary phones/emails behind 展开.
+- **`detailExpanded`: PARTIAL scaffold** — all phones/emails/website/address are shown at once, so the *content* is closer to the expanded Reference, but expanded-state chrome and interactions do not exist.
+- **expand/collapse interaction (展开/收起): NOT IMPLEMENTED** — allowed Week 2 skeleton gap. The all-fields-at-once rendering must not be described as having completed `detailCollapsed`.
+- Multi-value design intentionally unchanged: all `phones[]` and `emails[]` stay visible, missing fields stay hidden, Card 004 stays fabrication-free. The second phone must not be re-hidden just to mimic the collapsed screenshot.
+
+### P07 Reference fidelity
+
+- **Reference UI fidelity: PARTIAL** — light-mode plain List/header vs. Reference dark card. The missing elements (header/avatar/card image, action buttons, group row, notes row, more menu, bottom action area, expand/collapse control) are **P07 in-scope visual gaps with behavior deferred** to the increments owning T14/T16/T17/T19/P10 and the Week 3 image pipeline — they are P07 application-owned UI, not out-of-scope items.
+
+### Verification
+- Standalone `xcodebuild build` (iPhone 18 Pro / iOS 27.0): **BUILD SUCCEEDED**.
+- Unit tests (`-only-testing:SimCamCardTests`, `-parallel-testing-enabled NO`): **TEST SUCCEEDED**. Swift Testing "Test run with 39 tests in 6 suites passed" — 36 prior + 3 new CardDetailViewModel (full fixture values + `card == MockBusinessCards.card001` no-DTO check; 3 phones/2 emails no-loss; card004 nil/empty assertions).
+- New UI tests (`CardDetailUITests`, populated fixture, explicit device UDID, no parallel clones): **TEST SUCCEEDED**.
+  - `testCardDetailShowsFullFixtureFields`: passed (11.8s on rerun; first run 23.7s).
+  - `testCardDetailMinimalCardDoesNotFabricateFields`: passed (9.1s on rerun; first run 39.9s).
+- Regression: `CardHolderEmptyUITests` (6.2s) + `CardHolderPopulatedUITests` (7.1s): both **PASSED** unchanged. Increment 4's "no Detail navigation while on holder" guarantee still holds (no taps ⇒ no push).
+- Validation screenshots inspected: 001 full shows header + 2 phones with kind labels + email + website + address; 004 minimal shows only 张伟 + one 手机 row.
+- Boundary check: `git diff --name-only` contains no `SimCamCard/Model/`, `SimCamCard/Repository/`, `spec/`, or `project.pbxproj`.
+
+### Specification / evidence ambiguity (recorded, not blocking)
+1. **Collapsed vs. multi-value requirement**: S06 names `detailCollapsed`, whose Reference hides secondary phones behind 展开; the brief requires all `phones[]/emails[]` visible. Resolved by showing all fields without the toggle. Recorded consequence: S06 `detailCollapsed` is PARTIAL / not implemented as a distinct state, `detailExpanded` is a PARTIAL scaffold, and the expand/collapse interaction is NOT IMPLEMENTED (allowed Week 2 skeleton gap). Multi-value visibility is intentionally retained; the second phone must not be re-hidden to mimic the collapsed screenshot.
+2. **Email kind label**: Reference labels the address 工作邮箱; frozen Domain `emails: [String]` has no kind. Neutral 「邮箱」 used rather than fabricating a kind.
+3. **Address normalization**: Reference renders "中国 上海市 浦东新区世纪大道 100号 200120" (added country + spacing); fixture/UI render the ground-truth string "上海市浦东新区世纪大道100号 200120" verbatim. Normalization is an OCR/enrichment concern, not fabricated here.
+4. **Avatar/header card image**: Reference shows a surname avatar and a card-photo strip; Domain only stores String references and no capture pipeline exists. Neither an image nor a placeholder is fabricated; header is plain text.
+5. **Header-vs-list field duplication**: Reference repeats company (+title) in the expanded field list. The skeleton shows name/title/company once in the header; duplicate rows omitted as scaffold simplification.
+6. **Email row identifiers use array index** (`card-detail-email-<index>`) because `emails` is an untyped String collection; current fixtures carry one email each. If the Domain later adds an email id/kind, identifiers should migrate to stable ids.
+
+### Explicitly not implemented (supported but deferred)
+T02 Scanner; T12 Save flow; **T12 → T13 saved-card end-to-end workflow (Detail is fixture-driven; not a save-then-view flow)**; T14 Edit; T15 Search; T16 Group; T17 Delete; T18 Persistence; T19 Export; P10 Notes; S06 expand/collapse interaction (展开/收起) with distinct `detailCollapsed`/`detailExpanded` states; phone/email/web invocation (no tel:/mailto/URL wiring).
+
+P07 application-owned UI present in Reference but absent from this skeleton (**P07 in-scope visual gap / behavior deferred**, not out of scope): favorite star; more menu; 电话/地址/备注/编辑 action buttons; group row; notes row; bottom action area; surname avatar; header card image / card-photo strip; expand/collapse control.
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
+
+Final conclusions (unchanged on acceptance):
+- T13 read-only detail field visibility/navigation: PASS
+- T12 → T13 saved-card end-to-end workflow: NOT IMPLEMENTED (Detail is fixture-driven; T12 Save remains unimplemented)
+- S06 `detailCollapsed`: PARTIAL / not implemented as a distinct state
+- S06 `detailExpanded`: PARTIAL scaffold
+- expand/collapse interaction (展开/收起): NOT IMPLEMENTED (allowed Week 2 skeleton gap)
+- P07 Reference UI fidelity: PARTIAL
+- P07 application-owned visual gaps (header/avatar/card image, action buttons, group row, notes row, more menu, bottom action area, expand/collapse control) remain in scope as P07 in-scope visual gaps; behavior deferred to T14/T16/T17/T19/P10 and the Week 3 image pipeline
+- Multi-value design unchanged: all `phones[]` / `emails[]` remain visible; the second phone was not re-hidden to mimic the collapsed screenshot
+- Missing fields are not fabricated (Card 004 minimal path shows name + one mobile only)
+- Build: PASS; Unit tests 39/39 PASS; Detail UI tests PASS; Holder UI regression PASS (results remain as previously verified)
+- Domain Model / Repository protocol & semantics / frozen spec / project.pbxproj unchanged

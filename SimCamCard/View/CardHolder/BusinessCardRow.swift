@@ -7,21 +7,24 @@
 //  Spec sources:
 //   - spec/page-inventory.md P01 Card Holder (populated list)
 //   - spec/state-inventory.md S01 populated (one or more cards shown)
-//   - spec/reference-tests.md T12 Save (card appears immediately after save)
+//   - spec/reference-tests.md T13 Detail (selecting a row opens Detail)
 //   - Evidence: evidence/screenshots/REF-card-holder-02-after-save.png
 //
 //  Evidence-supported fields rendered (Week 2 scaffold):
 //   - Name (primary, semibold)
 //   - Job title · Company (secondary line)
 //
-//  Deliberately omitted this increment (per Week 2 Increment 4 brief):
+//  As of Week 2 Increment 5 this row is embedded in a NavigationLink by
+//  CardHolderView; tapping it pushes the read-only Card Detail page.
+//
+//  Deliberately still omitted:
 //   - Thumbnail — Domain Model has String image references only; no real
 //     image asset is loaded (capture pipeline deferred). Rendering a
 //     placeholder would be invented UI; recorded as ambiguity.
 //   - Three-dot per-row actions menu — per-row actions / context menu /
 //     delete deferred.
 //   - Favorites / avatar / company logo / swipe actions / context menus /
-//     delete / navigation / online enrichment — prohibited by brief.
+//     online enrichment — deferred.
 //
 //  State ownership:
 //   - This View is stateless. The BusinessCard is passed in; the View
