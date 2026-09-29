@@ -1,0 +1,21 @@
+{
+  "id": "card-014",
+  "purpose": [
+    "english-only",
+    "missing field"
+  ],
+  "name": "Kevin Park",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Morningside Secure Systems",
+  "jobTitle": "Solutions Architect",
+  "mobile": "+1 (646) 555-0113",
+  "phone": "+1 (212) 555-0199",
+  "fax": null,
+  "email": null,
+  "website": "www.mss-secure.com",
+  "address": "305 Madison Ave, New York, NY 10165",
+  "notes": [
+    "Email intentionally absent."
+  ]
+}

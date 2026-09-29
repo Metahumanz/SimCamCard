@@ -1,0 +1,26 @@
+{
+  "id": "card-030",
+  "purpose": [
+    "English",
+    "minimal fields",
+    "missing phone/address"
+  ],
+  "languageProfile": [
+    "en"
+  ],
+  "name": "Mateo Ruiz",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Cobalto Studio",
+  "department": null,
+  "jobTitle": "UX Researcher",
+  "mobile": null,
+  "phone": null,
+  "fax": null,
+  "email": "mateo@cobalto.studio",
+  "website": "www.cobalto.studio",
+  "address": null,
+  "notes": [
+    "Phone and address intentionally absent."
+  ]
+}

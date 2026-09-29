@@ -1,0 +1,27 @@
+{
+  "id": "card-021",
+  "purpose": [
+    "English/German",
+    "diacritics",
+    "international"
+  ],
+  "languageProfile": [
+    "de",
+    "en"
+  ],
+  "name": "Sophia Müller",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "GlobalTech GmbH",
+  "department": null,
+  "jobTitle": "Product Manager",
+  "mobile": "+49 151 2345 6789",
+  "phone": null,
+  "fax": null,
+  "email": "sophia.mueller@globaltech.de",
+  "website": "www.globaltech.de",
+  "address": "Musterstraße 12, 80331 München, Deutschland",
+  "notes": [
+    "Tests ü, ß, and European phone/address formatting."
+  ]
+}

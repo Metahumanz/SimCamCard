@@ -1,0 +1,26 @@
+{
+  "id": "card-034",
+  "purpose": [
+    "Chinese-only",
+    "sparse fields",
+    "missing phone/website"
+  ],
+  "languageProfile": [
+    "zh-CN"
+  ],
+  "name": "顾言",
+  "nameLatin": null,
+  "company": "杭州屿川建筑设计事务所",
+  "companyLatin": null,
+  "department": null,
+  "jobTitle": "建筑师",
+  "mobile": null,
+  "phone": null,
+  "fax": null,
+  "email": "guyan@yuchuan.design",
+  "website": null,
+  "address": "杭州市西湖区文三路90号 310012",
+  "notes": [
+    "Phone and website intentionally absent; Chinese-only sparse layout."
+  ]
+}

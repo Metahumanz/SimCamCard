@@ -1,0 +1,27 @@
+{
+  "id": "card-028",
+  "purpose": [
+    "Chinese/English",
+    "missing email",
+    "department"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "许晨",
+  "nameLatin": "Chen Xu",
+  "company": "苏州凌光半导体有限公司",
+  "companyLatin": "Suzhou Lingguang Semiconductor Co., Ltd.",
+  "department": "技术市场部",
+  "jobTitle": "产品应用工程师 | Field Application Engineer",
+  "mobile": "+86 159 5008 7712",
+  "phone": "+86 512 6688 2046",
+  "fax": null,
+  "email": null,
+  "website": "www.lingguangsemi.cn",
+  "address": "中国 苏州市工业园区星湖街328号 215123",
+  "notes": [
+    "Email intentionally absent; tests department extraction."
+  ]
+}

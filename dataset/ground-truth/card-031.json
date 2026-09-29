@@ -1,0 +1,27 @@
+{
+  "id": "card-031",
+  "purpose": [
+    "Chinese/English",
+    "dark background",
+    "bilingual"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "林琪",
+  "nameLatin": "Qi Lin",
+  "company": "深圳澄海新能源有限公司",
+  "companyLatin": "Shenzhen Chenghai New Energy Co., Ltd.",
+  "department": null,
+  "jobTitle": "国际业务经理 | International Business Manager",
+  "mobile": "+86 186 8891 2040",
+  "phone": "+86 755 8654 2033",
+  "fax": null,
+  "email": "linqi@chenghaienergy.com",
+  "website": "www.chenghaienergy.com",
+  "address": "中国 深圳市南山区科苑南路2666号 518063",
+  "notes": [
+    "Dark-background bilingual OCR case."
+  ]
+}

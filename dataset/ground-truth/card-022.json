@@ -1,0 +1,27 @@
+{
+  "id": "card-022",
+  "purpose": [
+    "Chinese",
+    "university",
+    "department classification"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "刘洋",
+  "nameLatin": null,
+  "company": "复旦大学",
+  "companyLatin": "Fudan University",
+  "department": "计算机科学技术学院",
+  "jobTitle": "副教授",
+  "mobile": "+86 138 5555 6677",
+  "phone": null,
+  "fax": null,
+  "email": "liuyang@fudan.edu.cn",
+  "website": "http://www.fudan.edu.cn",
+  "address": "上海市杨浦区邯郸路220号 200433",
+  "notes": [
+    "Tests academic organization and explicit http URL."
+  ]
+}

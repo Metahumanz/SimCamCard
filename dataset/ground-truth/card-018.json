@@ -1,0 +1,26 @@
+{
+  "id": "card-018",
+  "purpose": [
+    "English-only",
+    "dark background",
+    "Korean address"
+  ],
+  "languageProfile": [
+    "en"
+  ],
+  "name": "David Park",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Nexa Studio",
+  "department": null,
+  "jobTitle": "Design Director",
+  "mobile": "+82 10 9876 5432",
+  "phone": null,
+  "fax": null,
+  "email": "david.park@nexa.studio",
+  "website": "www.nexa.studio",
+  "address": "12 Teheran-ro, Gangnam-gu, Seoul 06234, Korea",
+  "notes": [
+    "Dark background and South Korean numbering/address format."
+  ]
+}

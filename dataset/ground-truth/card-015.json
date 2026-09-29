@@ -1,0 +1,27 @@
+{
+  "id": "card-015",
+  "purpose": [
+    "Chinese-first bilingual",
+    "missing website",
+    "missing office phone"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "李娜",
+  "nameLatin": null,
+  "company": "上海智云科技有限公司",
+  "companyLatin": "Shanghai Zhiyun Tech Co., Ltd.",
+  "department": null,
+  "jobTitle": "产品经理",
+  "mobile": "+86 136 8888 1025",
+  "phone": null,
+  "fax": null,
+  "email": "lina@zhiyuntech.com",
+  "website": null,
+  "address": "上海市徐汇区漕溪北路398号 200030",
+  "notes": [
+    "Website and office phone intentionally absent."
+  ]
+}

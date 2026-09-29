@@ -1,0 +1,27 @@
+{
+  "id": "card-033",
+  "purpose": [
+    "Spanish/English",
+    "diacritics",
+    "bilingual"
+  ],
+  "languageProfile": [
+    "es",
+    "en"
+  ],
+  "name": "José Álvarez",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Nube Clara Tecnología S.L.",
+  "department": null,
+  "jobTitle": "Director de Ventas | Sales Director",
+  "mobile": "+34 612 345 781",
+  "phone": "+34 91 555 2480",
+  "fax": null,
+  "email": "jose.alvarez@nubeclara.es",
+  "website": "www.nubeclara.es",
+  "address": "Calle de Alcalá 121, 28009 Madrid, España",
+  "notes": [
+    "Tests Spanish accents and mixed-language title."
+  ]
+}

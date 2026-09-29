@@ -1,0 +1,27 @@
+{
+  "id": "card-025",
+  "purpose": [
+    "French/English",
+    "diacritics",
+    "international"
+  ],
+  "languageProfile": [
+    "fr",
+    "en"
+  ],
+  "name": "Élodie Martin",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Atelier Lumen SAS",
+  "department": null,
+  "jobTitle": "Directrice de produit | Product Director",
+  "mobile": "+33 6 12 34 56 78",
+  "phone": "+33 1 84 80 22 10",
+  "fax": null,
+  "email": "elodie.martin@atelierlumen.fr",
+  "website": "www.atelierlumen.fr",
+  "address": "24 Rue de Lyon, 75012 Paris, France",
+  "notes": [
+    "Tests French accents and mixed French/English title."
+  ]
+}

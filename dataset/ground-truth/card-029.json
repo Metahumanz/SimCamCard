@@ -1,0 +1,26 @@
+{
+  "id": "card-029",
+  "purpose": [
+    "English",
+    "apostrophe",
+    "long address"
+  ],
+  "languageProfile": [
+    "en"
+  ],
+  "name": "Nora O'Connor",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Silverline Risk Advisory",
+  "department": null,
+  "jobTitle": "Vice President, Client Solutions",
+  "mobile": "+1 917 555 0248",
+  "phone": "+1 212 555 0186",
+  "fax": null,
+  "email": "nora.oconnor@silverlinerisk.com",
+  "website": "www.silverlinerisk.com",
+  "address": "375 Lexington Avenue, Floor 18, New York, NY 10017, USA",
+  "notes": [
+    "Tests apostrophe in name and long English address/title."
+  ]
+}

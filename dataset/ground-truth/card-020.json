@@ -1,0 +1,27 @@
+{
+  "id": "card-020",
+  "purpose": [
+    "Chinese",
+    "healthcare",
+    "department classification"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "陈静",
+  "nameLatin": null,
+  "company": "华东第一人民医院",
+  "companyLatin": "East China First People’s Hospital",
+  "department": "心血管内科",
+  "jobTitle": "主任医师",
+  "mobile": "+86 139 8765 4321",
+  "phone": "+86 21 6666 8888",
+  "fax": null,
+  "email": "chenjing@ecfph.cn",
+  "website": null,
+  "address": "上海市静安区延安中路1000号 200040",
+  "notes": [
+    "Tests organization + department + medical job title."
+  ]
+}

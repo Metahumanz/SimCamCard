@@ -1,0 +1,25 @@
+{
+  "id": "card-016",
+  "purpose": [
+    "English-only",
+    "international address"
+  ],
+  "languageProfile": [
+    "en"
+  ],
+  "name": "Michael Chen",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "CloudMatrix Inc.",
+  "department": null,
+  "jobTitle": "Senior Software Engineer",
+  "mobile": "+1 415 555 0199",
+  "phone": null,
+  "fax": null,
+  "email": "mchen@cloudmatrix.com",
+  "website": "www.cloudmatrix.com",
+  "address": "500 Terry A Francois Blvd, San Francisco, CA 94158, USA",
+  "notes": [
+    "English-only card with US-style phone/address."
+  ]
+}

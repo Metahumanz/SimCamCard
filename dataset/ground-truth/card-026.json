@@ -1,0 +1,27 @@
+{
+  "id": "card-026",
+  "purpose": [
+    "Korean/English",
+    "international",
+    "bilingual"
+  ],
+  "languageProfile": [
+    "ko",
+    "en"
+  ],
+  "name": "김서준",
+  "nameLatin": "Seo-jun Kim",
+  "company": "한빛로보틱스 주식회사",
+  "companyLatin": "Hanbit Robotics Co., Ltd.",
+  "department": null,
+  "jobTitle": "제품전략 매니저 | Product Strategy Manager",
+  "mobile": "+82 10 4382 7715",
+  "phone": "+82 2 6123 4400",
+  "fax": null,
+  "email": "seojun.kim@hanbitrobotics.kr",
+  "website": "www.hanbitrobotics.kr",
+  "address": "대한민국 서울특별시 강남구 테헤란로 221, 06142",
+  "notes": [
+    "Tests Hangul plus Latin text and Korean phone/address formatting."
+  ]
+}

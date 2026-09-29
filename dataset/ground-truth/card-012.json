@@ -1,0 +1,21 @@
+{
+  "id": "card-012",
+  "purpose": [
+    "chinese-only",
+    "education"
+  ],
+  "name": "周婷",
+  "nameLatin": null,
+  "company": "成都云桥教育科技有限公司",
+  "companyLatin": null,
+  "jobTitle": "课程产品经理",
+  "mobile": "+86 181 8090 6618",
+  "phone": "+86 28 8611 4490",
+  "fax": null,
+  "email": "ting.zhou@yqedu.cn",
+  "website": "www.yqedu.cn",
+  "address": "中国 成都市高新区天府二街99号 610041",
+  "notes": [
+    "Chinese-only labels and content."
+  ]
+}

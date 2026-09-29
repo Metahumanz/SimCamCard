@@ -1,6 +1,6 @@
 # Reference Environment
 
-Status: Draft — fill remaining TODO values before freezing Week 1.
+Status: Frozen — Week 1 reference environment baseline.
 
 ## Reference Application
 
@@ -39,7 +39,7 @@ For final iOS-specific verification, use a physical iPhone if available for:
 - Xcode version: 27.0
 - Swift version: 6.4
 - Deployment target: iOS 27.0
-- Primary simulator: iPhone 18 pro iOS 27.0
+- Primary simulator: iPhone 18 Pro, iOS 27.0
 
 ## Dataset
 

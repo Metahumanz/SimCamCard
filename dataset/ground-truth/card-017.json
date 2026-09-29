@@ -1,0 +1,27 @@
+{
+  "id": "card-017",
+  "purpose": [
+    "Chinese",
+    "department classification",
+    "multiple phones"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "王强",
+  "nameLatin": null,
+  "company": "招商银行",
+  "companyLatin": "China Merchants Bank",
+  "department": "上海分行 · 零售金融部",
+  "jobTitle": "客户经理",
+  "mobile": "+86 139 1234 5678",
+  "phone": "+86 21 5555 6666",
+  "fax": null,
+  "email": "wangqiang@cmbchina.com",
+  "website": null,
+  "address": "上海市浦东新区陆家嘴环路1088号 200120",
+  "notes": [
+    "Tests department extraction and separation from company/title."
+  ]
+}

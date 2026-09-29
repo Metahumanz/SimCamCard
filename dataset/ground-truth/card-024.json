@@ -1,0 +1,27 @@
+{
+  "id": "card-024",
+  "purpose": [
+    "Chinese",
+    "manufacturing",
+    "multiple phones"
+  ],
+  "languageProfile": [
+    "zh-CN",
+    "en"
+  ],
+  "name": "周磊",
+  "nameLatin": null,
+  "company": "宏远制造有限公司",
+  "companyLatin": "Hongyuan Manufacturing",
+  "department": null,
+  "jobTitle": "销售总监",
+  "mobile": "+86 137 0000 9999",
+  "phone": "+86 21 7777 8888",
+  "fax": null,
+  "email": "zhoulei@hongyuan.com",
+  "website": "www.hongyuan.com",
+  "address": "上海市嘉定区嘉罗公路123号 201800",
+  "notes": [
+    "Tests repeated Chinese numeric fields and clean corporate layout."
+  ]
+}

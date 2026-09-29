@@ -1,0 +1,27 @@
+{
+  "id": "card-019",
+  "purpose": [
+    "Japanese",
+    "non-Latin script",
+    "international"
+  ],
+  "languageProfile": [
+    "ja",
+    "en"
+  ],
+  "name": "佐藤健一",
+  "nameLatin": null,
+  "company": "さくら株式会社",
+  "companyLatin": "Sakura Co., Ltd.",
+  "department": "営業部",
+  "jobTitle": "マネージャー",
+  "mobile": "+81 90 1234 5678",
+  "phone": null,
+  "fax": null,
+  "email": "sato@sakura.co.jp",
+  "website": "www.sakura.co.jp",
+  "address": "東京都千代田区丸の内1-9-1 100-0005",
+  "notes": [
+    "Tests Japanese OCR and mixed-script field parsing."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "card-023",
+  "purpose": [
+    "English-only",
+    "short company name",
+    "executive title"
+  ],
+  "languageProfile": [
+    "en"
+  ],
+  "name": "Emily Johnson",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "NovaAI",
+  "department": null,
+  "jobTitle": "CEO",
+  "mobile": "+1 650 555 0134",
+  "phone": null,
+  "fax": null,
+  "email": "emily@novaai.com",
+  "website": "www.novaai.com",
+  "address": "3200 Hillview Ave, Palo Alto, CA 94304, USA",
+  "notes": [
+    "Tests very short title/company strings."
+  ]
+}

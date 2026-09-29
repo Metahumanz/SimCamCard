@@ -1,0 +1,22 @@
+{
+  "id": "card-008",
+  "purpose": [
+    "dark background",
+    "fax classification",
+    "bilingual"
+  ],
+  "name": "刘洋",
+  "nameLatin": "Yang Liu",
+  "company": "蓝轨物流科技有限公司",
+  "companyLatin": "Blue Orbit Logistics",
+  "jobTitle": "区域发展经理 | Regional Development Manager",
+  "mobile": "+86 139 7008 6611",
+  "phone": "+86 755 2668 4100",
+  "fax": "+86 755 2668 4109",
+  "email": "yang.liu@blueorbitlog.com",
+  "website": "www.blueorbitlog.com",
+  "address": "中国 深圳市南山区科技南十二路6号 518057",
+  "notes": [
+    "Dark background with globe graphic."
+  ]
+}

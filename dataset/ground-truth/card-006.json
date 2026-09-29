@@ -1,0 +1,21 @@
+{
+  "id": "card-006",
+  "purpose": [
+    "minimal fields",
+    "sparse card"
+  ],
+  "name": "Emma Xu",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "Green Aurora Studio",
+  "jobTitle": "Visual Designer",
+  "mobile": "+86 186 0217 4433",
+  "phone": null,
+  "fax": null,
+  "email": "emma.xu@grnaurora.com",
+  "website": null,
+  "address": null,
+  "notes": [
+    "Website and address intentionally absent."
+  ]
+}

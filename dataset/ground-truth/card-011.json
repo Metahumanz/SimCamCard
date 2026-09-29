@@ -1,0 +1,22 @@
+{
+  "id": "card-011",
+  "purpose": [
+    "multiple phones",
+    "fax classification",
+    "bilingual"
+  ],
+  "name": "孙悦",
+  "nameLatin": "Yue Sun",
+  "company": "宁波启辰精工有限公司",
+  "companyLatin": "Ningbo Qichen Precision Co., Ltd.",
+  "jobTitle": "客户成功经理 | Customer Success Manager",
+  "mobile": "+86 158 5740 6621",
+  "phone": "+86 574 8790 3321",
+  "fax": "+86 574 8790 3329",
+  "email": "yue.sun@qichenprecision.com",
+  "website": null,
+  "address": "中国 宁波市鄞州区中山东路1200号 315040",
+  "notes": [
+    "Website intentionally absent."
+  ]
+}

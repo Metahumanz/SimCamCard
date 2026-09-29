@@ -1,0 +1,27 @@
+{
+  "id": "card-027",
+  "purpose": [
+    "Japanese/English",
+    "fax classification",
+    "bilingual"
+  ],
+  "languageProfile": [
+    "ja",
+    "en"
+  ],
+  "name": "高橋 美咲",
+  "nameLatin": "Misaki Takahashi",
+  "company": "青空デザイン株式会社",
+  "companyLatin": "Aozora Design Inc.",
+  "department": null,
+  "jobTitle": "アートディレクター | Art Director",
+  "mobile": "+81 90 2468 1357",
+  "phone": "+81 3 6450 2290",
+  "fax": "+81 3 6450 2299",
+  "email": "misaki.takahashi@aozora-design.jp",
+  "website": "www.aozora-design.jp",
+  "address": "東京都渋谷区神宮前4-18-7 150-0001",
+  "notes": [
+    "Tests Japanese script plus separate mobile, office phone, and fax."
+  ]
+}

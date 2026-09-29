@@ -1,0 +1,21 @@
+{
+  "id": "card-005",
+  "purpose": [
+    "english-only",
+    "baseline clean corporate"
+  ],
+  "name": "Olivia Chen",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": "North Harbor Analytics",
+  "jobTitle": "Senior Data Consultant",
+  "mobile": "+1 (415) 555-0184",
+  "phone": "+1 (415) 555-0147",
+  "fax": null,
+  "email": "olivia.chen@northharbor.ai",
+  "website": "www.northharbor.ai",
+  "address": "88 Market Street, Suite 920, San Francisco, CA 94105",
+  "notes": [
+    "English-only reference card generated synthetically."
+  ]
+}

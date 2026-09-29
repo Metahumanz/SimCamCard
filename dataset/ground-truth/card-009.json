@@ -1,0 +1,21 @@
+{
+  "id": "card-009",
+  "purpose": [
+    "bilingual",
+    "long title"
+  ],
+  "name": "何嘉怡",
+  "nameLatin": "Jiayi He",
+  "company": "广州澜图文旅发展有限公司",
+  "companyLatin": "Guangzhou Lantu Cultural Tourism Development Co., Ltd.",
+  "jobTitle": "品牌合作总监 | Director of Brand Partnerships",
+  "mobile": "+86 188 2506 3114",
+  "phone": "+86 20 3899 7781",
+  "fax": null,
+  "email": "jiayi.he@lantuvision.com",
+  "website": "www.lantuvision.com",
+  "address": "中国 广州市天河区珠江新城华夏路16号 510623",
+  "notes": [
+    "Long company and title strings."
+  ]
+}
