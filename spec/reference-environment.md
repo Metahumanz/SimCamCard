@@ -38,7 +38,7 @@ For final iOS-specific verification, use a physical iPhone if available for:
 - Architecture: MVVM
 - Xcode version: 27.0
 - Swift compiler / toolchain version: 6.4 (Apple Swift version 6.4, swiftlang-6.4.0.34.1)
-- Swift language mode (`SWIFT_VERSION` build setting): 5.0
+- Swift language mode (`SWIFT_VERSION` build setting): 6.0
 - Deployment target: iOS 27.0
 - Primary simulator: iPhone 18 Pro, iOS 27.0
 
