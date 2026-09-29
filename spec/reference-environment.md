@@ -37,14 +37,18 @@ For final iOS-specific verification, use a physical iPhone if available for:
 - UI framework: SwiftUI
 - Architecture: MVVM
 - Xcode version: 27.0
-- Swift version: 6.4
+- Swift compiler / toolchain version: 6.4 (Apple Swift version 6.4, swiftlang-6.4.0.34.1)
+- Swift language mode (`SWIFT_VERSION` build setting): 5.0
 - Deployment target: iOS 27.0
 - Primary simulator: iPhone 18 Pro, iOS 27.0
 
+Note: the Swift compiler/toolchain version (6.4) and the Swift language mode (`SWIFT_VERSION = 5.0` in `SimCamCard.xcodeproj/project.pbxproj`) are distinct. A migration of the project's Swift language mode from 5 to 6 is a separate development decision and was not performed during the Week 1 closeout.
+
 ## Dataset
 
-- Current baseline: 3 synthetic business cards
-- Required final size: approximately 30–50
+- Frozen baseline: 34 synthetic business-card samples, `card-001` through `card-034`
+- 34 Ground Truth records (`card-001.json` through `card-034.json`)
+- 1 separate non-card T20 exception fixture in `dataset/exception-samples/` (not counted as a business-card sample)
 - Cards: `dataset/cards/`
 - Ground Truth: `dataset/ground-truth/`
 

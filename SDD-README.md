@@ -1,51 +1,49 @@
-# SimCamCard SDD Week 1 Package
+# SimCamCard — SDD Work Entry
 
-This package is designed to be merged into:
+SimCamCard follows Specification-Driven Development (SDD). This file is the working entry point for the repository.
 
-`~/codework/SimCamCard/`
+## Current stage
 
-## Installation
+- **Week 1: Frozen** — Week 1 SDD baseline is frozen.
+- Next stage: **Week 2 — Architecture + UI + Data Model**.
 
-From Terminal:
+## Week 1 deliverables (frozen)
 
-```bash
-cd ~/codework/SimCamCard
-unzip -o /path/to/SimCamCard-SDD-Week1.zip
+- Reference environment (`spec/reference-environment.md`)
+- Page inventory (`spec/page-inventory.md`)
+- State inventory (`spec/state-inventory.md`)
+- Data model spec (`spec/data-model.md`)
+- T01–T20 Reference Test Suite (`spec/reference-tests.md`)
+- Black-box evidence (`evidence/screenshots/`, `evidence/image-manifest.md`)
+- 34-card business-card dataset + 34 Ground Truth records (`dataset/`)
+- T20 non-card exception fixture (`dataset/exception-samples/`)
+- AI collaboration rules (`ai/README.md`, `ai/changes.md`)
+
+## Source of truth priority
+
+1. `assignment/` — immutable instructor source. Never modify.
+2. `spec.md` and `spec/` — derived SDD baseline.
+3. `evidence/screenshots/` — immutable black-box observation evidence.
+4. `dataset/` — frozen test cards and Ground Truth.
+
+## SDD workflow
+
+```
+Specification
+  → Architecture
+  → Implementation
+  → Test
+  → Difference Analysis
+  → Revision
+  → Regression
 ```
 
-Or unzip it in Finder and copy the package contents into the project root.
+## Implementation conflict rule
 
-Expected result:
+When implementation behavior conflicts with a confirmed (frozen) specification, **fix the implementation, not the specification**. The frozen spec is not edited to accommodate code convenience.
 
-```text
-SimCamCard/
-├── assignment/              # keep your existing instructor files
-├── spec.md
-├── spec/
-├── evidence/
-├── dataset/
-├── ai/
-├── SimCamCard.xcodeproj
-├── SimCamCard/
-├── SimCamCardTests/
-└── SimCamCardUITests/
-```
+## Do not
 
-## Do not move the package into `assignment/`
-
-`assignment/` is the immutable instructor source.
-
-The files in this package are your derived SDD artifacts.
-
-## Next actions
-
-1. Fill TODO values in `spec/reference-environment.md`.
-2. Keep current screenshot names unchanged.
-3. Complete the remaining observation gaps in `spec/reference-tests.md`:
-   - T18 persistence;
-   - successful T19 export;
-   - remaining T20 exception cases;
-   - group/tag deletion.
-4. Expand dataset from 3 cards to approximately 30–50.
-5. Freeze Week 1.
-6. Commit the SDD baseline before Week 2 implementation.
+- Do not move SDD artifacts into `assignment/` — `assignment/` is the immutable instructor source.
+- Do not silently edit frozen evidence, dataset images, or Ground Truth business fields.
+- Do not begin Week 2 implementation work inside the Week 1 baseline freeze.

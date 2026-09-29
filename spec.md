@@ -1,7 +1,7 @@
 # SimCamCard Specification
 
-Version: 0.1  
-Status: Week 1 Draft / Black-Box Observation Baseline  
+Version: 0.1
+Status: Frozen — Week 1 SDD Baseline
 Reference observation date: 2026-09-28
 
 ## 1. Purpose
@@ -145,19 +145,20 @@ See:
 
 ## 11. Test Dataset
 
-Current synthetic baseline:
+Frozen Week 1 baseline:
 
-- Card 001 — standard bilingual card
-- Card 002 — missing website
-- Card 003 — mobile + office + fax
+- 34 synthetic business-card samples, `card-001` through `card-034`, located in `dataset/cards/`.
+- 34 Ground Truth records (`card-001.json` through `card-034.json`) located in `dataset/ground-truth/`.
+- A separate non-card T20 exception fixture (`dataset/exception-samples/`) is **not** counted as a business-card sample and is used only for T20 exception behavior.
 
-These are only the first three cards. The final evaluation dataset must be expanded to approximately 30–50 cards and frozen before final OCR evaluation.
+Dataset index and consolidated Ground Truth for the back 30 cards are available as `dataset/card-index-005-034.csv` and `dataset/ground-truth-005-034.jsonl`; `card-001` through `card-004` retain individual JSON files.
 
-## 12. Open Items Before Week 1 Freeze
+## 12. Known Follow-up / Future Verification
 
-- Confirm and record exact CamCard version.
-- Confirm host macOS version and future physical-iPhone verification environment.
-- Expand dataset to 30–50 cards.
-- Add Ground Truth for every test card.
-- Continue regression coverage for T20 cancel/back/retake/permission-recovery paths. The fixed empty-field and non-card samples are now observed.
-- Verify detailed search behavior for job title, phone, and email if required by the final instructor test suite.
+These items are future implementation or acceptance verification work and do not affect the Week 1 freeze:
+
+- T03 full allow/deny implementation regression (including denial recovery).
+- T07 raw OCR text preservation — must be verified after SimCamCard OCR implementation.
+- T15 search by job title, phone, and email (black-box evidence directly verifies only name and company).
+- T20 explicit cancel / back / retake / permission-recovery regression paths.
+- Physical-iPhone-specific native behavior verification (camera, iOS permission presentation, safe areas, native Contacts export, external phone/mail/web actions).
