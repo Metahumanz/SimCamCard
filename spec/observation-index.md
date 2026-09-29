@@ -51,13 +51,21 @@ All copied screenshots are evidence only. A screenshot does not automatically me
 - `REF-group-03-assigned.png`
 - `REF-group-04-list.png`
 - `REF-group-05-filtered-list.png`
+- `REF-group-06-delete-confirmation.png`
+- `REF-group-07-after-delete-empty.png`
 
 ### Notes
 - `REF-notes-01-page.png`
 
+### Persistence
+- `REF-persistence-01-after-relaunch.png` — post-relaunch state; user confirmed the app was fully quit and reopened before this verification.
+
 ### Export / Contacts
 - `REF-export-01-contacts-permission.png`
 - `REF-export-02-permission-denied.png`
+- `REF-export-03-contact-destination.png`
+- `REF-export-04-contacts-app-summary.png`
+- `REF-export-05-contacts-app-fields.png`
 
 ### Delete
 - `REF-delete-01-confirmation.png`
@@ -79,3 +87,7 @@ The following observation categories were not copied into the final evidence set
 - standalone “Add Card” page containing out-of-scope import/contact/radar options.
 
 If the instructor later explicitly adds one of these to the required scope, restore/re-observe it and add a new evidence file rather than silently changing this baseline.
+
+### Exception Handling
+- `REF-exception-01-minimal-card-empty-fields.png` — only name + mobile recognized; all absent fields remain empty.
+- `REF-exception-02-non-card-empty-result.png` — valid non-card image reaches Edit Card with empty recognition result; no fabricated contact data.

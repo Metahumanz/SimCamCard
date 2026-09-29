@@ -36,9 +36,18 @@ This manifest lists every image intentionally retained in the Week 1 package.
 - `REF-scanner-02-card-detected.png`
 - `REF-search-01-by-name.png`
 - `REF-search-02-by-company.png`
+- `REF-export-03-contact-destination.png`
+- `REF-export-04-contacts-app-summary.png`
+- `REF-export-05-contacts-app-fields.png`
+- `REF-group-06-delete-confirmation.png`
+- `REF-group-07-after-delete-empty.png`
+- `REF-persistence-01-after-relaunch.png`
+- `REF-exception-01-minimal-card-empty-fields.png`
+- `REF-exception-02-non-card-empty-result.png`
 
 ## Dataset cards
 
 - `card-001-standard-bilingual.png`
 - `card-002-missing-website.png`
 - `card-003-multiple-phones-fax.png`
+- `card-004-minimal-name-mobile.png`

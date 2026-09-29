@@ -38,8 +38,8 @@ For final iOS-specific verification, use a physical iPhone if available for:
 - Architecture: MVVM
 - Xcode version: 27.0
 - Swift version: 6.4
-- Deployment target: iOS27.0
-- Primary simulator: **TODO**
+- Deployment target: iOS 27.0
+- Primary simulator: iPhone 18 pro iOS 27.0
 
 ## Dataset
 

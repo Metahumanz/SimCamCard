@@ -50,8 +50,8 @@ Evidence: `REF-scanner-02-card-detected.png`, `REF-crop-01-manual-adjust.png`
 
 - `processing`
 - `structuredResultAvailable`
-- `recognitionFailed` — **not yet observed**
-- `missingFields`
+- `nonCardEmptyResult` — valid non-card image produced an empty editable recognition result; no dedicated failure dialog was observed
+- `missingFields` — observed with Card 004; absent fields remain empty
 - `multiplePhoneFields`
 - `manualEditing`
 - `cancelled`
@@ -75,7 +75,7 @@ Evidence: `REF-save-*`, `REF-detail-*`, `REF-delete-*`
 - `creatingGroup`
 - `assigned`
 - `groupFiltered`
-- `groupDeleted` — **not yet observed**
+- `groupDeleted`
 
 Evidence: `REF-group-*`
 
@@ -90,15 +90,15 @@ Evidence: `REF-notes-01-page.png`
 
 - `contactsPermissionUnknown`
 - `contactsPermissionDenied`
-- `contactsPermissionAllowed` — **not yet observed**
-- `exportSucceeded` — **not yet observed**
+- `contactsPermissionAllowed`
+- `exportSucceeded`
 
 Evidence: `REF-export-*`
 
 ## S10 Persistence
 
 - `savedBeforeQuit`
-- `restoredAfterRelaunch` — **not yet observed**
+- `restoredAfterRelaunch`
 
 Required preserved state after relaunch:
 - original image;

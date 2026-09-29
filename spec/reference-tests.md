@@ -22,11 +22,11 @@ Status values:
 | T13 | Detail | Observed | Saved structured fields are visible in detail view. | `REF-detail-01-collapsed.png`, `REF-detail-03-after-edit-expanded.png` |
 | T14 | Edit | Observed | Edited title is reflected in stored/detail data. | `REF-edit-02-after-title-change.png`, `REF-detail-03-after-edit-expanded.png` |
 | T15 | Search | Observed for name/company | Search by name and company returns the card. Implementation must also support fields required by assignment detail spec. | `REF-search-01-by-name.png`, `REF-search-02-by-company.png` |
-| T16 | Tag / Group | Partial | Create group, assign card, view filtered group. Group deletion still needs observation. | `REF-group-*` |
+| T16 | Tag / Group | Observed | Create group, assign card, view filtered group, then delete the group without deleting the cards. | `REF-group-*` |
 | T17 | Delete | Observed | Confirmation precedes delete; card disappears afterward. | `REF-delete-01-confirmation.png`, `REF-card-holder-01-empty.png` |
-| T18 | Persistence | Pending | Kill app → relaunch → image/corrections/group/notes remain. | — |
-| T19 | Export | Partial | At least Contacts or VCF must succeed with correct field mapping. Permission denial is observed; success is not. | `REF-export-*` |
-| T20 | Exception Handling | Partial | Cancel/back/permission denial/recognition failure/empty fields must be safe and spec-compliant. Recognition failure + empty-field cases pending. | Permission evidence + normal navigation evidence |
+| T18 | Persistence | Observed | After a full quit and relaunch, the saved card and retained edited data remain available. The termination action itself has no useful screenshot; the post-relaunch state is preserved as evidence. | `REF-persistence-01-after-relaunch.png` |
+| T19 | Export | Observed | Saving to system Contacts succeeds and the exported contact contains the recognized name/company/title/phone/email/address fields. | `REF-export-*` |
+| T20 | Exception Handling | Observed for key negative inputs | Permission denial is observed. A minimal card preserves only present fields. A valid non-card image enters the edit-card screen with an empty recognition result rather than fabricating contact data. Explicit cancel/retake/back paths remain covered by the normal navigation specification and should be regression-tested. | `REF-exception-*`, permission evidence |
 
 ## Additional detailed checks
 
@@ -56,11 +56,13 @@ Current black-box evidence directly verifies only name and company.
 Required final workflow:
 Create → Assign → View by Group/Tag → Delete Group/Tag.
 
-Delete is still a reference-observation gap.
+Deletion is observed: deleting a group removes the group while the business cards remain in the Card Holder.
 
 ### T18 Persistence
 
-Must preserve:
+Observed through a full quit and relaunch. The app reopened with the saved card and retained edited/grouped data still available. There is no meaningful screenshot of the kill action itself; the authoritative evidence is the post-relaunch state plus the recorded human observation.
+
+The SimCamCard acceptance test must preserve:
 - original image;
 - processed image;
 - corrected fields;
@@ -69,11 +71,9 @@ Must preserve:
 
 ### T19 Export
 
-At least one:
-- save to Contacts;
-- export VCF/vCard.
+Reference behavior is now observed for saving to system Contacts.
 
-Verify mapping:
+Evidence verifies successful contact creation and visible exported fields. The SimCamCard test must verify mapping for:
 - name;
 - company;
 - job title;
@@ -81,9 +81,27 @@ Verify mapping:
 - email;
 - address.
 
-### T20 Exceptions still to capture
+### T20 Exceptions
 
-- recognition failure / non-card image;
-- empty-field card;
-- explicit cancel/retake paths;
-- permission denial recovery.
+Observed fixed negative samples:
+
+1. **Card 004 — Minimal card**
+   - Source contains only name + mobile.
+   - CamCard extracts only those two fields.
+   - Company, title, email, website, address, etc. remain empty.
+   - SimCamCard must not fabricate missing data.
+
+2. **Negative 001 — Non-card image**
+   - Input is a valid landscape photo, not a business card.
+   - CamCard 8.63.1 does **not** show a dedicated recognition-failure error in the observed path.
+   - It enters the Edit Card screen with an empty recognition result.
+   - SimCamCard must preserve this reference behavior unless the instructor's final test suite specifies a different error state.
+
+Permission denial is also already observed.
+
+Continue to regression-test:
+- explicit cancel;
+- back navigation;
+- retake;
+- denial recovery;
+- exit midway through the workflow.

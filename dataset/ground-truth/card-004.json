@@ -1,0 +1,23 @@
+{
+  "id": "card-004",
+  "purpose": [
+    "T20 empty fields",
+    "minimal business card"
+  ],
+  "name": "张伟",
+  "nameLatin": null,
+  "company": null,
+  "companyLatin": null,
+  "jobTitle": null,
+  "mobile": "+86 138 0013 8000",
+  "phone": null,
+  "fax": null,
+  "email": null,
+  "website": null,
+  "address": null,
+  "notes": [
+    "Only name and mobile are present in the source image.",
+    "All other structured fields must remain empty / nil.",
+    "Reference CamCard 8.63.1 produced exactly a name and mobile field in the observed result."
+  ]
+}

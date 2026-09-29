@@ -1,0 +1,14 @@
+{
+  "id": "t20-negative-001",
+  "inputType": "valid image but not a business card",
+  "source": "landscape photo",
+  "referenceVersion": "CamCard 8.63.1",
+  "observedBehavior": {
+    "recognitionErrorDialog": false,
+    "enteredEditCardScreen": true,
+    "name": null,
+    "structuredContactFields": "empty",
+    "userCanReturnOrRetake": true
+  },
+  "importantNote": "In this reference version, a non-card image did not produce an explicit recognition-failure error. It entered the edit-card screen with empty recognition result. SimCamCard should reproduce the instructor-defined/reference behavior rather than invent a different error UI."
+}

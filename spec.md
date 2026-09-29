@@ -159,8 +159,5 @@ These are only the first three cards. The final evaluation dataset must be expan
 - Confirm host macOS version and future physical-iPhone verification environment.
 - Expand dataset to 30–50 cards.
 - Add Ground Truth for every test card.
-- Observe T18 persistence after full quit/relaunch.
-- Complete T19 successful Contacts/VCF export mapping.
-- Complete T20 recognition-failure and empty-field exception cases.
-- Observe group/tag deletion behavior.
+- Continue regression coverage for T20 cancel/back/retake/permission-recovery paths. The fixed empty-field and non-card samples are now observed.
 - Verify detailed search behavior for job title, phone, and email if required by the final instructor test suite.
