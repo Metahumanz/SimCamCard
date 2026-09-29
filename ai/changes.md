@@ -245,3 +245,132 @@ The Required invariant is now enforced at compile time: `BusinessCard` cannot be
 
 ### Human Decision
 Accepted — 2026-09-29 (human review).
+
+## 2026-09-29 — Week 2 Increment 2: Repository abstraction + In-memory Repository
+
+### Task
+Introduce the BusinessCardRepository data-access protocol and a Week 2-only in-memory implementation, so later ViewModels depend on the abstraction rather than concrete storage.
+
+### Context Provided
+- `spec/data-model.md` (§BusinessCard stable id; §Persistence rule)
+- `spec/reference-tests.md` (T12 Save, T17 Delete, T18 Persistence)
+- `spec/state-inventory.md` S01 Card Holder (empty / populated, immediate list update after save/delete)
+- `ai/README.md`
+- Increment 1 accepted Domain Model (`SimCamCard/Model/*`)
+
+### Constraints
+- Swift 6 concurrency-safe; `actor` implementation; no mutable class, no locks, no `@unchecked Sendable`.
+- Do NOT modify the Domain Model, ViewModel, View, Navigation, App root, `ContentView.swift`, Mock runtime injection, Camera/OCR, any persistence (SwiftData/Core Data/SQLite/files), Contacts export, UI Tests, frozen spec, or `project.pbxproj`.
+- Do NOT pre-design DTOs, Codable schemas, migrations, disk paths, or a persistence protocol hierarchy for Week 5.
+
+### AI Changes
+New files (3; auto-registered via filesystem-synchronized groups, no pbxproj edit):
+- `SimCamCard/Repository/BusinessCardRepository.swift` — `nonisolated protocol BusinessCardRepository: Sendable` with `allCards() async -> [BusinessCard]`, `card(id:) async -> BusinessCard?`, `save(_:) async`, `delete(id:) async`.
+- `SimCamCard/Repository/InMemoryBusinessCardRepository.swift` — `actor InMemoryBusinessCardRepository: BusinessCardRepository`; `init(initialCards: [BusinessCard] = [])`; `[BusinessCard]` storage; insert-or-replace by id (never duplicated); delete is a safe no-op for absent ids. (Internal array/positioning is an implementation detail, not a contract — see correction below.)
+- `SimCamCardTests/Repository/InMemoryBusinessCardRepositoryTests.swift` — 10 Swift Testing async cases.
+
+### Design decisions
+1. **`nonisolated protocol`**: App target defaults to `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; without `nonisolated` the protocol would be MainActor-isolated and the `actor` could not conform. All requirements are `async`, allowing actor-isolated witnesses and future persistence implementations.
+2. **`actor` storage**: serialized mutable state, automatic `Sendable`; actor-isolated sync methods witness the protocol's nonisolated async requirements.
+3. **Array, not dictionary**: Week 2 card counts are small; an array is sufficient and no product sort rule is introduced (the frozen spec defines no order). id uniqueness is enforced via `firstIndex` upsert. Array order is an in-memory implementation detail, not a Repository contract (see correction below).
+4. **No field mutation on save**: repository stores entities verbatim and never rewrites `updatedAt`; timestamp maintenance is a future business-layer responsibility.
+5. **`delete` returns Void, no throws**: frozen spec defines no error for deleting an absent card.
+
+### Verification
+- `xcodebuild -only-testing:SimCamCardTests test` (iPhone 18 Pro / iOS 27.0): **TEST SUCCEEDED**. 30 cases passed — 10 new `InMemoryBusinessCardRepositoryTests` + 14 `BusinessCardTests` + 5 `PhoneNumberTests` + 1 pre-existing placeholder. Increment 1 regression fully green.
+- `grep "^import" SimCamCard/Repository/*.swift`: only `import Foundation` (no SwiftUI/UIKit).
+- `git status`: only new `SimCamCard/Repository/` and `SimCamCardTests/Repository/` directories; no existing file changed except this log.
+
+### Semantics verified by tests
+- Empty default repository; deterministic initializer injection returns the seed card set (membership only).
+- Duplicate seed ids collapse into one unique id (later value wins, no duplicate).
+- `save` inserts new / replaces existing id / stores entity verbatim (incl. unchanged `updatedAt`).
+- `delete` removes existing / no-ops on absent id.
+- Interleaved save/delete sequence converges to the expected member set; concurrent saves of distinct ids from a task group are all retained (actor serialization).
+- Tests assert set membership and id-based lookup only; no ordering is frozen (see correction below).
+
+### Reference test traceability (scope)
+- **T12 Save: repository-level prerequisite/support only.** Increment 2 provides the save storage semantics; the full T12 UI behavior ("new card immediately appears in holder") requires ViewModel + View and is verified in a later increment. Increment 2 does NOT claim T12 passed.
+- **T17 Delete: repository-level prerequisite/support only.** Increment 2 provides the delete storage semantics; the full T17 UI behavior ("card disappears afterward", incl. confirmation) requires ViewModel + View. Increment 2 does NOT claim T17 passed.
+- T18 Persistence intentionally not implemented: in-memory data is lost on termination, as expected for Week 2.
+
+### Specification clarifications (recorded, not blocking)
+1. `allCards()` order: frozen spec defines none — ordering is NOT part of the Repository contract; insertion order/position is a current in-memory implementation detail only (see correction below).
+2. Save does not auto-advance `updatedAt` — repository is storage only.
+
+### Regression
+- All Increment 1 unit tests pass unchanged. Domain Model untouched. UI tests not run (out of Increment 2 scope).
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
+
+## 2026-09-29 — Week 2 Increment 2 correction: unfreeze ordering + fix T12/T17 traceability
+
+### Task
+SDD consistency corrections before final Accept of Increment 2:
+1. Do not freeze unspecified ordering — the frozen spec defines no order for `allCards()`; tests must not make insertion order / update position / duplicate-seed position part of the Repository contract.
+2. Fix reference-test traceability — Repository alone does not complete T12/T17 UI behavior; mark both as repository-level prerequisite/support only.
+3. Run an independent standalone build acceptance, then re-run unit tests.
+
+### Files changed (allowed set only)
+- `SimCamCardTests/Repository/InMemoryBusinessCardRepositoryTests.swift` — assertions rewritten to set membership + id-based lookup.
+- `SimCamCard/Repository/InMemoryBusinessCardRepository.swift` — doc comments only (storage/init/save) clarifying insertion order/position is a CURRENT IN-MEMORY IMPLEMENTATION DETAIL, not a protocol guarantee.
+- `ai/changes.md` — this record; Increment 2 entry wording corrected.
+Repository API, Domain Model, other layers, and `project.pbxproj` untouched.
+
+### Test corrections
+- `initializerInjectionReturnsSeedCards`: asserts seed set membership (`Set(ids)`) and per-id lookup; no order.
+- `duplicateSeedIdsCollapse`: asserts id uniqueness, single record per id, latest value retrievable by id; no array position.
+- `saveExistingIdReplacesWithoutDuplicate`: asserts count unchanged, unique ids, id lookup returns the new entity; position assertion removed.
+- `interleavedSavesAndDeletes`: asserts final member set + entity content + absence of deleted ids; no order.
+- `concurrentSavesAllPersist` (renamed from `...AreSerialized`): asserts all writes present; task execution order not assumed.
+- `deleteExistingCardRemoves` / `deleteAbsentIdIsNoOp` / `saveNewCardInserts`: set-based membership.
+- File header documents: ordering is not a contract; T12/T17 are repository-level prerequisites only.
+
+### Traceability correction
+- T12 Save → **repository-level prerequisite/support only**; "new card immediately appears in holder" awaits ViewModel + View.
+- T17 Delete → **repository-level prerequisite/support only**; "card disappears afterward" (incl. confirmation) awaits ViewModel + View.
+- Increment 2 must not claim T12/T17 passed.
+
+### Verification
+- Standalone `xcodebuild ... build` (iPhone 18 Pro / iOS 27.0): **BUILD SUCCEEDED** (only a benign AppIntents metadata note).
+- `xcodebuild -only-testing:SimCamCardTests test`: **TEST SUCCEEDED**. 30 cases passed — 10 `InMemoryBusinessCardRepositoryTests` + 14 `BusinessCardTests` + 5 `PhoneNumberTests` + 1 placeholder. Increment 1 regression green.
+- Repository files still `import Foundation` only (no SwiftUI/UIKit).
+- `git status`: no `project.pbxproj` modification; only the two new Repository directories plus this log.
+
+### Human Decision
+Accepted — 2026-09-29 (human review) — correction applied before final Accept of Increment 2.
+
+## 2026-09-29 — Week 2 Increment 2 final calibration: remove residual ordering assertions
+
+### Task
+Final ordering-unfreeze cleanup in the Repository test file (test file + this log only; Repository API and implementation logic untouched):
+1. The update test still compared ids as an ordered list — remove the residual position guarantee.
+2. Duplicate-initial-id first-wins/last-wins is unspecified by the frozen spec — delete that test rather than encode an unspecified behavior.
+3. Exhaustively confirm no positional/ordering assertions remain.
+
+### Files changed
+- `SimCamCardTests/Repository/InMemoryBusinessCardRepositoryTests.swift`
+- `ai/changes.md` (this record)
+
+### Changes
+- `saveExistingIdReplacesWithoutDuplicate`: id comparison is now fully order-independent —
+  `#expect(Set(ids) == Set([first.id, target.id, third.id]))`, plus `ids.count == 3` and
+  `Set(ids).count == ids.count` (id uniqueness) and `await repo.card(id: target.id) == updated`.
+  No update-position retention is asserted.
+- DELETED `duplicateSeedIdsCollapse`: the frozen spec defines neither first-wins nor last-wins
+  for repeated seed ids. A comment documents why it is absent; post-`save` id uniqueness remains
+  covered by the update test.
+- Full-file scan confirms no remaining `cards[n]` indexing, no `.first`/`.last` ordering use, no
+  ordered `map(\.id) == [...]` comparisons (all 6 array-literal comparisons are `Set`-wrapped),
+  no update-position or concurrent-execution-order assertions. Remaining "order" occurrences are
+  comments/test names that explicitly disavow ordering.
+
+### Verification
+- `xcodebuild -only-testing:SimCamCardTests test` (iPhone 18 Pro / iOS 27.0): **TEST SUCCEEDED**.
+  29 cases passed — 9 `InMemoryBusinessCardRepositoryTests` (was 10; duplicate-seed test deleted)
+  + 14 `BusinessCardTests` + 5 `PhoneNumberTests` + 1 placeholder. Increment 1 regression green.
+- Repository API and implementation logic unchanged; `project.pbxproj` unchanged.
+
+### Human Decision
+Accepted — 2026-09-29 (human review) — final calibration; Increment 2 Accepted.
