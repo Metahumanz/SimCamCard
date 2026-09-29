@@ -1,0 +1,23 @@
+{
+  "id": "card-003",
+  "purpose": [
+    "multiple phones",
+    "fax classification",
+    "T10"
+  ],
+  "name": "陈晨",
+  "nameLatin": "Chen Chen",
+  "company": "上海智云科技有限公司",
+  "companyLatin": "Shanghai Zhiyun Tech Co., Ltd.",
+  "jobTitle": "商务拓展经理 | Business Development Manager",
+  "mobile": "+86 136 8888 1024",
+  "phone": "+86 21 5666 7788",
+  "fax": "+86 21 5666 7799",
+  "email": "chen.chen@zhiyuntech.com",
+  "website": "www.zhiyuntech.com",
+  "address": "上海市徐汇区漕溪北路398号 200030",
+  "notes": [
+    "Used to verify Mobile / Office / Fax classification.",
+    "Reference CamCard observation also showed an erroneous extra field near the address area; retain for error analysis."
+  ]
+}

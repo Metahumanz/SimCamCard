@@ -1,0 +1,22 @@
+{
+  "id": "card-002",
+  "purpose": [
+    "missing field",
+    "T09 no fabrication"
+  ],
+  "name": "李娜",
+  "nameLatin": "Lina Li",
+  "company": "上海智云科技有限公司",
+  "companyLatin": "Shanghai Zhiyun Tech Co., Ltd.",
+  "jobTitle": "市场总监 | Marketing Director",
+  "mobile": "+86 139 1234 5678",
+  "phone": "+86 21 6888 2468",
+  "fax": null,
+  "email": "lina.li@zhiyuntech.com",
+  "website": null,
+  "address": "上海市浦东新区世纪大道188号 200120",
+  "notes": [
+    "Website is intentionally absent. Parser must not fabricate one.",
+    "Reference CamCard observation produced an incorrect email-like OCR result; keep this as an error-analysis case."
+  ]
+}
