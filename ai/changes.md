@@ -578,3 +578,130 @@ No Domain Model, Repository, frozen spec, or `project.pbxproj` changes.
 
 ### Human Decision
 Accepted — 2026-09-29 (human review).
+
+## 2026-09-29 — Week 2 Increment 4: Deterministic Mock Data + Populated Card Holder + SwiftUI Previews
+
+### Task
+Establish deterministic mock fixtures, implement Card Holder S01 populated state, and add formal SwiftUI Previews — without changing the normal empty-repository launch behavior. Covers S01 empty + populated in the same `CardHolderView`.
+
+### Context Provided
+- `spec/page-inventory.md` P01 Card Holder (list / empty state / search / scan entry)
+- `spec/state-inventory.md` S01 populated (one or more cards shown; list updates immediately after save/delete)
+- `spec/reference-tests.md` T01 Empty Holder / T12 Save (card appears immediately after save — Repository → ViewModel → View path)
+- `spec/observation-index.md` REF-card-holder-02-after-save.png
+- `evidence/screenshots/REF-card-holder-02-after-save.png`
+- `spec/data-model.md` §BusinessCard minimum field table, §Multi-value observation, §Missing-field rule, §OCR Pipeline Data
+- `dataset/ground-truth/card-001.json` (full bilingual), `card-002.json` (missing website), `card-004.json` (minimal)
+- Increment 1 Domain Model, Increment 2 Repository, Increment 3 CardHolderViewModel + Empty Card Holder
+- `ai/README.md`
+
+### Constraints
+- MockBusinessCards: DEBUG / Preview / UI-test only. NOT Release / default runtime data. Fixed UUIDs, Dates, image reference tokens. No `Date.now` / `UUID()` / random content.
+- Normal `app.launch()` stays empty. Mock injected only via launch argument.
+- Previews: both `#Preview("Empty Card Holder")` and `#Preview("Populated Card Holder")` with `NavigationStack`. Populated Preview uses Repository → ViewModel real data path, not hardcoded `[BusinessCard]` in View. `.task` for async `loadCards()`, no fake ViewModel initializer.
+- Card row accessibility: `card-row-<UUID>` stable identifier. UI tests verify membership, not row position.
+- Repository contract defines no order — UI tests verify set membership, not `allCards()` return order.
+- Do NOT modify: Domain Model, Repository protocol, InMemory Repository semantics, frozen spec, `project.pbxproj`.
+- Do NOT implement: T02 Scanner nav, T13 Detail nav, T15 Search, T16 Group, Delete UI, Persistence, OCR/Camera, Contacts export, full Card Holder UI redesign, default mock injection.
+
+### AI Changes
+
+New files (5; auto-registered via filesystem-synchronized groups, no pbxproj edit):
+- `SimCamCard/View/PreviewSupport/MockBusinessCards.swift` — `#if DEBUG`-wrapped deterministic fixtures. 3 representative cards from `dataset/ground-truth/`: `card001` (full bilingual, multi-phone), `card002` (T09 missing-website), `card004` (T20 minimal — name + mobile only). Fixed UUIDs (`00000000-0000-0000-0000-000000000001/002/004`), fixed `Date(timeIntervalSince1970: 1735689600)`, fixed image ref tokens (`mock-card-001-original` etc.). API: `MockBusinessCards.all` (3 cards), `MockBusinessCards.single` (1 card).
+- `SimCamCard/View/PreviewSupport/SimCamCardFixture.swift` — launch-argument parser. `-SimCamCardFixture populated` → `MockBusinessCards.all`; `-SimCamCardFixture single` → `MockBusinessCards.single`. `#if DEBUG` branch reads `ProcessInfo.processInfo.arguments`; `#else` stub returns `[]` (no mock references in Release).
+- `SimCamCard/View/CardHolder/BusinessCardRow.swift` — row subview. `VStack(alignment: .leading)` with `Text(card.name ?? "未命名").font(.body.weight(.semibold))` + secondary line `[card.jobTitle, card.company].compactMap { $0 }.joined(separator: " · ")`. Secondary line omitted entirely when both nil (Card 004). 3 `#Preview` blocks for individual row variants.
+- `SimCamCardUITests/CardHolderPopulatedUITests.swift` — S01 populated-state UI test (NOT a T12 Save test — T12 remains unimplemented). Launches with `-SimCamCardFixture populated`; verifies: root exists, empty state absent, each of the three fixed `card-row-<UUID>` identifiers exists (membership), fixture-visible texts exist (names + secondary lines), no Detail/Scan navigation. No accessibility-node count assertions — 3 cards were observed to produce 5 matching elements in the SwiftUI accessibility tree, so node count is not a stable contract. No row-position assertions.
+- `ai/validation/2026-09-29-increment4-populated-holder.png` — populated validation screenshot.
+
+Modified files (4):
+- `SimCamCard/App/SimCamCardApp.swift` — `@State viewModel` now seeds `InMemoryBusinessCardRepository(initialCards: SimCamCardFixture.initialCards())`. Normal launch: `SimCamCardFixture.initialCards()` returns `[]` → empty repository. DEBUG UI tests opt in via launch argument. Release `#else` stub always returns `[]`.
+- `SimCamCard/View/CardHolder/CardHolderView.swift` — populated state upgraded from `Text(card.name ?? "未命名")` to `List(viewModel.cards) { card in BusinessCardRow(card: card).accessibilityIdentifier("card-row-\(card.id.uuidString)") }`. Added `#Preview("Empty Card Holder")` and `#Preview("Populated Card Holder")` — both with `NavigationStack`; Populated Preview uses Repository + ViewModel real data path + `.task { await viewModel.loadCards() }`.
+- `SimCamCardTests/ViewModel/CardHolderViewModelTests.swift` — added 1 `#if DEBUG`-wrapped case: `loadCardsWithMockBusinessCardsFixtureReturnsExpectedMembership` verifies membership via `Set` comparison, no order assertion. Total: 7 `CardHolderViewModelTests` cases.
+- `SimCamCardUITests/CardHolderEmptyUITests.swift` — replaced `app.cells.count == 0` with `card-row-*` absence via `NSPredicate(format: "identifier BEGINSWITH %@", "card-row-")`. Long-term contract per Increment 4 brief — does not depend on XCTest cell-count proxy.
+
+No existing Domain Model, Repository, frozen spec, or `project.pbxproj` changes.
+
+### Design decisions
+1. **`#if DEBUG` guard on MockBusinessCards + SimCamCardFixture**: mock fixtures are compiled out of Release builds entirely. Release `SimCamCardFixture.initialCards()` is a hardcoded `[]` stub with zero references to `MockBusinessCards`. Mock fixtures never become default runtime data.
+2. **Launch-argument pattern (`-SimCamCardFixture <mode>`)**: follows XCTest launch-argument convention. The `-` prefix prevents the value from being interpreted as a URL scheme. Normal `app.launch()` (no argument) → empty repository; `app.launchArguments = ["-SimCamCardFixture", "populated"]` → seeded repository.
+3. **`BusinessCardRow` subview**: multi-line row content (Name + Title · Company) is non-trivial to inline in `List`; the subview is reusable across `CardHolderView` and individual Previews. The secondary line is omitted entirely when both `jobTitle` and `company` are nil (Card 004 minimal).
+4. **Populated Preview uses real Repository + ViewModel path**: `let viewModel = CardHolderViewModel(repository: InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all))` + `.task { await viewModel.loadCards() }`. No fake ViewModel initializer; no hardcoded `[BusinessCard]` in View. The Preview exercises the same data path as production code.
+5. **Card row accessibility `card-row-<UUID>`**: stable per-card identifier. T01 empty test asserts NO `card-row-*` exists via `NSPredicate` (replaces `app.cells.count` proxy). Populated test asserts each UUID's row exists (membership, not position).
+6. **No accessibility-node count assertions (final calibration)**: SwiftUI's `List` accessibility element hierarchy may produce multiple matching elements per row — 3 business cards were observed to produce 5 matching `card-row-*` elements (cell wrapper + row content). Per human-review calibration, ALL count-based assertions (including `XCTAssertGreaterThanOrEqual(matches.count, 3)`) were removed from the populated UI test. Membership is verified by per-UUID existence checks only; visible-text verification uses existence checks only. Accessibility-node count is explicitly NOT a stable contract.
+7. **UI test text verification uses existence checks**: `descendants(matching: .any)[rowID].staticTexts[...]` does not reliably expose `staticTexts` as children of an element identified by `.accessibilityIdentifier`. The test uses global `app.staticTexts[...].exists` existence queries for each fixture-visible text (names "张伟"/"李娜" and both secondary lines "产品总监 | Product Director · 上海智云科技有限公司" / "市场总监 | Marketing Director · 上海智云科技有限公司"). Existence, not count.
+
+### UI evidence → View element mapping (REF-card-holder-02-after-save.png)
+
+| Reference element | SimCamCard | Status |
+|---|---|---|
+| Search bar | NOT shown | In-scope, deferred (per Increment 3 correction) |
+| Quick Action Grid (4 cards) | NOT shown | Group Mgmt = in scope, deferred; Contact Map/Analytics = excluded |
+| "名片 (1张)" section header with count | NOT shown | Application-owned UI gap — Week 2 scaffold |
+| Card thumbnail | NOT shown | Domain Model has String reference tokens only; real image loading deferred |
+| Card Name (bold) | `Text(card.name ?? "未命名").font(.body.weight(.semibold))` | Implemented (evidence-supported) |
+| Card Title · Company (secondary) | `Text([jobTitle, company].compactMap { $0 }.joined(separator: " · "))` | Implemented (evidence-supported) |
+| Three-dot per-row menu | NOT shown | Per-row actions / context menu deferred |
+| Bottom tab bar | NOT shown | Excluded (switches to excluded pages) |
+| "+" header button | Toolbar trailing `+` (non-triggering) | Week 2 scaffold (same as empty state) |
+
+### T01 / S01 acceptance criteria verification
+
+**T01 Empty Card Holder (unchanged from Increment 3):**
+- behavioral acceptance: PASS — empty repository → empty Card Holder shown; scan entry available.
+- Reference UI fidelity: PARTIAL — `ContentUnavailableView` and toolbar `+` are Week 2 scaffolds.
+
+**S01 populated behavioral acceptance: PASS** — repository → ViewModel → View path correctly renders cards; membership-based loading verified by unit + S01 populated-state UI test; normal launch remains empty; fixture launch is populated; no Detail/Scan/Search/Group behavior implemented (deferred).
+
+**T12 Save**: NOT implemented. Full T12 ("card immediately appears in holder after save") requires the OCR/Camera pipeline to produce a real card — deferred to a later increment. The fixture-injected populated state verifies the rendering path independently, but does not claim T12 PASS.
+
+**Reference UI fidelity (populated): PARTIAL** — populated row renders evidence-supported fields (name, title, company) but omits thumbnail, section count header, three-dot menu, search bar, etc.
+
+### Verification
+
+**Standalone build:**
+- `xcodebuild build` (iPhone 18 Pro / iOS 27.0): **BUILD SUCCEEDED**. `__preview.dylib` compiled (Preview macros active).
+
+**Unit tests:**
+- `xcodebuild -only-testing:SimCamCardTests test`: **TEST SUCCEEDED**. 36 cases passed — 7 `CardHolderViewModelTests` (6 prior + 1 new fixture membership) + 9 `InMemoryBusinessCardRepositoryTests` + 14 `BusinessCardTests` + 5 `PhoneNumberTests` + 1 placeholder. Increment 1–3 regression fully green.
+
+**UI tests:**
+- `CardHolderEmptyUITests.testEmptyCardHolderOnFirstLaunch()`: **PASSED** (7.1s). Enhanced with `card-row-*` absence via `NSPredicate` (replaces `app.cells.count == 0`). Verifies: root exists, "名片 (0张)" indicator, `card-holder-empty` id, scan button, no `card-row-*` elements.
+- `CardHolderPopulatedUITests.testPopulatedCardHolderShowsMockCardsByMembership()`: **TEST SUCCEEDED** (final calibrated form, rerun 2026-09-29 19:25). Launches with `-SimCamCardFixture populated`; verifies: root exists, empty state absent, each of the three fixed `card-row-<UUID>` identifiers exists, fixture-visible texts exist (names + secondary lines), no Detail navigation, no Scan behavior. No accessibility-node count assertions, no row-position assertions. (Two earlier runs hit simulator infrastructure issues — one 600s launch timeout, one `launchd_sim` clone-boot crash with the actual test case PASSED on Clone 1; the final clean run used an explicit device UDID with `-parallel-testing-enabled NO`.)
+
+**Preview verification:**
+- `Preview code/build: PASS` — both `#Preview` macros (`Empty Card Holder` / `Populated Card Holder`) and the 3 `BusinessCardRow` row Previews compile; the standalone build produced `__preview.dylib` successfully.
+- `Xcode Canvas rendering: not independently verified` — no Xcode Canvas session was opened to visually confirm Preview rendering. The simulator populated screenshot (`ai/validation/2026-09-29-increment4-populated-holder.png`) validates the runtime app, not Xcode Canvas.
+
+**Validation screenshot:**
+- `ai/validation/2026-09-29-increment4-populated-holder.png` captured (separate from frozen `REF-*` evidence). Shows 3 mock cards: Card 001 (张伟 / 产品总监 | Product Director · 上海智云科技有限公司), Card 002 (李娜 / 市场总监 | Marketing Director · 上海智云科技有限公司), Card 004 (张伟 / no secondary line). Navigation title "名片夹" + toolbar `+` visible. Light mode.
+
+**Boundary check:**
+- `git diff --name-only | grep -E "^SimCamCard/Model/|^SimCamCard/Repository/|^spec/|project.pbxproj"` → no matches. Domain Model, Repository, frozen spec, `project.pbxproj` all untouched.
+- T02 Scanner nav, T13 Detail nav, T15 Search, T16 Group, Delete UI, Persistence, OCR/Camera all NOT implemented (deferred/prohibited).
+
+### Specification / evidence ambiguity (recorded, not blocking)
+1. **Thumbnail rendering**: Reference shows actual card image thumbnail. Domain Model has only `String` reference tokens (no `UIImage`); real image loading deferred (no capture pipeline). Row omits thumbnail — Week 2 scaffold gap.
+2. **Three-dot per-row menu**: Reference shows per-row three-dot menu. Per-row actions / context menu / delete deferred — not implemented this increment.
+3. **Section header count "名片 (N张)"**: Reference shows count above list. Current populated state shows rows directly via `List` with no count header. Application-owned UI gap.
+4. **Row field layout**: Reference shows Name + Title (one line) + Company (next line). Current implementation uses `Name` (bold) + `JobTitle · Company` (secondary, joined by ` · `). Week 2 scaffold layout, not pixel-validated.
+5. **Card-001 vs Card-004 name collision**: Both ground-truth cards have name "张伟". UI test distinguishes by UUID, not name. Membership-based per-UUID checks handle the collision.
+6. **SwiftUI List accessibility element hierarchy**: `descendants(matching: .any).matching(NSPredicate(identifier BEGINSWITH "card-row-"))` returns 5 elements for 3 cards — SwiftUI creates multiple accessibility elements per row (cell wrapper + row content). Per final human-review calibration, the populated UI test contains NO accessibility-node count assertions at all; membership is verified by per-UUID existence checks and visible-text existence checks only.
+
+### Explicitly not implemented (supported but deferred)
+- T02 Scanner navigation; T12 Save (full save flow — requires OCR/Camera pipeline; only the rendering path on a pre-seeded repository is exercised by the S01 populated-state UI test, which does NOT claim T12 PASS); T13 Card Detail navigation; T15 Search behavior; T16 Group behavior; Delete UI; Persistence; OCR/Camera; Contacts export; Quick Action Grid; Bottom tab bar; Section count header; Card thumbnail; Three-dot per-row menu; Search bar.
+
+### Regression
+- All Increment 1–3 unit tests pass unchanged (36 cases total). Domain Model, Repository, frozen spec, `project.pbxproj` untouched. T01 empty UI test green with enhanced `card-row-*` assertion. New populated fixture UI test green.
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
+
+Final conclusions (unchanged on acceptance):
+- S01 populated behavioral acceptance: PASS
+- Reference UI fidelity: PARTIAL
+- T12 Save: NOT implemented / NOT claimed passed
+- Preview code/build: PASS
+- Xcode Canvas rendering: not independently verified
+- Repository ordering remains unspecified
+- UI tests verify per-UUID membership, not row position or accessibility node count
+- Simulator / parallel clone failures were test-infrastructure issues, not business failures

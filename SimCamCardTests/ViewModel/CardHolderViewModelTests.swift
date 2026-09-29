@@ -140,4 +140,28 @@ struct CardHolderViewModelTests {
         #expect(viewModel.cards.count == 1)
         #expect(Set(viewModel.cards.map(\.id)) == [cardB.id])
     }
+
+    // MARK: - loadCards with the deterministic Mock fixture set
+
+    #if DEBUG
+    @Test("loadCards with the MockBusinessCards fixture returns the expected membership")
+    func loadCardsWithMockBusinessCardsFixtureReturnsExpectedMembership() async throws {
+        // DEBUG-only fixture path. MockBusinessCards is compiled out under
+        // #if DEBUG, so this test is wrapped to avoid a compile error in
+        // Release builds of the test target.
+        let seeded = MockBusinessCards.all
+        let repo = InMemoryBusinessCardRepository(initialCards: seeded)
+        let viewModel = CardHolderViewModel(repository: repo)
+
+        await viewModel.loadCards()
+
+        // Membership only — Repository contract defines no order, so
+        // assertion is set-based, not positional.
+        #expect(viewModel.cards.count == MockBusinessCards.all.count)
+        #expect(
+            Set(viewModel.cards.map(\.id))
+                == Set(MockBusinessCards.all.map(\.id))
+        )
+    }
+    #endif
 }

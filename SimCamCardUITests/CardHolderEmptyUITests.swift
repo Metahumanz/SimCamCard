@@ -16,7 +16,7 @@
 //   2. "名片 (0张)" empty indicator is shown.
 //   3. "card-holder-empty" accessibility identifier exists.
 //   4. Scan entry CTA ("扫描" button) is visible.
-//   5. No card-row / list-cell elements exist (empty state).
+//   5. No card-row-* accessibility identifiers exist (empty state).
 //
 //  This test verifies T01 BEHAVIORAL acceptance (empty holder shown when
 //  no cards exist). Reference UI fidelity is PARTIAL — the current
@@ -26,6 +26,11 @@
 //
 //  This test does NOT verify T02 scanner navigation — that is deferred
 //  to a later increment. The "+" button is a non-triggering element.
+//
+//  The empty state is verified via `card-row-*` absence (NSPredicate
+//  identifier BEGINSWITH), the long-term contract for asserting no card
+//  rows — not `app.cells.count`, which is a less stable cross-version
+//  XCTest proxy.
 //
 
 import XCTest
@@ -67,14 +72,18 @@ final class CardHolderEmptyUITests: XCTestCase {
             "Scan entry button (accessibilityLabel '扫描') should be visible."
         )
 
-        // 5. No card-row / list-cell elements exist (empty state).
-        //    The empty state shows ContentUnavailableView, not a List.
-        //    No card-row identifier infrastructure exists yet (populated
-        //    UI is deferred). Asserting zero table/collection cells.
+        // 5. No card-row-* accessibility identifiers exist (empty state).
+        //    Uses NSPredicate(identifier BEGINSWITH "card-row-") to assert
+        //    the absence of ANY card row by stable contract — independent
+        //    of XCTest cell-count proxies.
+        let cardRowPredicate = NSPredicate(format: "identifier BEGINSWITH %@", "card-row-")
+        let cardRowCount = app.descendants(matching: .any)
+            .matching(cardRowPredicate)
+            .count
         XCTAssertEqual(
-            app.cells.count,
+            cardRowCount,
             0,
-            "No card rows should be displayed in the empty state."
+            "No card-row-* identifiers should exist in the empty state."
         )
 
         // 6. No development placeholder text.

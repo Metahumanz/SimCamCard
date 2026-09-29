@@ -5,11 +5,14 @@
 //  Root content view for the Card Holder page (P01).
 //
 //  Spec sources:
-//   - spec/page-inventory.md P01 Card Holder (empty state)
+//   - spec/page-inventory.md P01 Card Holder (empty / populated)
 //   - spec/state-inventory.md S01 empty (zero saved cards, scan entry
-//     remains available)
-//   - spec/reference-tests.md T01 Empty Card Holder
-//   - Evidence: evidence/screenshots/REF-card-holder-01-empty.png
+//     remains available) / S01 populated (one or more cards shown)
+//   - spec/reference-tests.md T01 Empty Card Holder / T12 Save (card
+//     immediately appears in holder — repository-level prerequisite
+//     verified by ViewModel loadCards path)
+//   - Evidence: evidence/screenshots/REF-card-holder-01-empty.png,
+//     evidence/screenshots/REF-card-holder-02-after-save.png
 //
 //  UI evidence → View element mapping (see ai/changes.md for full table):
 //   - "名片夹" page identity      → navigationTitle("名片夹")
@@ -25,10 +28,29 @@
 //                                   Contact Map / Analytics = excluded
 //   - Tutorial card                → excluded (promotional content)
 //   - Bottom tab bar               → excluded (switches to excluded pages)
+//   - Card row (populated)         → BusinessCardRow (Name + Title · Company);
+//                                   Week 2 scaffold — no thumbnail, no
+//                                   three-dot menu (deferred)
 //
-//  Increment 3 does NOT implement T02 scanner navigation. The "+" button
+//  State ownership (one state, one owner):
+//   - Repository = data source abstraction
+//   - CardHolderViewModel = SOLE owner of `cards`
+//   - CardHolderView = rendering + user intent; reads `viewModel.cards`
+//     directly, does NOT hold its own [BusinessCard]
+//
+//  Card row accessibility:
+//   - Each row carries `card-row-<UUID>` so T01 empty UI test can verify
+//     NO card rows exist (NSPredicate identifier BEGINSWITH "card-row-"),
+//     and populated UI tests can verify specific rows exist by stable id.
+//   - UI tests verify membership only — Repository contract defines no
+//     order, so no row-position assertions.
+//
+//  Increment 4 does NOT implement T02 scanner navigation. The "+" button
 //  is a minimal non-triggering UI element — it does not navigate to a
 //  scanner and does not display "Coming soon" / "Not implemented".
+//  Increment 4 does NOT implement T13 Detail navigation — the list rows
+//  are not tappable. T15 Search behavior and T16 Group behavior are
+//  deferred.
 //
 
 import SwiftUI
@@ -49,7 +71,8 @@ struct CardHolderView: View {
                 .accessibilityIdentifier("card-holder-empty")
             } else {
                 List(viewModel.cards) { card in
-                    Text(card.name ?? "未命名")
+                    BusinessCardRow(card: card)
+                        .accessibilityIdentifier("card-row-\(card.id.uuidString)")
                 }
             }
         }
@@ -67,3 +90,41 @@ struct CardHolderView: View {
         }
     }
 }
+
+#if DEBUG
+
+// MARK: - SwiftUI Previews
+//
+// Both Previews wrap CardHolderView in NavigationStack because
+// `navigationTitle` / `toolbar` rely on the enclosing navigation
+// container environment.
+//
+// Populated Preview uses the real Repository → CardHolderViewModel → View
+// data path. The View never hardcodes a [BusinessCard] source of truth;
+// it reads `viewModel.cards` like the production code does. The async
+// `loadCards()` is triggered via a minimal `.task`; no fake ViewModel
+// initializer is added to the production type.
+
+#Preview("Empty Card Holder") {
+    NavigationStack {
+        CardHolderView(
+            viewModel: CardHolderViewModel(
+                repository: InMemoryBusinessCardRepository()
+            )
+        )
+    }
+}
+
+#Preview("Populated Card Holder") {
+    let viewModel = CardHolderViewModel(
+        repository: InMemoryBusinessCardRepository(
+            initialCards: MockBusinessCards.all
+        )
+    )
+    return NavigationStack {
+        CardHolderView(viewModel: viewModel)
+            .task { await viewModel.loadCards() }
+    }
+}
+
+#endif
