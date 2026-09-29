@@ -5,18 +5,22 @@
 //  Minimal typed navigation routes for the app's NavigationStack.
 //
 //  Spec sources:
-//   - spec/page-inventory.md P01 Card Holder (main exit: Detail)
+//   - spec/page-inventory.md P01 Card Holder (main exits: Scanner, Detail)
+//   - spec/page-inventory.md P02 Scanner (Back exit)
 //   - spec/page-inventory.md P07 Card Detail
-//   - spec/reference-tests.md T13 Detail
+//   - spec/reference-tests.md T02 Enter Scanner / T13 Detail
 //
-//  Week 2 Increment 5 introduces the FIRST real route: selecting a card
+//  Week 2 Increment 5 introduced the first real route: selecting a card
 //  in the Card Holder pushes the read-only Card Detail page.
+//  Week 2 Increment 6 adds the second real route: the Card Holder "+"
+//  scan entry pushes the static Scanner UI shell.
 //
 //  Scope discipline:
-//   - Only routes actually used by the current increment are declared.
-//   - `.scan`, `.edit`, `.group`, `.notes`, `.export` etc. are NOT added
-//     ahead of their increments (no speculative dead scaffolding — same
-//     rule that removed the zero-case enum in Increment 3).
+//   - Only routes actually used by the current increments are declared.
+//   - `.capture`, `.photoImport`, `.crop`, `.recognition`, `.permission`,
+//     `.edit`, `.group`, `.notes`, `.export` etc. are NOT added ahead of
+//     their increments (no speculative dead scaffolding — same rule that
+//     removed the zero-case enum in Increment 3).
 //
 
 import Foundation
@@ -32,4 +36,9 @@ enum AppRoute: Hashable {
     /// `BusinessCard` value it already owns before constructing the
     /// CardDetailViewModel.
     case cardDetail(UUID)
+
+    /// Pushes the static Scanner UI shell (P02) from the Card Holder scan
+    /// entry. This is a read-only navigation target in Week 2: no live
+    /// camera, permission, capture, import or recognition behavior.
+    case scan
 }

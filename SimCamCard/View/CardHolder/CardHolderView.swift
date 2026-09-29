@@ -15,9 +15,10 @@
 //
 //  UI evidence → View element mapping (see ai/changes.md for full table):
 //   - "名片夹" page identity      → navigationTitle("名片夹")
-//   - "+" scan entry (header)     → toolbar trailing Button (non-triggering,
-//                                   Week 2 scaffold — NOT a verified replica
-//                                   of the Reference header "+" button)
+//   - "+" scan entry (header)     → toolbar trailing NavigationLink to
+//                                   AppRoute.scan (T02 navigation, Week 2
+//                                   Increment 6; NOT a verified replica of
+//                                   the Reference header "+" button)
 //   - "名片 (0张)" count indicator → ContentUnavailableView title (Week 2
 //                                   scaffold — NOT a verified replica of the
 //                                   Reference empty-state visual)
@@ -50,8 +51,9 @@
 //     and populated / detail UI tests can locate and tap specific rows
 //     by stable id. UI tests verify membership only, never row position.
 //
-//  T02 scanner navigation, T15 Search behavior and T16 Group behavior
-//  remain deferred. The toolbar "+" is a non-triggering element.
+//  Week 2 Increment 6: the toolbar "+" is now a typed NavigationLink to
+//  AppRoute.scan (T02 scan-entry navigation + Scanner UI shell). T15
+//  Search behavior and T16 Group behavior remain deferred.
 //
 
 import SwiftUI
@@ -91,17 +93,21 @@ struct CardHolderView: View {
                 }
                 // A missing id cannot occur via holder row taps; an empty
                 // fallback is sufficient for the typed initializer.
+            case .scan:
+                // P02 Scanner static UI shell (Week 2 Increment 6).
+                ScanEntryView()
             }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    // Scan entry CTA — visual only this increment.
-                    // T02 Scanner navigation is deferred; do NOT navigate.
-                } label: {
+                // Typed navigation entry to the Scanner shell (T02).
+                // Reuses the same NavigationStack + AppRoute system as
+                // card rows; no parallel Bool/sheet state.
+                NavigationLink(value: AppRoute.scan) {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("扫描")
+                .accessibilityIdentifier("scan-entry")
             }
         }
     }

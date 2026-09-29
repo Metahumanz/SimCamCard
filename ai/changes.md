@@ -832,3 +832,128 @@ Final conclusions (unchanged on acceptance):
 - Missing fields are not fabricated (Card 004 minimal path shows name + one mobile only)
 - Build: PASS; Unit tests 39/39 PASS; Detail UI tests PASS; Holder UI regression PASS (results remain as previously verified)
 - Domain Model / Repository protocol & semantics / frozen spec / project.pbxproj unchanged
+
+## 2026-09-29 — Week 2 Increment 6: Scan Entry UI Shell
+
+### Task
+Establish real P01 → P02 navigation and the static Scanner page shell:
+Card Holder → Scan Entry → Scanner UI shell → Back. Week 2 final
+functional increment. No real Camera / AVFoundation / Permission / Photo
+Import / Capture / OCR / Detection.
+
+### Frozen sources re-read
+- `spec/page-inventory.md` P01 Card Holder (exit: Scanner), P02 Scanner (Camera preview and card detection; exits Capture / Photo Import / Back)
+- `spec/state-inventory.md` S02 Camera / Scanner (permissionUnknown / permissionDenied / preview / cardNotDetected / cardDetected / captured / cancelled)
+- `spec/reference-tests.md` T02 Enter Scanner ("Scan entry opens scanner/camera UI."); T03/T04/T05/T06 read as later-boundary references only
+- `spec/observation-index.md` Scanner / Permissions / Import evidence list
+- `evidence/screenshots/REF-scanner-01-initial.png` — viewed directly; sole primary visual basis for the initial scanner state
+- Boundary-only viewing: `REF-scanner-02-card-detected.png` (blue detection frame, live feed, "发现名片，点击拍摄" — deliberately NOT built); `REF-permission-01-camera.png`, `REF-import-01-photo-picker.png`, `REF-crop-01-manual-adjust.png` not opened/replicated
+- Current `AppRoute.swift`, `CardHolderView.swift`, `SimCamCardApp.swift`, existing UI tests, `ai/README.md`
+
+### Evidence classification (REF-scanner-01-initial.png)
+- **System/host-owned, not replicated:** macOS traffic lights and window title "名片全能王"; on iOS the status bar / home indicator remain host-owned (dark appearance only via `preferredColorScheme(.dark)`).
+- **Application-owned, built this increment:** close ✕ (real back); 基础识别 / AI高精度识别 segmented selector (static, 基础识别 selected); ••• more glyph (static); full-black viewport with thin white rounded aiming frame (pure SwiftUI shape, no camera content); guidance capsule "请将镜头靠近名片" (frozen user-guidance copy, not a developer placeholder); capture-mode tabs 连续拍摄 / 多张拍摄 / 单张拍摄 (selected, blue indicator) / 二维码 (static); 相册 entry (visual shell, empty action); shutter (visual shell, empty action); batch stack glyph (static; badge "5" omitted — zero captures exist in the shell, so the number would be fabricated state).
+- **No UI added without evidence:** no flash control, no tips beyond the one observed capsule, no detection frame styling beyond the static white guide.
+
+### Files changed
+New files (2; auto-registered via filesystem-synchronized groups):
+- `SimCamCard/View/Scan/ScanEntryView.swift` — single-file static scanner shell; no ViewModel (no camera/capture/permission/business state exists); two `#if DEBUG`-independent sections (no mock data) and one `#Preview("Scanner Shell")` in NavigationStack.
+- `SimCamCardUITests/ScanEntryUITests.swift` — 2 XCTest cases (enter shell + evidence-supported static controls; close returns to Holder with state unchanged).
+
+Modified files (3):
+- `SimCamCard/App/AppRoute.swift` — added exactly one route, `case scan`; final enum is `{ case cardDetail(UUID); case scan }`. No `.capture/.photoImport/.crop/.recognition/.permission/.edit/...`.
+- `SimCamCard/View/CardHolder/CardHolderView.swift` — toolbar "+" changed from empty-action Button to `NavigationLink(value: AppRoute.scan)` (accessibilityLabel "扫描", identifier `scan-entry`; T01 contract preserved); `navigationDestination(for: AppRoute.self)` switch extended with `case .scan: ScanEntryView()` (exhaustive; Detail case untouched).
+- `ai/changes.md` — this record.
+
+New validation artifact: `ai/validation/2026-09-29-increment6-scan-entry.png` (XCTAttachment; separate from frozen `REF-*`).
+
+### Route / navigation design
+- Same NavigationStack + typed `AppRoute` system as Detail; no second Bool/sheet state and no second NavigationStack.
+- Holder "+" → push `ScanEntryView()`; the Scanner hides the system nav bar and renders its own ✕ that calls `@Environment(\.dismiss)` — a standard system NavigationStack pop (Holder → Scan → Back → Holder). The interactive swipe-back gesture remains available.
+- Switch over AppRoute stays exhaustive; adding `.scan` did not alter `.cardDetail` resolution.
+
+### Controls and actual behavior
+| Control | Identifier | Behavior in this increment |
+|---|---|---|
+| Holder "+" | `scan-entry` | Real push navigation to Scanner |
+| Scanner ✕ | `scan-close` | Real `dismiss()` pop back to Holder |
+| 相册 | `scan-photo-import` | Visual shell; empty action — NO PhotosPicker / photo permission (T05 deferred). UI test taps it and asserts the page is unchanged |
+| Shutter | `scan-capture` | Visual shell; empty action — no capture, no Recognition, no BusinessCard, no Repository change (T04 deferred). UI test taps it and asserts the page is unchanged |
+| Segmented selector / mode tabs / ••• / batch glyph | — | Static non-interactive chrome (tabs/selector combined into single accessibility elements; glyphs hidden from accessibility); no mode switching, no menu, no batch review |
+| Batch badge "5" | — | Deliberately not rendered (would fabricate a captured-image count) |
+
+No AVFoundation / Vision / Photos imports; no `NSCameraUsageDescription` change; no entitlements; no OCR/detection/crop; no fake camera image and no developer placeholder text.
+
+### Implementation note (real defect fixed during verification)
+First UI-test run exposed a SwiftUI accessibility behavior: an `.accessibilityIdentifier` attached to the container that parents Buttons propagates down and overrides the Buttons' own explicit identifiers (all three controls reported identifier `scan-entry-view` with their own labels). Fix: the root `scan-entry-view` marker is attached to the childless `Color.black` background layer inside the root ZStack; the interactive VStack is a sibling layer, so button identifiers remain their own. Documented in code comments.
+
+### S02 state-by-state status
+- Scanner shell / entry presentation: **PASS**
+- S02 `preview`: **PARTIAL — visual shell only, no live camera preview** (black surface + static aiming frame)
+- S02 `permissionUnknown`: **NOT IMPLEMENTED as a real camera state**
+- S02 `permissionDenied`: **NOT IMPLEMENTED**
+- S02 `cardNotDetected` visual presentation: **PARTIAL** — the initial shell already presents the static "no card detected" guidance capsule ("请将镜头靠近名片") and aiming frame observed in REF-scanner-01, but there is no real detection state and no transition into or out of it
+- S02 `cardNotDetected` dynamic detection state/transition: **NOT IMPLEMENTED**
+- S02 `cardDetected`: **NOT IMPLEMENTED** (blue frame / "发现名片，点击拍摄" from REF-scanner-02 not built)
+- S02 `captured`: **NOT IMPLEMENTED**
+- Scanner close/back navigation behavior: **PASS** — tapping ✕ pops the NavigationStack back to the Card Holder (verified by UI test; holder card state unchanged)
+- S02 `cancelled` state: **NOT MODELED / PARTIAL** — only the user-initiated ✕ NavigationStack return is verified; that navigation behavior is NOT equivalent to having built a complete `cancelled` state (no cancellation side effects, state transitions or post-cancel camera lifecycle exist)
+
+### T02 status
+- **T02 scan-entry navigation / scanner-shell behavior: PASS** — holder scan entry opens the scanner UI via real in-app NavigationStack navigation; evidence-supported static shell is presented; ✕ returns to the holder.
+- Explicitly NOT claimed: live camera preview NOT IMPLEMENTED; camera permission NOT IMPLEMENTED; capture NOT IMPLEMENTED; photo import NOT IMPLEMENTED. This is not "T02 full camera behavior PASS", and P02 camera functionality is not complete.
+
+### Validation screenshot comparison (REF-scanner-01-initial.png vs runtime)
+Matched: overall full-black surface; top-leading ✕; centered segmented selector with white 基础识别 pill and blue AI高精度识别 text; trailing •••; large white thin rounded aiming frame over black; top-inner translucent capsule "请将镜头靠近名片"; bottom mode tabs 连续拍摄/多张拍摄/单张拍摄(selected white bold + blue indicator)/二维码； bottom-leading photo glyph + 相册 label; centered white shutter with gray ring; trailing batch stack glyph; white status-bar content on the dark surface.
+
+Missing / different (deliberate Week 2 gaps or platform differences):
+- macOS window chrome (traffic lights, title) — host-owned, N/A on iPhone.
+- Live black camera surface is a static `Color.black`; no camera feed (S02 preview PARTIAL).
+- Batch badge "5" omitted on purpose (no fabricated captured count).
+- The batch/photo glyphs use SF Symbol approximations of the Reference glyphs.
+- Static chrome is non-interactive (segmented/mode tabs/•••/batch); no flash control exists in the initial Reference and none was added.
+- Pixel-level spacing/corner radii/font metrics are approximations within the iPhone layout, not measured replicas of the macOS window.
+
+Reference UI fidelity: **PARTIAL** — strong initial-state visual correspondence, but all camera-dependent and interactive behaviors are absent by design.
+
+### Verification (iPhone 18 Pro / iOS 27.0 Simulator, explicit UDID, -parallel-testing-enabled NO)
+1. Standalone build: **BUILD SUCCEEDED** (re-verified on final sources after the identifier fix).
+2. Full `SimCamCardTests`: **TEST SUCCEEDED** — Swift Testing "Test run with 39 tests in 6 suites passed" (unchanged; no new unit-test surface — no business logic was added).
+3. Clean final UI run (one clean PASS round): **TEST SUCCEEDED**, 6/6 business cases:
+   - CardHolderEmptyUITests.testEmptyCardHolderOnFirstLaunch — PASS (6.6s; scan entry still found as button "扫描").
+   - CardHolderPopulatedUITests.testPopulatedCardHolderShowsMockCardsByMembership — PASS (6.8s; deterministic populated fixture unaffected).
+   - CardDetailUITests.testCardDetailMinimalCardDoesNotFabricateFields — PASS (12.1s).
+   - CardDetailUITests.testCardDetailShowsFullFixtureFields — PASS (12.3s; Detail route intact after the enum/switch change).
+   - ScanEntryUITests.testEnterScannerShowsStaticShell — PASS (11.4s).
+   - ScanEntryUITests.testCloseReturnsToCardHolderWithStateUnchanged — PASS (12.0s).
+   - An earlier combined run failed the 2 new Scan cases on the accessibility-identifier propagation defect (business failure, not infrastructure); fixed and re-verified green; the final round above is clean.
+4. Normal launch remains empty; populated fixture remains deterministic; Detail route still works (regression cases above).
+5. Boundary check: `git diff --name-only` contains no `SimCamCard/Model/`, `SimCamCard/Repository/`, `spec/`, `dataset/`, `project.pbxproj`, `MockBusinessCards.swift`, or `CardDetailViewModel.swift`. Preview code/build: PASS. Xcode Canvas rendering: not independently verified.
+6. No camera permission was requested during any test (no permission-dialog dependency).
+
+### Explicitly deferred / not implemented
+Live camera (AVFoundation preview), T03 camera permission states and dialogs, T04 shutter capture workflow, T05 photo import (PhotosPicker) and S03 states, T06/S04 boundary detection & crop, OCR/Vision/recognition (P05), recognition-mode switching （基础/AI), capture-mode switching （连续/多张/二维码）, more menu (•••), batch review stack + count badge, save/repository mutation from the scanner. No Domain draft model was introduced.
+
+### Ambiguity recorded
+1. Reference shows a batch badge "5" even on the "initial" screenshot; the shell has zero captures, so the count is omitted rather than fabricated.
+2. The Reference is macOS dark CamCard window chrome; the iPhone rendering keeps application-owned elements and drops host chrome per the reference-environment rule.
+3. Static tab/selector chrome is rendered non-interactive (combined accessibility elements) to avoid presenting fake controls as individually actionable while preserving visible fidelity.
+
+### Human Decision
+Accepted — 2026-09-29 (human review).
+
+Final conclusions (unchanged on acceptance):
+- T02 scan-entry navigation / scanner-shell behavior: PASS
+- S02 Scanner shell / entry presentation: PASS
+- S02 `preview`: PARTIAL — visual shell only, no live camera preview
+- S02 `cardNotDetected` visual presentation: PARTIAL (static guidance capsule + aiming frame shown; no real detection state/transition)
+- S02 `cardNotDetected` dynamic detection state/transition: NOT IMPLEMENTED
+- S02 `permissionUnknown` / `permissionDenied`: NOT IMPLEMENTED (permissionUnknown not implemented as a real camera state)
+- S02 `cardDetected`: NOT IMPLEMENTED
+- S02 `captured`: NOT IMPLEMENTED
+- Scanner close/back navigation behavior: PASS (✕ pops NavigationStack to Card Holder; card state unchanged)
+- S02 `cancelled` state: NOT MODELED / PARTIAL (navigation back verified; not a complete cancelled state machine)
+- Live camera preview / camera permission / capture / photo import: NOT IMPLEMENTED — not "T02 full camera behavior PASS"; P02 camera functionality is not complete
+- Reference UI fidelity: PARTIAL
+- Build: PASS; Unit tests 39/39 PASS; Scan UI tests PASS; Holder UI regression PASS; Detail UI regression PASS (results remain as previously verified)
+- Boundary check unchanged: no Domain Model / Repository / spec / dataset / project.pbxproj / MockBusinessCards / CardDetailViewModel changes; Preview code/build PASS; Xcode Canvas rendering not independently verified
