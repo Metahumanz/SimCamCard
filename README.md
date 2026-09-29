@@ -40,7 +40,7 @@ SimCamCard/
 
 - App: CamCard / 名片全能王 8.63.1, Simplified Chinese, logged out, free / non-member
 - Observation platform: Apple Silicon Mac (M2), macOS 27.0, CamCard running in iPhone/iPad-compatible mode
-- Xcode 27.0; Swift compiler/toolchain 6.4; Swift language mode (`SWIFT_VERSION`) 5.0
+- Xcode 27.0; Swift compiler/toolchain 6.4; Swift language mode (`SWIFT_VERSION`) 6.0
 - iOS deployment target 27.0
 - Primary simulator: iPhone 18 Pro, iOS 27.0
 

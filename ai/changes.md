@@ -117,3 +117,30 @@ Reconcile frozen Week 1 SDD baseline so documentation, dataset metadata, Git hyg
 
 ### Human Decision
 Pending human review.
+
+## 2026-09-29 — Swift 6 language mode migration
+
+### Task
+Migrate the project's Swift language mode from 5.0 to 6.0. Documentation-only correction here; no project configuration or source code is modified in this change.
+
+### Context
+- `SimCamCard.xcodeproj/project.pbxproj`
+- `spec/reference-environment.md`
+- `README.md`
+
+### Changes
+- Swift compiler / toolchain: Apple Swift 6.4 (unchanged; ships with Xcode 27.0).
+- `SWIFT_VERSION` changed from 5.0 to 6.0 across all 6 build configurations in `project.pbxproj` (App / Tests / UI Tests × Debug / Release).
+- `spec/reference-environment.md` and `README.md` updated to reflect Swift language mode 6.0.
+
+### Verification
+- `xcrun swift --version`: Apple Swift version 6.4.
+- `grep -n "SWIFT_VERSION" SimCamCard.xcodeproj/project.pbxproj`: 6 occurrences, all `SWIFT_VERSION = 6.0`.
+- `xcodebuild` invocation uses `-swift-version 6`.
+- iPhone 18 Pro / iOS 27.0 simulator build succeeded.
+
+### Regression
+- No application source behavior changed by the language-mode migration.
+
+### Human Decision
+Pending human review.

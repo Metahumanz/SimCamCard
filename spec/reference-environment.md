@@ -42,7 +42,7 @@ For final iOS-specific verification, use a physical iPhone if available for:
 - Deployment target: iOS 27.0
 - Primary simulator: iPhone 18 Pro, iOS 27.0
 
-Note: the Swift compiler/toolchain version (6.4) and the Swift language mode (`SWIFT_VERSION = 5.0` in `SimCamCard.xcodeproj/project.pbxproj`) are distinct. A migration of the project's Swift language mode from 5 to 6 is a separate development decision and was not performed during the Week 1 closeout.
+Note: the Swift compiler/toolchain version (6.4) and the Swift language mode (`SWIFT_VERSION = 6.0` in `SimCamCard.xcodeproj/project.pbxproj`) are distinct concepts. The compiler ships as part of Xcode 27.0; the project language mode is configured per-target via the `SWIFT_VERSION` build setting. The project has migrated from Swift 5 to Swift 6 language mode — App, Tests, and UI Tests in both Debug and Release use `SWIFT_VERSION = 6.0` (see `ai/changes.md`). No application source behavior was changed by the migration.
 
 ## Dataset
 
