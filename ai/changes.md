@@ -957,3 +957,193 @@ Final conclusions (unchanged on acceptance):
 - Reference UI fidelity: PARTIAL
 - Build: PASS; Unit tests 39/39 PASS; Scan UI tests PASS; Holder UI regression PASS; Detail UI regression PASS (results remain as previously verified)
 - Boundary check unchanged: no Domain Model / Repository / spec / dataset / project.pbxproj / MockBusinessCards / CardDetailViewModel changes; Preview code/build PASS; Xcode Canvas rendering not independently verified
+
+## 2026-09-30 — Week 2 Increment 7: Integration / Regression / Reference Review
+
+### Task
+Week 2 final increment: no new production feature. Validate that Increments 1–6 compose into one stable navigation skeleton via a new integration smoke test; run full regression; audit architecture, dead code, boundaries, and traceability; produce the Week 2 acceptance matrix and readiness conclusion.
+
+### Starting baseline
+- branch: `week2/skeleton`
+- HEAD: `504604f feat(scan): 建立扫描入口骨架`
+- merge-base with `main`: `8cff0bf` (Week 1 SDD baseline)
+- relative to main: ahead 6 / behind 0
+- working tree at start: clean except for the local-only Increment 7 plan file (untracked). That plan file has been moved out of the repository before final readiness assessment. After Increment 7 implementation, the working tree contains only this increment's own deliverables: `ai/changes.md` (modified), `SimCamCardUITests/Week2IntegrationUITests.swift` (new), and `ai/validation/2026-09-29-week2-integration.png` (new). No unrelated or untracked files remain.
+
+### Frozen sources re-read
+`spec/page-inventory.md` (P01/P02/P07), `spec/state-inventory.md` (S01/S02/S06), `spec/data-model.md`, `spec/reference-tests.md`, `spec/observation-index.md`, `spec/reference-environment.md`, `ai/README.md`, `ai/changes.md`. Verified that frozen spec content is unchanged and that every prior increment's traceability conclusions still hold.
+
+### Architecture audit
+
+**Domain (`SimCamCard/Model/`, 4 files):**
+`BusinessCard` — `nonisolated struct`, `Identifiable`, `Sendable`, `Hashable`. No UIKit/SwiftUI dependency. `phones: [PhoneNumber]` is the single source of truth (no single-value mobile/officePhone/fax). `originalImageReference`/`processedImageReference` are required `String` references (no UIImage, not Optional). `nameLatin`/`companyLatin`/`department`/`languageProfile` are NOT in the Domain (Revision 8 exclusion). `rawOCRText: String?` preserves the OCR interface shape (Week 2 default nil). `tags`/`notes` collections exist for interface shape; UI deferred.
+
+**Repository (`SimCamCard/Repository/`, 2 files):**
+`BusinessCardRepository` protocol — `nonisolated`, `async`. `InMemoryBusinessCardRepository` — actor, `initialCards: []` default. Ordering is implementation-defined (not a contract). `save` = upsert by id. `delete` of missing id = safe no-op. No persistence (SwiftData/CoreData/Contacts). No presentation sorting contract.
+
+**ViewModels (`SimCamCard/ViewModel/`, 2 files):**
+`CardHolderViewModel` (`@MainActor @Observable`) — owns `cards` state sourced from the Repository; no duplicate DTO; no sorting contract. `CardDetailViewModel` (`@MainActor @Observable`) — read-only; receives the full `BusinessCard` value from the holder; no second Repository lookup; no edit/persistence actions. No `ScanViewModel` — the Scanner shell has no camera/capture/permission/business state.
+
+**Views (`SimCamCard/View/`, 5 files):**
+`CardHolderView` — `NavigationStack` + typed `AppRoute`; holder List rows wrapped in `NavigationLink(value: .cardDetail(id))`; toolbar "+" is `NavigationLink(value: .scan)`. `CardDetailView` — read-only `List` with identity header + fields Section; all phones/emails visible; nil fields hidden; no fabrication. `ScanEntryView` — static dark shell; no AVFoundation; ✕ = `dismiss()`; shutter/photo entry = empty action visual shell. `BusinessCardRow` — stateless card row. `CardDetailFieldRow` — stateless field row.
+
+**PreviewSupport (`SimCamCard/View/PreviewSupport/`, 2 files):**
+`SimCamCardFixture` — DEBUG-only launch-argument-driven fixture switch. `MockBusinessCards` — deterministic UUIDs, fixed Date, three fixtures (001 full bilingual multi-phone, 002 missing website, 004 minimal name+mobile). No `Date.now` or `UUID()` in fixture generation.
+
+### AppRoute audit
+```swift
+enum AppRoute: Hashable {
+    case cardDetail(UUID)
+    case scan
+}
+```
+No speculative routes (`.edit`, `.group`, `.notes`, `.export`, `.capture`, `.photoImport`, `.crop`, `.recognition`, `.permission` — all absent). `navigationDestination(for: AppRoute.self)` switch is exhaustive; `.cardDetail` resolves UUID to the full `BusinessCard` the holder already owns (no index dependency, no second lookup); `.scan` pushes `ScanEntryView()`.
+
+### Dead code / speculative scaffold audit
+**CLEAN.** No empty enums, no empty ViewModels, no unused routes, no `ContentView`, no placeholder pages, no "Coming soon"/"Not implemented" user-facing text (only in code comments as prohibition notes), no `fatalError`/`preconditionFailure`. Every declared type, route, and ViewModel has at least one real consumer.
+
+### Boundary / dependency audit
+**CLEAN.** No `import AVFoundation`, `Vision`, `Photos`/`PhotosUI`, `SwiftData`, `CoreData`, `Contacts`/`ContactsUI`, or `UIKit` in the production app target. No `Date.now` or random `UUID()` in production source (only standard default-parameter values in Model `init`). No `NSCameraUsageDescription` change, no entitlements, no `project.pbxproj` edit (filesystem-synchronized groups). Mock fixtures use deterministic UUIDs and fixed `Date` only.
+
+### New integration smoke test
+**New file:** `SimCamCardUITests/Week2IntegrationUITests.swift` — 1 case:
+`testWeek2NavigationSkeletonPreservesHolderState()` — launches populated fixture → verifies Holder → taps card-001 row → verifies Detail root + name/company visible → system Back → verifies card-001 row still exists → taps scan-entry → verifies Scanner root → taps scan-close → verifies return to Holder → verifies card-001 row still exists (full round trip: Holder → Detail → Holder → Scanner → Holder). Takes a validation screenshot attachment.
+
+No OCR, Save, Camera, Search, Groups, or persistence is exercised. The test proves the three Increments 3–6 compose into one stable navigation graph and that holder state is preserved.
+
+### Verification (iPhone 18 Pro / iOS 27.0 Simulator, explicit UDID, -parallel-testing-enabled NO)
+
+1. **Standalone build:** `** BUILD SUCCEEDED **`
+2. **Unit tests:** `Test run with 39 tests in 6 suites passed` — 39/39 PASS (unchanged; no new business logic).
+3. **Full UI regression — one clean PASS round, 7/7:**
+   | Test Case | Suite | Result | Duration |
+   |---|---|---|---|
+   | testEmptyCardHolderOnFirstLaunch | CardHolderEmptyUITests | PASS | 6.2s |
+   | testPopulatedCardHolderShowsMockCardsByMembership | CardHolderPopulatedUITests | PASS | 6.4s |
+   | testCardDetailShowsFullFixtureFields | CardDetailUITests | PASS | 11.8s |
+   | testCardDetailMinimalCardDoesNotFabricateFields | CardDetailUITests | PASS | 11.1s |
+   | testEnterScannerShowsStaticShell | ScanEntryUITests | PASS | 11.1s |
+   | testCloseReturnsToCardHolderWithStateUnchanged | ScanEntryUITests | PASS | 11.9s |
+   | testWeek2NavigationSkeletonPreservesHolderState | Week2IntegrationUITests | PASS | 18.9s |
+   No infrastructure failures (no boot timeout, no clone failure, no launchd_sim crash).
+
+### Git diff audit
+- **Production source changes: 0** — `git diff --name-only` is empty for all `SimCamCard/` production files.
+- **New files (2):** `SimCamCardUITests/Week2IntegrationUITests.swift`, `ai/validation/2026-09-29-week2-integration.png`.
+- **Modified files (1):** `ai/changes.md` (this record).
+- No integration defects, no frozen-contract violations, no regressions detected.
+
+### Reference validation review
+
+**Page/reference validation** (used to compare implemented structural elements against frozen REF evidence):
+- `ai/validation/2026-09-29-increment3-empty-holder.png` ↔ `REF-card-holder-01-empty.png`
+- `ai/validation/2026-09-29-increment4-populated-holder.png` ↔ `REF-card-holder-02-after-save.png`
+- `ai/validation/2026-09-29-increment5-card-detail-001-full.png` ↔ `REF-detail-01-collapsed.png` / `REF-detail-03-after-edit-expanded.png`
+- `ai/validation/2026-09-29-increment5-card-detail-004-minimal.png` ↔ T20 negative case
+- `ai/validation/2026-09-29-increment6-scan-entry.png` ↔ `REF-scanner-01-initial.png`
+
+Implemented structural elements are consistent with frozen evidence; recorded visual/deferred gaps remain. Overall Reference UI fidelity: **PARTIAL** — by design for a Week 2 skeleton. No pixel polishing, no production UI redesign.
+
+**Week 2 integration screenshot** (integration/navigation-state evidence only, NOT used as Reference UI fidelity evidence):
+- `ai/validation/2026-09-29-week2-integration.png` — proves `Holder → Detail → Holder → Scanner → Holder` round trip preserves populated holder state. Not compared against any frozen REF screenshot.
+
+### Final acceptance matrix
+
+**Implemented / verified:**
+- Domain Model (BusinessCard, PhoneNumber, CardTag, CardNote)
+- Repository abstraction (protocol + InMemory actor)
+- S01 `empty`: PASS
+- S01 `populated`: PASS
+- S01 `searching`: NOT IMPLEMENTED
+- S01 `groupFiltered`: NOT IMPLEMENTED
+- Deterministic fixtures (3 cards: full / missing-website / minimal)
+- Card Detail navigation (stable-id, no index, no second lookup)
+- Card Detail read-only rendering (T13 read-only detail field visibility/navigation: PASS)
+- T12→T13 saved-card end-to-end workflow: NOT IMPLEMENTED
+- Multi-value presentation (phones[]/emails[] all visible)
+- T09 supporting missing-field / no-fabrication semantics: VERIFIED with deterministic fixture
+- T09 real recognition/OCR workflow: NOT IMPLEMENTED
+- T10 supporting multi-phone Domain/rendering semantics: VERIFIED with deterministic fixture
+- T10 real recognition/classification workflow: NOT IMPLEMENTED
+- T20 minimal-card no-fabrication supporting behavior: VERIFIED
+- T20 full exception-handling workflow: NOT IMPLEMENTED
+- Scanner entry navigation (T02 scan-entry navigation / scanner-shell behavior: PASS)
+- Scanner static shell (S02 entry/preview-shell PASS, detection/capture/permission NOT IMPLEMENTED)
+- Back navigation (Detail Back + Scanner ✕ both PASS)
+- SwiftUI Previews compile
+
+**Partial:**
+- Card Holder Reference UI fidelity (dark header card, avatar, search, group — P01 in-scope visual gaps, behavior deferred)
+- P07 Detail Reference UI fidelity (header/avatar/card image, action buttons, group/notes rows, more menu, bottom bar, expand/collapse — P07 in-scope visual gaps, behavior deferred)
+- S06 detailCollapsed / detailExpanded (PARTIAL / PARTIAL scaffold; expand/collapse NOT IMPLEMENTED)
+- S02 preview (visual shell only, no live camera)
+- S02 cardNotDetected visual presentation (static guidance shown, no dynamic detection state/transition)
+- Scanner Reference UI fidelity (batch badge omitted, static chrome non-interactive)
+
+**Not implemented / future increments (full workflows):**
+- T03 Camera Permission, T04 Capture, T05 Photo Import, T06 Boundary Detection
+- T07 OCR Raw Text, T08 Structured Extraction
+- T11 Manual Correction, T12 Save, T12→T13 saved-card end-to-end
+- T14 Edit, T15 Search, T16 Group, T17 Delete, T18 Persistence, T19 Export
+- Full T20 exception-handling workflow
+
+### Page / State / Test traceability summary
+
+| Item | Behavior | Reference fidelity |
+|---|---|---|
+| T01 Empty Holder | PASS | PARTIAL |
+| T02 Scanner entry | PASS (navigation + shell) | NOT IMPLEMENTED (full camera) |
+| T13 Card Detail | PASS (read-only detail field visibility/navigation) | PARTIAL |
+| T12→T13 saved-card e2e | NOT IMPLEMENTED | — |
+| T09 supporting semantics | VERIFIED with deterministic fixture (missing-field / no-fabrication) | — |
+| T09 real OCR workflow | NOT IMPLEMENTED | — |
+| T10 supporting semantics | VERIFIED with deterministic fixture (multi-phone Domain/rendering) | — |
+| T10 real classification workflow | NOT IMPLEMENTED | — |
+| T20 supporting behavior | VERIFIED (minimal-card no-fabrication) | — |
+| T20 full exception workflow | NOT IMPLEMENTED | — |
+| S01 `empty` | PASS | PARTIAL |
+| S01 `populated` | PASS | PARTIAL |
+| S01 `searching` | NOT IMPLEMENTED | — |
+| S01 `groupFiltered` | NOT IMPLEMENTED | — |
+| S02 Scanner | PASS (shell) / PARTIAL (preview, cardNotDetected visual) / NOT IMPLEMENTED (permission, detection, capture, cancelled state machine) |
+| S06 Detail | PARTIAL (collapsed/expanded) / NOT IMPLEMENTED (expand/collapse interaction) |
+
+All six prior increments remain Accepted.
+
+### Week 2 readiness conclusion
+
+All readiness criteria met:
+- Build clean ✓
+- Unit clean (39/39) ✓
+- All UI regression clean (7/7 one-round PASS) ✓
+- Integration smoke clean ✓
+- Production source 0 changes ✓
+- No boundary violation ✓
+- No dead speculative scaffold ✓
+- Traceability accurate (S01 state-by-state, T09/T10/T20 supporting-vs-full-workflow, validation screenshot classification) ✓
+- Working tree: no unrelated/untracked files remain (local-only plan file moved out of repository) ✓
+- All six prior increments remain Accepted ✓
+
+Documented PARTIAL / future-state gaps are all Week 3+ scope items; none represent a Week 2 contract violation.
+
+**Week 2 skeleton readiness: READY FOR HUMAN MERGE/TAG DECISION with documented deferred gaps.**
+
+### Human Decision
+Accepted — 2026-09-30 (human review).
+
+Final conclusions (unchanged on acceptance):
+- Build: PASS
+- Unit tests: 39/39 PASS
+- Full UI regression: 7/7 clean PASS
+- Integration smoke test: PASS
+- Production source changes: 0
+- Architecture / dependency / boundary / dead-code audits: PASS
+- S01 `empty` / `populated`: PASS
+- S01 `searching` / `groupFiltered`: NOT IMPLEMENTED
+- T09 / T10 supporting semantics: VERIFIED with deterministic fixture; real OCR / classification workflows: NOT IMPLEMENTED
+- T20 minimal no-fabrication supporting behavior: VERIFIED; full exception-handling workflow: NOT IMPLEMENTED
+- T02 scan-entry navigation / scanner-shell behavior: PASS
+- T13 read-only detail field visibility / navigation: PASS
+- T12→T13 real saved-card end-to-end workflow: NOT IMPLEMENTED
+- Reference UI fidelity: PARTIAL
+- Week 2 skeleton readiness: READY FOR HUMAN MERGE/TAG DECISION with documented deferred gaps
