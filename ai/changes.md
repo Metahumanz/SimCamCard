@@ -1771,3 +1771,176 @@ T05:
 Residual verification note: Apple's public `PhotosPicker` API documents the `isPresented` and `selection` bindings but does not define a callback-order guarantee between their mutations. Current selection-vs-cancel dispatch therefore remains subject to native system-picker runtime verification. This is a verification item, not a blocker for this Increment.
 
 AI did not commit, merge or tag. Increment 4 not entered.
+
+## 2026-10-01 — Week 3 Increment 4: Canonical Orientation + Live Card Detection (T06 first half)
+
+Baseline: 6ddefaa.
+
+### Orientation architecture
+
+Canonical orientation is now ESTABLISHED via a three-part contract:
+
+- capture side: `AVCaptureDevice.RotationCoordinator(device:previewLayer:nil)` owned by the `CameraSessionController` actor; its `videoRotationAngleForHorizonLevelCapture` is observed (KVO callback on main queue → `Task { await actor.applyCaptureRotation(angle) }`) and applied to the `.video` connections of BOTH the photo output and the video data output through the pure `VideoRotationDecision.supportedAngle` seam (unsupported angles are never written to a connection). The capture angle is applied immediately once at configuration and on every subsequent change.
+- preview side: a SECOND, independent RotationCoordinator owned by `CameraPreviewView.PreviewContainerView`, observing `videoRotationAngleForHorizonLevelPreview` and writing only `previewLayer.connection?.videoRotationAngle` (guarded by `isVideoRotationAngleSupported`). The View layer's responsibility stays limited to preview presentation + preview-connection rotation; it never touches capture outputs.
+- imported/still image side: `ImageOrientationResolver.orientation(of:)` reads EXIF orientation via ImageIO (`CGImageSourceCreateWithData` + `kCGImagePropertyOrientation`) without rewriting bytes; missing metadata or undecodable data → `.up`.
+
+RotationCoordinator live preview behavior on real device rotation: PENDING physical device.
+
+### ImageOrientationResolver contract
+
+Pure read-only metadata lookup: `static func orientation(of data: Data) -> CGImagePropertyOrientation`. No decode, no transcode, no byte mutation. Unit-verified for EXIF orientations 1/3/6/8 (`.up/.down/.right/.left`), no-metadata → `.up`, invalid data → `.up` (test fixtures built with CGImageDestination-injected EXIF).
+
+### AVCaptureVideoDataOutput configuration
+
+Added alongside the existing photo output in the SAME configuration transaction; `canAddOutput` failure throws the new `CameraSessionError.cannotAddVideoDataOutput` (→ `cameraUnavailable`, never misreported as preview). `alwaysDiscardsLateVideoFrames = true`.
+
+### Detection queue ownership / backpressure
+
+Sample-buffer delegate (`VideoFrameProcessor`, `nonisolated final class`, same pattern as `PhotoCaptureProcessor`) runs on a dedicated serial queue `com.metahumanz.SimCamCard.camera.detection` — never MainActor, never the session queue. Frame callback consumes the CMSampleBuffer synchronously (never stored, never crosses an isolation boundary) and publishes only the Sendable `CardRegion?` into an `AsyncStream` with `bufferingNewest(1)`: the ViewModel only ever needs the latest boundary; late frames are dropped by AVFoundation, not queued. `didDrop` is intentionally empty.
+
+### Vision API + detector configuration
+
+Stable `VNDetectRectanglesRequest` / `VNRectangleObservation` only — no beta/experimental Vision APIs, no OCR assistance. Fresh request per frame (no reused mutable request state across calls). `CardRegionDetector.Configuration.businessCardBaseline`: maximumObservations 1, minimumConfidence 0.6, minimumSize 0.1, aspect ratio 0.4…2.5 (covers horizontal ~1.6 and vertical ~0.6 cards with perspective slack), quadratureTolerance 30. Vision failure → `nil` for that frame, never an error state, never `cameraUnavailable`.
+
+### CardRegion coordinate convention
+
+Project-wide: origin top-left, x right, y down, all values clamped to [0,1] by `NormalizedPoint`. Conversion from Vision's lower-left origin: `appY = 1 − visionY` per corner, corner labels preserved. `sourcePixelWidth/Height` carry the ORIENTED source pixel size (axes swapped for 90°/270° still-image orientations) because the aspect-fill overlay mapping requires the source aspect ratio. Vision objects (`VNRectangleObservation`) never leave the detector; only the Sendable value type crosses to the MainActor.
+
+### Aspect-fill mapping
+
+Pure function `AspectFillCoordinateMapper.point`: `scale = max(dW/sW, dH/sH)`, `offset = (dest − source·scale)/2`, `screen = offset + normalized · (source·scale)`. Unit-verified for 1:1, 4:3-in-tall-viewport (width crop), portrait-source-in-landscape (side crop), and a 1920×1080→390×700 four-corner numeric case.
+
+### Dataset smoke-test results (real Vision, no fake)
+
+`CardRegionDetectorTests` run the real `VNDetectRectanglesRequest` on frozen-dataset images read in place via `#filePath` (never copied, never modified):
+
+- card-001-standard-bilingual.png → one valid quadrilateral: PASS
+- card-007-vertical-medical-bilingual.png → one valid quadrilateral: PASS
+- card-013-english-bio-photographed.png → one valid quadrilateral: PASS
+- uniform 64×64 gray image → nil (no throw): PASS
+
+Assertions are smoke-contract only (dataset has no corner ground truth): region non-nil, all corners in [0,1], shoelace area > 0.05, positive source pixel size.
+
+### ViewModel detection lifecycle
+
+`CardDetectionState { inactive, cardNotDetected, cardDetected(CardRegion) }` is a separate state family; it does not alter `.preview` semantics. Consumption starts after successful `beginPreview`/`restartPreview` (initial state `cardNotDetected`); `capture` (success and both failure paths), `beginPhotoImport`, and `scannerDidDisappear` all stop consumption and reset to `.inactive`; stale events after termination cannot reactivate the overlay (state/import guards in the consumer loop). At most one consumer task at a time (previous stream finished before a new one is created); no `Task.detached`.
+
+### Overlay Reference fidelity
+
+Human visual comparison (fixture screenshot vs `evidence/screenshots/REF-scanner-02-card-detected.png`): cyan thin-stroke quadrilateral, no corner handles, no fill, no glow, no animation — MATCH; detected capsule pill "发现名片，点击拍摄" top-center, static white aiming guide REPLACED (not overlaid) — MATCH. Fixture geometry is a deterministic centered region, not a real detected card shape; real-detection geometry fidelity is PENDING physical device. Validation screenshots: `ai/validation/2026-10-01-increment4-card-detected-fixture.png`, `ai/validation/2026-10-01-increment4-card-not-detected-fixture.png`.
+
+### Builds and tests
+
+- Debug build: PASS
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty; DEBUG fixture code compiled out)
+- Unit tests: 96/96 PASS (was 71; +25: orientation resolver, CardRegion convention/clamping, aspect-fill mapper, real-Vision dataset smoke ×4, ViewModel detection lifecycle ×9, rotation-decision seam)
+- UI regression: 18/18 PASS (was 16; +2 detection fixture tests)
+
+### Physical-device pending items
+
+- real camera frame delivery: PENDING physical device
+- RotationCoordinator live preview behavior: PENDING physical device
+- live Vision business-card detection: PENDING physical device
+- fixture overlay: PASS automated
+- dataset still-image Vision smoke: PASS automated
+
+### Traceability
+
+- T06 Vision rectangle detector: PASS on dataset smoke
+- T06 live detection state orchestration: PASS automated
+- T06 detected boundary overlay: PASS fixture-driven
+- T06 live physical-device overlay: NOT INDEPENDENTLY VERIFIED
+- T06 manual boundary adjustment / confirm: NOT IMPLEMENTED (later half)
+- T06 overall: PARTIAL
+- S02 cardNotDetected: IMPLEMENTED / PASS automated
+- S02 cardDetected: IMPLEMENTED / PASS automated + fixture
+- S04 (crop/edit): NOT IMPLEMENTED this increment
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep clean; matches only in explanatory comments).
+- No Vision/VNRectangle/CMSampleBuffer import or reference in ViewModel/View; Model layer free of SwiftUI/UIKit/Vision/AVFoundation.
+- Vision work confined to the dedicated detection queue; no Vision call on MainActor or the session queue.
+- CMSampleBuffer consumed synchronously in the callback; only `CardRegion?` crosses actors.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj: unchanged (new files picked up by filesystem-synchronized groups).
+- Release DEBUG-fixture isolation: PASS (Release `SWIFT_ACTIVE_COMPILATION_CONDITIONS` has no DEBUG; entire fixture file is `#if DEBUG`).
+- `git status` shows no `_local` prompt path (ignored via `.git/info/exclude`).
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 5 not entered.
+
+## 2026-10-01 — Week 3 Increment 4 pre-Accept corrections: Vision aspect-ratio semantics + configure rollback + orientation wording
+
+Human review approved the Increment 4 main architecture; this round fixes two production blockers and calibrates the orientation documentation wording before Accept. Existing history above is not rewritten.
+
+### Blocker 1 — VNDetectRectanglesRequest aspect-ratio semantic correction
+
+The previous `maximumAspectRatio = 2.5` used the wrong semantic. Vision defines BOTH `minimumAspectRatio` and `maximumAspectRatio` as shorter dimension / longer dimension, so every legal value is in 0.0...1.0; horizontal and vertical business cards share the SAME range (no reciprocal >1 value).
+
+Corrected `CardRegionDetector.Configuration.businessCardBaseline`:
+
+- maximumObservations = 1 (unchanged)
+- minimumConfidence = 0.6 (unchanged)
+- minimumSize = 0.1 (unchanged)
+- minimumAspectRatio = 0.4
+- maximumAspectRatio = 1.0 (was 2.5)
+- quadratureTolerance = 30 (unchanged)
+
+New configuration-contract unit test asserts the baseline stays inside documented legal ranges: minimumAspectRatio ≥ 0, maximumAspectRatio ≤ 1, minimumAspectRatio ≤ maximumAspectRatio, minimumSize ∈ 0...1, minimumConfidence ∈ 0...1, quadratureTolerance ∈ 0...45, maximumObservations == 1. It does NOT test Vision's undocumented internal clamping.
+
+Dataset smoke RERUN with the corrected configuration, real Vision (no fake): card-001 standard horizontal PASS, card-007 vertical PASS, card-013 photographed PASS, uniform featureless image → nil PASS. Detector PASS retained only because the corrected-configuration smoke passed.
+
+### Blocker 2 — configure failure partial-topology rollback
+
+Previously a late rejection (e.g. `canAddVideoDataOutput == false`) still committed the transaction after earlier add steps, leaving a partial topology with `isConfigured == false` for a later retry.
+
+Fix via a minimal seam (`SimCamCard/Camera/CameraTopologyTransaction.swift`), without a large refactor:
+
+- `CaptureSessionTopology` protocol (associated input/output types; witnessed directly by AVCaptureSession's existing begin/commit/canAdd/add/remove methods) exists only to make the ordering contract unit-testable without camera hardware. It is deliberately not Sendable — calls are synchronous on the camera actor's serial executor.
+- `CameraTopologyTransaction.apply(...)` runs one attempt: begin → add input → add photo output → add video-data output → commit, tracking exactly which objects THIS attempt added. On any rejection it removes in REVERSE order only the objects added by this attempt (a never-added rejected object is not removed), commits the clean topology, and rethrows the original CameraSessionError. Pre-existing topology is never removed.
+- `CameraSessionController.configureIfNeeded()` delegates to the helper; the dedicated actor executor, sessionQueue ownership, start/stop behavior, RotationCoordinator ownership and detectionQueue ownership are unchanged.
+
+Retry contract verification (deterministic fake topology, no AVCaptureSession/hardware): success installs exactly one input + two outputs with one begin/commit; rejected input → empty committed topology + `.cannotAddVideoInput`; rejected photo output → input removed + `.cannotAddPhotoOutput`; rejected video-data output → photo output then input removed (rejected object itself not removed) + `.cannotAddVideoDataOutput`; attempt 1 late failure (clean, configured == false) followed by attempt 2 allowed → exactly one input, two outputs, two begin/commit pairs, configured == true.
+
+### Orientation wording calibration
+
+The blanket phrase "canonical orientation: ESTABLISHED" is withdrawn in favor of per-path status:
+
+- Live camera frame orientation contract: ESTABLISHED at architecture/automated level — RotationCoordinator capture angle; AVCaptureVideoDataOutput connection rotation; Vision receives `.up`-oriented delivered buffers; physical-device verification still PENDING.
+- Captured-photo rotation metadata contract: ESTABLISHED at architecture level — capture rotation applied to the AVCapturePhotoOutput connection; physical-device EXIF verification still PENDING.
+- Imported/still image orientation-resolution contract: ESTABLISHED as resolver foundation — ImageOrientationResolver reads CGImagePropertyOrientation; EXIF mapping tests PASS; raw bytes unchanged.
+- End-to-end still-image Detection/Crop consumption of resolved orientation: NOT IMPLEMENTED YET.
+
+Stated overall: orientation foundation / semantics ESTABLISHED — NOT claimed as "all camera/import image pipelines are end-to-end canonically normalized".
+
+Unchanged (re-affirmed): preview RotationCoordinator mutates only the preview connection; capture RotationCoordinator mutates photo/video-data-output connections on the camera actor; KVO → actor hop; `isVideoRotationAngleSupported` guard; video-data frames analyzed as `.up`; CardRegion top-left normalized coordinates; resizeAspectFill mapper; detected fixture ≠ physical live detection. Overlay UI unchanged.
+
+### Verification totals (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS (Release SWIFT_ACTIVE_COMPILATION_CONDITIONS empty; DEBUG fixture compiled out)
+- Unit tests: 102/102 PASS (previous 96 + 1 detector configuration contract + 5 topology rollback/retry)
+- UI regression: 18/18 PASS
+- Real-Vision dataset smoke (corrected config): 4/4 PASS
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`
+- Boundary audit: Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj unchanged; `git status` shows no `_local`
+
+### Traceability (unchanged conclusions)
+
+- T06 Vision rectangle detector: PASS (corrected-configuration dataset smoke)
+- T06 live detection orchestration: PASS automated
+- T06 detected overlay: PASS fixture-driven
+- T06 live physical-device detection: NOT INDEPENDENTLY VERIFIED
+- T06 manual boundary adjustment: NOT IMPLEMENTED
+- T06 confirm: NOT IMPLEMENTED
+- T06 overall: PARTIAL
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: NOT IMPLEMENTED (Scanner live cardDetected does not make S04 autoDetected PASS)
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 5 not entered.

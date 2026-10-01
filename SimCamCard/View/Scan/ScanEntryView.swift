@@ -284,17 +284,30 @@ struct ScanEntryView: View {
                     Color.clear
                 }
 
-                // Static aiming guide + guidance tip overlay retained
-                // over BOTH the pre-permission shell and the live feed.
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.white, lineWidth: 1)
-                    .aspectRatio(Self.viewportAspectRatio, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .allowsHitTesting(false)
-                    .overlay(alignment: .top) {
-                        guidanceTip
-                            .padding(.top, 12)
-                    }
+                // T06 detected boundary (REF-scanner-02-card-detected.png):
+                // when a card is detected the cyan quadrilateral overlay
+                // REPLACES the static white aiming guide, and the
+                // guidance tip switches to the detected copy. When no
+                // card is detected the Week 2 static guide + tip remain.
+                if case .cardDetected(let region) = viewModel.cardDetection {
+                    CardDetectionOverlay(region: region, containerSize: proxy.size)
+                        .overlay(alignment: .top) {
+                            detectedTip
+                                .padding(.top, 12)
+                        }
+                } else {
+                    // Static aiming guide + guidance tip overlay retained
+                    // over BOTH the pre-permission shell and the live feed.
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(.white, lineWidth: 1)
+                        .aspectRatio(Self.viewportAspectRatio, contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
+                        .overlay(alignment: .top) {
+                            guidanceTip
+                                .padding(.top, 12)
+                        }
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
@@ -378,6 +391,22 @@ struct ScanEntryView: View {
     /// placeholder.
     private var guidanceTip: some View {
         Text("请将镜头靠近名片")
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.18))
+            )
+            .allowsHitTesting(false)
+    }
+
+    /// Frozen Reference detected-state copy from
+    /// REF-scanner-02-card-detected.png ("发现名片，点击拍摄"). Same
+    /// capsule presentation as the not-detected guidance tip.
+    private var detectedTip: some View {
+        Text("发现名片，点击拍摄")
             .font(.system(size: 15, weight: .medium))
             .foregroundStyle(.white)
             .padding(.horizontal, 14)

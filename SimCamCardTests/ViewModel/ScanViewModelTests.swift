@@ -74,6 +74,11 @@ struct ScanViewModelTests {
         private let startErrorOnCall: Int?
         private let captureError: CameraSessionError?
 
+        /// T06 controllable detection stream: tests yield values via
+        /// `yieldDetection(_:)`; deterministic, no real Vision involved.
+        private var detectionContinuation: AsyncStream<CardRegion?>.Continuation?
+        private(set) var makeDetectionEventsCount = 0
+
         /// Minimal controllable seam: while the gate is enabled,
         /// `start()` suspends (AFTER incrementing `startCount`) until
         /// `releaseStartGate()` resumes it. Lets tests observe the
@@ -136,6 +141,44 @@ struct ScanViewModelTests {
                 throw captureError
             }
             return CapturedPhoto(data: Self.fixtureBytes)
+        }
+
+        func makeDetectionEvents() async -> AsyncStream<CardRegion?> {
+            makeDetectionEventsCount += 1
+            detectionContinuation?.finish()
+            let (stream, continuation) = AsyncStream<CardRegion?>.makeStream(
+                bufferingPolicy: .bufferingNewest(1)
+            )
+            detectionContinuation = continuation
+            return stream
+        }
+
+        /// Delivers one detection event to the current consumer.
+        func yieldDetection(_ region: CardRegion?) {
+            detectionContinuation?.yield(region)
+        }
+
+        /// Deterministic quadrilateral used by detection-state tests.
+        nonisolated static let fixtureRegion = CardRegion(
+            topLeft: NormalizedPoint(x: 0.2, y: 0.3),
+            topRight: NormalizedPoint(x: 0.8, y: 0.3),
+            bottomRight: NormalizedPoint(x: 0.8, y: 0.7),
+            bottomLeft: NormalizedPoint(x: 0.2, y: 0.7),
+            sourcePixelWidth: 1920,
+            sourcePixelHeight: 1080
+        )
+    }
+
+    // MARK: - Detection stream readiness
+
+    /// Waits until the ViewModel's consumer has taken the detection
+    /// stream. The fake drops `yieldDetection` calls made before a
+    /// stream exists (continuation is nil), so yielding without this
+    /// readiness wait would silently lose the event.
+    private func waitForDetectionStream(_ session: FakeSession, count: Int = 1) async {
+        for _ in 0..<100 {
+            if await session.makeDetectionEventsCount >= count { return }
+            await Task.yield()
         }
     }
 
@@ -802,5 +845,194 @@ struct ScanViewModelTests {
         if case .imageSelected = vm.photoImport {
             Issue.record("load failure must never enter .imageSelected")
         }
+    }
+
+    // MARK: - T06 live detection state (fake stream)
+
+    @Test("entering preview starts detection consumption in cardNotDetected")
+    func previewStartsDetectionInCardNotDetected() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+
+        #expect(vm.state == .preview)
+        #expect(vm.cardDetection == .cardNotDetected)
+        // The consumer task is spawned on MainActor; wait
+        // deterministically until it has taken the stream.
+        await waitForDetectionStream(session)
+        #expect(await session.makeDetectionEventsCount == 1)
+    }
+
+    @Test("preview + nil event stays cardNotDetected")
+    func previewNilEventStaysCardNotDetected() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(nil)
+
+        // Deterministic drain: wait until the consumer processed the
+        // event by observing a no-op MainActor round-trip.
+        await Task.yield()
+
+        #expect(vm.cardDetection == .cardNotDetected)
+    }
+
+    @Test("preview + region event enters cardDetected(region)")
+    func previewRegionEventEntersCardDetected() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(FakeSession.fixtureRegion)
+
+        // Wait deterministically until the consumer applies the event.
+        for _ in 0..<100 where vm.cardDetection != .cardDetected(FakeSession.fixtureRegion) {
+            await Task.yield()
+        }
+
+        #expect(vm.cardDetection == .cardDetected(FakeSession.fixtureRegion))
+    }
+
+    @Test("cardDetected + nil event returns to cardNotDetected")
+    func detectedThenNilReturnsToNotDetected() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        for _ in 0..<100 where vm.cardDetection != .cardDetected(FakeSession.fixtureRegion) {
+            await Task.yield()
+        }
+        #expect(vm.cardDetection == .cardDetected(FakeSession.fixtureRegion))
+
+        await session.yieldDetection(nil)
+        for _ in 0..<100 where vm.cardDetection != .cardNotDetected {
+            await Task.yield()
+        }
+
+        #expect(vm.cardDetection == .cardNotDetected)
+    }
+
+    @Test("capture ends detection: state inactive, stale events cannot reactivate")
+    func captureDeactivatesDetection() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        for _ in 0..<100 where vm.cardDetection != .cardDetected(FakeSession.fixtureRegion) {
+            await Task.yield()
+        }
+        #expect(vm.cardDetection == .cardDetected(FakeSession.fixtureRegion))
+
+        await vm.capture()
+
+        guard case .captured = vm.state else {
+            Issue.record("expected .captured, got \(vm.state)")
+            return
+        }
+        #expect(vm.cardDetection == .inactive)
+
+        // A late/stale detection event must not reactivate the overlay
+        // behind the captured image.
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        await Task.yield()
+        #expect(vm.cardDetection == .inactive)
+    }
+
+    @Test("photo import ends detection: state inactive, stale events cannot reactivate")
+    func photoImportDeactivatesDetection() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        for _ in 0..<100 where vm.cardDetection != .cardDetected(FakeSession.fixtureRegion) {
+            await Task.yield()
+        }
+        #expect(vm.cardDetection == .cardDetected(FakeSession.fixtureRegion))
+
+        await vm.beginPhotoImport()
+
+        #expect(vm.cardDetection == .inactive)
+
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        await Task.yield()
+        #expect(vm.cardDetection == .inactive)
+    }
+
+    @Test("scanner disappear ends detection")
+    func disappearDeactivatesDetection() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await waitForDetectionStream(session)
+        await session.yieldDetection(FakeSession.fixtureRegion)
+        for _ in 0..<100 where vm.cardDetection != .cardDetected(FakeSession.fixtureRegion) {
+            await Task.yield()
+        }
+        #expect(vm.cardDetection == .cardDetected(FakeSession.fixtureRegion))
+
+        await vm.scannerDidDisappear()
+
+        #expect(vm.cardDetection == .inactive)
+    }
+
+    @Test("cancel-restart resumes detection consumption with a fresh stream")
+    func cancelRestartResumesDetection() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        #expect(vm.cardDetection == .inactive)
+
+        await vm.handleImportCancel()
+
+        #expect(vm.state == .preview)
+        #expect(vm.cardDetection == .cardNotDetected)
+        // A fresh stream was created for the restarted preview.
+        await waitForDetectionStream(session, count: 2)
+        #expect(await session.makeDetectionEventsCount == 2)
+    }
+
+    @Test("cameraUnavailable leaves detection inactive")
+    func cameraUnavailableKeepsDetectionInactive() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession(configureError: .noVideoDevice)
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+
+        #expect(vm.state == .cameraUnavailable(.noVideoDevice))
+        #expect(vm.cardDetection == .inactive)
+        #expect(await session.makeDetectionEventsCount == 0)
+    }
+
+    // MARK: - Rotation decision seam
+
+    @Test("supported rotation angle is applied; unsupported is not")
+    func rotationDecisionAppliesOnlySupportedAngles() {
+        let supported = VideoRotationDecision.supportedAngle(90) { $0 == 90 }
+        #expect(supported == 90)
+
+        let unsupported = VideoRotationDecision.supportedAngle(45) { $0 == 90 }
+        #expect(unsupported == nil)
     }
 }

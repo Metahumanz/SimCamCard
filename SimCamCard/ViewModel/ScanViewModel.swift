@@ -109,6 +109,27 @@ final class ScanViewModel {
     /// S03 photo-import transient state. Defaults to `.idle`.
     private(set) var photoImport: PhotoImportState = .idle
 
+    /// T06 live card-detection state (Week 3 Increment 4). Deliberately
+    /// a SEPARATE state family from the S02 camera `State`: `.preview`
+    /// continues to mean "camera session running" and must NOT also
+    /// carry the mutually-exclusive detection overlay. Maps frozen S02
+    /// `cardNotDetected` / `cardDetected` without changing the camera
+    /// state machine.
+    enum CardDetectionState: Equatable {
+        /// Detection is not running: not in preview, or a
+        /// capture/import/leave-scanner transition has explicitly
+        /// ended it. No overlay is rendered.
+        case inactive
+        /// Preview is running but Vision currently reports no card.
+        case cardNotDetected
+        /// Preview is running and Vision reports a card quadrilateral.
+        case cardDetected(CardRegion)
+    }
+
+    /// Current T06 detection state. `.inactive` unless the camera is
+    /// in `.preview`.
+    private(set) var cardDetection: CardDetectionState = .inactive
+
     /// Whether the system `PhotosPicker` sheet should be presented.
     /// Driven by `beginPhotoImport()`; cleared by every terminal
     /// import outcome (selected / cancelled / load failure).
@@ -132,6 +153,12 @@ final class ScanViewModel {
     /// regression); in Release it is `Never?` (always nil, fixture
     /// path compiled out).
     private let photoImportFixture: PhotoImportFixtureParam
+
+    /// The single Task consuming the live detection stream while in
+    /// `.preview`. Cancelled on scanner disappear, on capture, on photo
+    /// import, and on any transition out of preview. Never more than
+    /// one consumer exists at a time; never a Task.detached.
+    private var detectionConsumer: Task<Void, Never>?
 
     init(
         authorization: CameraAuthorizationProviding = AVCameraAuthorizationProvider(),
@@ -184,6 +211,7 @@ final class ScanViewModel {
     /// cheap re-entry. Async because stop is dispatched to the session
     /// service's serial executor.
     func scannerDidDisappear() async {
+        stopDetectionConsumption()
         await sessionController.stop()
     }
 
@@ -221,14 +249,17 @@ final class ScanViewModel {
         do {
             let photo = try await sessionController.capturePhoto()
             await sessionController.stop()
+            stopDetectionConsumption()
             state = .captured(photo)
         } catch let error as CameraSessionError {
             // Failure path must also release the camera session: never
             // leave the session running behind the error fallback.
             await sessionController.stop()
+            stopDetectionConsumption()
             state = .cameraUnavailable(error)
         } catch {
             await sessionController.stop()
+            stopDetectionConsumption()
             state = .cameraUnavailable(.captureFailed)
         }
     }
@@ -245,7 +276,10 @@ final class ScanViewModel {
     func beginPhotoImport() async {
         guard state == .preview, !isPickerPresented, photoImport == .idle else { return }
 
-        // Release the camera before presenting the system picker.
+        // Live detection ends while the import flow owns the scanner
+        // content; the camera is released before presenting the system
+        // picker.
+        stopDetectionConsumption()
         await sessionController.stop()
 
         #if DEBUG
@@ -334,6 +368,7 @@ final class ScanViewModel {
             // must NEVER surface as preview.
             try await sessionController.start()
             state = .preview
+            startDetectionConsumption()
         } catch let error as CameraSessionError {
             state = .cameraUnavailable(error)
         } catch {
@@ -351,10 +386,41 @@ final class ScanViewModel {
         do {
             try await sessionController.start()
             state = .preview
+            startDetectionConsumption()
         } catch let error as CameraSessionError {
             state = .cameraUnavailable(error)
         } catch {
             state = .cameraUnavailable(.cannotAddVideoInput)
         }
+    }
+
+    // MARK: - Live detection consumption (T06)
+
+    /// Starts consuming the detection stream for the current preview
+    /// lifecycle. The initial state is `cardNotDetected`; every
+    /// delivered region flips it to `cardDetected`, every nil flips it
+    /// back. At most one consumer exists at a time; the task is
+    /// cancelled by `stopDetectionConsumption()` whenever the scanner
+    /// leaves a state that renders the live feed.
+    private func startDetectionConsumption() {
+        stopDetectionConsumption()
+        cardDetection = .cardNotDetected
+        detectionConsumer = Task { [weak self] in
+            guard let stream = await self?.sessionController.makeDetectionEvents() else { return }
+            for await region in stream {
+                guard !Task.isCancelled else { break }
+                guard let self, self.state == .preview, self.photoImport == .idle else { continue }
+                self.cardDetection = region.map(CardDetectionState.cardDetected) ?? .cardNotDetected
+            }
+        }
+    }
+
+    /// Ends live detection and clears the overlay state. Called on
+    /// scanner disappear, capture, photo import, and any transition
+    /// out of preview. Safe to call repeatedly.
+    private func stopDetectionConsumption() {
+        detectionConsumer?.cancel()
+        detectionConsumer = nil
+        cardDetection = .inactive
     }
 }

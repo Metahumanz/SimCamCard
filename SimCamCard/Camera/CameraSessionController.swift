@@ -8,13 +8,22 @@
 //  Scope:
 //   - One AVCaptureSession with a single rear video input feeding the
 //     live preview layer, plus ONE AVCapturePhotoOutput for T04
-//     single-card still capture (added exactly once, minimal settings).
+//     single-card still capture (added exactly once, minimal settings),
+//     plus ONE AVCaptureVideoDataOutput for T06 live rectangle
+//     detection (alwaysDiscardsLateVideoFrames = true; callbacks on a
+//     dedicated serial detection queue, never on this actor's executor
+//     or the MainActor).
 //   - Idempotent lifecycle: configure once; start many; stop many.
 //   - Single in-flight capture: a second capturePhoto() request while
 //     one is in flight throws `captureFailed`.
-//   - NOT configured: metadata output, Vision/OCR, rectangle detection,
-//     QR, audio. No microphone permission is ever requested. No flash
-//     UI, burst, bracket, RAW, Live Photo, depth or portrait effects.
+//   - Orientation contract: a capture-side
+//     AVCaptureDevice.RotationCoordinator (created after configuration,
+//     strongly held) drives videoRotationAngle on the photo-output and
+//     video-data-output connections so Vision receives physically
+//     upright frames. Only supported angles are written.
+//   - NOT configured: metadata output, OCR/text recognition, QR, audio.
+//     No microphone permission is ever requested. No flash UI, burst,
+//     bracket, RAW, Live Photo, depth or portrait effects.
 //
 //  Concurrency ownership (Swift 6, correction supersedes the original
 //  MainActor-owned design):
@@ -48,7 +57,10 @@
 //  Ordering contract:
 //   - configureIfNeeded(): runs the expensive configuration at most
 //     once; later calls are no-ops. A failed configure does NOT mark
-//     the session configured (a later call may retry).
+//     the session configured, and any objects added by the failed
+//     attempt are removed in reverse order and the transaction
+//     committed — the session is left with no partial topology, so a
+//     later call retries from a clean state.
 //   - start()/stop(): serialized with configuration; start is a no-op
 //     until configuration has succeeded; both are idempotent via the
 //     session's running flag.
@@ -74,6 +86,9 @@ enum CameraSessionError: Error, Equatable {
     case startFailed
     /// The photo output could not be added to the session (T04).
     case cannotAddPhotoOutput
+    /// The video-data output could not be added to the session (T06
+    /// live detection).
+    case cannotAddVideoDataOutput
     /// The capture request failed (delegate reported an error), or a
     /// capture was requested while the session was not running.
     case captureFailed
@@ -128,6 +143,31 @@ nonisolated protocol CameraSessionControlling: Sendable {
     /// `.emptyPhotoData` on failure — a failed capture must never
     /// produce a CapturedPhoto.
     func capturePhoto() async throws -> CapturedPhoto
+
+    /// Live card-detection events (T06). Returns a fresh stream for
+    /// the current preview lifecycle; any previously returned stream
+    /// is finished first, so re-entering the Scanner never accumulates
+    /// stale consumers. `bufferingNewest(1)` backpressure: the consumer
+    /// only sees the latest result; stale detections are dropped,
+    /// never queued. Only the Sendable value type crosses the
+    /// isolation boundary — no CMSampleBuffer and no
+    /// VNRectangleObservation ever reaches the consumer. Async because
+    /// installing the sample-buffer delegate is session-adjacent work
+    /// serialized with the implementation's executor.
+    func makeDetectionEvents() async -> AsyncStream<CardRegion?>
+}
+
+/// Pure rotation-application decision seam (unit-testable without a
+/// real AVCaptureConnection): apply an angle ONLY when the connection
+/// reports support for it; otherwise leave the connection untouched —
+/// an unsupported angle is never written.
+nonisolated enum VideoRotationDecision {
+    static func supportedAngle(
+        _ angle: CGFloat,
+        isSupported: (CGFloat) -> Bool
+    ) -> CGFloat? {
+        isSupported(angle) ? angle : nil
+    }
 }
 
 actor CameraSessionController: CameraSessionControlling {
@@ -168,6 +208,42 @@ actor CameraSessionController: CameraSessionControlling {
     /// continuation resumes.
     private var inFlightCapture: PhotoCaptureProcessor?
 
+    /// T06 live detection output. Added once inside the same
+    /// configuration transaction as the video input and photo output.
+    private let videoDataOutput = AVCaptureVideoDataOutput()
+
+    /// Dedicated serial queue for sample-buffer callbacks + Vision
+    /// analysis. Never the MainActor, never the camera session queue.
+    nonisolated let detectionQueue = DispatchSerialQueue(
+        label: "com.metahumanz.SimCamCard.camera.detection"
+    )
+
+    /// The stream continuation that feeds the latest detection result
+    /// to consumers. Created each time the session starts (or when
+    /// `detectionEvents` is read); finished and discarded on stop.
+    private var detectionContinuation: AsyncStream<CardRegion?>.Continuation?
+
+    /// Strong reference to the delegate that bridges sample buffers to
+    /// the Vision detector. Held so AVFoundation never calls a
+    /// deallocated delegate.
+    private var detectionProcessor: VideoFrameProcessor?
+
+    /// Rear device captured during configuration. Retained for the
+    /// capture-side RotationCoordinator and so the preview view can
+    /// later build its own preview RotationCoordinator from the
+    /// already-configured stable session (read-only access, no topology
+    /// mutation).
+    private var rearCameraDevice: AVCaptureDevice?
+
+    /// Capture-side RotationCoordinator. Owned by this actor; updates
+    /// the photo-output and video-data-output connections via
+    /// `applyCaptureRotation(angle:)`.
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+
+    /// KVO observation token for capture-angle changes. Retained so
+    /// observation stays alive for the Scanner's lifetime.
+    private var rotationObservation: NSKeyValueObservation?
+
     private var isConfigured = false
 
     func configureIfNeeded() async throws {
@@ -183,6 +259,7 @@ actor CameraSessionController: CameraSessionControlling {
         ) else {
             throw CameraSessionError.noVideoDevice
         }
+        rearCameraDevice = device
 
         let input: AVCaptureDeviceInput
         do {
@@ -191,23 +268,38 @@ actor CameraSessionController: CameraSessionControlling {
             throw CameraSessionError.noVideoDevice
         }
 
-        session.beginConfiguration()
-        guard session.canAddInput(input) else {
-            session.commitConfiguration()
-            throw CameraSessionError.cannotAddVideoInput
-        }
-        session.addInput(input)
+        // T06: late frames are dropped at the source; this is output
+        // configuration, not topology, so it is set before the
+        // transaction and stays harmless even if configure fails.
+        videoDataOutput.alwaysDiscardsLateVideoFrames = true
 
-        // T04: one photo output, added exactly once, inside the same
-        // configuration transaction. canAddOutput failure is an
-        // infrastructure error — never disguised as permissionDenied.
-        guard session.canAddOutput(photoOutput) else {
-            session.commitConfiguration()
-            throw CameraSessionError.cannotAddPhotoOutput
-        }
-        session.addOutput(photoOutput)
+        // One add/rollback transaction: input → photo output →
+        // video-data output. On any rejection the helper removes only
+        // the objects this attempt added (reverse order), commits the
+        // clean topology and throws the original error, so a later
+        // configureIfNeeded() retries from NO partial topology.
+        try CameraTopologyTransaction.apply(
+            to: session,
+            videoInput: input,
+            photoOutput: photoOutput,
+            videoDataOutput: videoDataOutput
+        )
 
-        session.commitConfiguration()
+        // RotationCoordinator (capture side): establishes the canonical
+        // orientation contract so Vision receives upright frames.
+        rotationCoordinator = AVCaptureDevice.RotationCoordinator(
+            device: device, previewLayer: nil
+        )
+        rotationObservation = rotationCoordinator?.observe(
+            \.videoRotationAngleForHorizonLevelCapture,
+            options: [.new]
+        ) { [weak self] _, change in
+            guard let angle = change.newValue else { return }
+            Task { await self?.applyCaptureRotation(angle: angle) }
+        }
+        if let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture {
+            applyCaptureRotation(angle: angle)
+        }
 
         isConfigured = true
     }
@@ -230,6 +322,54 @@ actor CameraSessionController: CameraSessionControlling {
     func stop() async {
         guard isConfigured, session.isRunning else { return }
         session.stopRunning()
+        videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
+        detectionContinuation?.finish()
+        detectionContinuation = nil
+        detectionProcessor = nil
+    }
+
+    // MARK: - Detection stream
+
+    /// Returns the live detection stream for the current preview
+    /// lifecycle. Any previously returned stream is finished first so
+    /// re-entering the Scanner never accumulates stale consumers.
+    /// `bufferingNewest(1)`: the consumer only sees the latest result.
+    ///
+    /// Runs on this actor's serial executor: installing the sample
+    /// -buffer delegate is a session-adjacent mutation and must not
+    /// race configuration/start/stop. The delegate's callbacks then
+    /// fire on the separate serial `detectionQueue`.
+    func makeDetectionEvents() -> AsyncStream<CardRegion?> {
+        detectionContinuation?.finish()
+        detectionContinuation = nil
+        detectionProcessor = nil
+
+        let (stream, continuation) = AsyncStream<CardRegion?>.makeStream(
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        let processor = VideoFrameProcessor(continuation: continuation)
+        videoDataOutput.setSampleBufferDelegate(processor, queue: detectionQueue)
+        detectionContinuation = continuation
+        detectionProcessor = processor
+        return stream
+    }
+
+    // MARK: - Capture rotation
+
+    /// Applies the current RotationCoordinator capture angle to the
+    /// photo-output and video-data-output connections. Runs on this
+    /// actor's serial executor (connection mutation is session work).
+    /// Only angles the connection reports as supported are written —
+    /// an unsupported angle leaves the connection untouched.
+    func applyCaptureRotation(angle: CGFloat) {
+        for output in [photoOutput, videoDataOutput] {
+            guard let connection = output.connection(with: .video),
+                  let supported = VideoRotationDecision.supportedAngle(
+                      angle, isSupported: connection.isVideoRotationAngleSupported
+                  )
+            else { continue }
+            connection.videoRotationAngle = supported
+        }
     }
 
     func capturePhoto() async throws -> CapturedPhoto {

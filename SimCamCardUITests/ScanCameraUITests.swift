@@ -42,12 +42,16 @@ final class ScanCameraUITests: XCTestCase {
     @MainActor
     private func launchAndEnterScanner(
         cameraMode: String,
-        photoImportMode: String? = nil
+        photoImportMode: String? = nil,
+        detectionMode: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         var args = ["-SimCamCardCamera", cameraMode]
         if let photoImportMode {
             args += ["-SimCamCardPhotoImport", photoImportMode]
+        }
+        if let detectionMode {
+            args += ["-SimCamCardDetection", detectionMode]
         }
         app.launchArguments = args
         app.launch()
@@ -276,6 +280,95 @@ final class ScanCameraUITests: XCTestCase {
             app.descendants(matching: .any)["scan-imported-photo"].exists,
             "Cancel must not show an imported photo."
         )
+
+        closeScanner(app)
+    }
+
+    // MARK: - T06 detection: card detected fixture
+
+    /// Fixture-driven overlay regression: authorized preview + detected
+    /// fixture → cyan quadrilateral overlay appears, guidance tip
+    /// switches to "发现名片，点击拍摄", and the shutter remains.
+    ///
+    /// NON-CLAIM: this is NOT real Vision detection. The DEBUG fixture
+    /// yields a fixed CardRegion directly; real camera live detection is
+    /// recorded as NOT INDEPENDENTLY VERIFIED in ai/changes.md.
+    @MainActor
+    func testDetectionFixtureShowsOverlayAndDetectedTip() throws {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized",
+            detectionMode: "detected"
+        )
+
+        let preview = app.descendants(matching: .any)["scan-camera-preview"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5),
+                      "Preview should be running.")
+
+        let overlay = app.descendants(matching: .any)["scan-card-detected-overlay"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5),
+                      "Detected fixture should show the card-detected overlay.")
+
+        // The static white aiming guide is replaced by the detected overlay.
+        XCTAssertFalse(
+            app.staticTexts["请将镜头靠近名片"].exists,
+            "Static guidance tip must be replaced when card detected."
+        )
+        XCTAssertTrue(
+            app.staticTexts["发现名片，点击拍摄"].exists,
+            "Detected guidance tip must be shown."
+        )
+
+        // Shutter remains available so the user can capture.
+        XCTAssertTrue(app.buttons["scan-capture"].exists,
+                      "The shutter must remain available when a card is detected.")
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i4-scan-card-detected-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        closeScanner(app)
+    }
+
+    // MARK: - T06 detection: card not detected fixture
+
+    /// Fixture-driven overlay absence regression: authorized preview +
+    /// notdetected fixture → overlay is absent, static guide + tip remain,
+    /// and the scanner stays usable.
+    @MainActor
+    func testNotDetectedFixtureHidesOverlayAndShowsGuidance() throws {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized",
+            detectionMode: "notdetected"
+        )
+
+        let preview = app.descendants(matching: .any)["scan-camera-preview"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5),
+                      "Preview should be running.")
+
+        XCTAssertFalse(
+            app.descendants(matching: .any)["scan-card-detected-overlay"].exists,
+            "Not-detected fixture must not show the detected overlay."
+        )
+
+        XCTAssertTrue(
+            app.staticTexts["请将镜头靠近名片"].exists,
+            "Static guidance tip must remain when no card is detected."
+        )
+        XCTAssertFalse(
+            app.staticTexts["发现名片，点击拍摄"].exists,
+            "Detected guidance tip must not appear without detection."
+        )
+
+        XCTAssertTrue(app.buttons["scan-capture"].exists,
+                      "The shutter must remain available.")
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i4-scan-card-not-detected-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
 
         closeScanner(app)
     }

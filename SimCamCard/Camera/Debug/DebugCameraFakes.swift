@@ -61,6 +61,15 @@ final class DebugCameraAuthorizationProvider: CameraAuthorizationProviding {
 
 // MARK: - Fake session controller
 
+/// DEBUG-only detection fixture for T06 overlay UI regression.
+/// `detected` yields one deterministic CardRegion; `notdetected`
+/// yields nil. Fixture detection is NOT real Vision detection; Release
+/// never contains this path.
+enum DetectionFixtureMode: String {
+    case detected
+    case notdetected
+}
+
 /// Actor fake mirroring the production serialization/idempotency
 /// contract (configure once / start many / stop many) without any
 /// hardware dependency. Being an actor, its counters and guards are
@@ -80,8 +89,15 @@ actor DebugCameraSessionController: CameraSessionControlling {
     /// hardware/configuration failure with permission already granted.
     private let configureError: CameraSessionError?
 
-    init(configureError: CameraSessionError? = nil) {
+    /// Optional T06 detection fixture driving `makeDetectionEvents()`.
+    private let detectionFixture: DetectionFixtureMode?
+
+    init(
+        configureError: CameraSessionError? = nil,
+        detectionFixture: DetectionFixtureMode? = nil
+    ) {
         self.configureError = configureError
+        self.detectionFixture = detectionFixture
     }
 
     func configureIfNeeded() async throws {
@@ -113,6 +129,33 @@ actor DebugCameraSessionController: CameraSessionControlling {
         return CapturedPhoto(data: DebugCameraSessionController.fixtureImageData)
     }
 
+    /// Deterministic T06 fixture stream. `detected` delivers one fixed
+    /// quadrilateral; `notdetected` delivers nil; no fixture delivers
+    /// an empty stream (the ViewModel's initial cardNotDetected stands).
+    func makeDetectionEvents() async -> AsyncStream<CardRegion?> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            switch detectionFixture {
+            case .detected:
+                continuation.yield(Self.fixtureCardRegion)
+            case .notdetected:
+                continuation.yield(nil)
+            case nil:
+                break
+            }
+        }
+    }
+
+    /// Fixed detected quadrilateral for the T06 overlay fixture:
+    /// centered card-like region in a 1920×1080 source frame.
+    nonisolated static let fixtureCardRegion = CardRegion(
+        topLeft: NormalizedPoint(x: 0.22, y: 0.30),
+        topRight: NormalizedPoint(x: 0.78, y: 0.30),
+        bottomRight: NormalizedPoint(x: 0.78, y: 0.72),
+        bottomLeft: NormalizedPoint(x: 0.22, y: 0.72),
+        sourcePixelWidth: 1920,
+        sourcePixelHeight: 1080
+    )
+
     /// Fixed 4×4 green PNG (71 bytes). Valid image data required because
     /// the captured presentation decodes it with UIImage(data:).
     nonisolated static let fixtureImageData: Data = Data([
@@ -130,6 +173,7 @@ enum DebugCameraEnvironment {
 
     static let launchArgument = "-SimCamCardCamera"
     static let photoImportArgument = "-SimCamCardPhotoImport"
+    static let detectionArgument = "-SimCamCardDetection"
 
     enum Mode: String {
         case authorized
@@ -173,10 +217,13 @@ enum DebugCameraEnvironment {
         }
 
         let photoImportFixture = parsePhotoImportFixture(arguments: arguments)
+        let detectionFixture = parseDetectionFixture(arguments: arguments)
 
         return ScanViewModel(
             authorization: authorization,
-            sessionController: DebugCameraSessionController(),
+            sessionController: DebugCameraSessionController(
+                detectionFixture: detectionFixture
+            ),
             photoImportFixture: photoImportFixture
         )
     }
@@ -192,6 +239,19 @@ enum DebugCameraEnvironment {
             return nil
         }
         return PhotoImportFixtureMode(rawValue: arguments[index + 1].lowercased())
+    }
+
+    /// Parses the optional `-SimCamCardDetection detected|notdetected`
+    /// launch argument. Returns nil when absent or unrecognized.
+    private static func parseDetectionFixture(
+        arguments: [String]
+    ) -> DetectionFixtureMode? {
+        guard let index = arguments.firstIndex(of: detectionArgument),
+              index + 1 < arguments.count
+        else {
+            return nil
+        }
+        return DetectionFixtureMode(rawValue: arguments[index + 1].lowercased())
     }
 }
 
