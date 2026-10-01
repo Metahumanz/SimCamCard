@@ -69,7 +69,17 @@ struct ScanViewModelTests {
         private(set) var captureCount = 0
         private let configureError: CameraSessionError?
         private let startError: CameraSessionError?
+        /// When set, `startError` is thrown only on the Nth `start()`
+        /// call; when nil a non-nil `startError` fails every call.
+        private let startErrorOnCall: Int?
         private let captureError: CameraSessionError?
+
+        /// Minimal controllable seam: while the gate is enabled,
+        /// `start()` suspends (AFTER incrementing `startCount`) until
+        /// `releaseStartGate()` resumes it. Lets tests observe the
+        /// ViewModel mid-restart without wall-clock timing.
+        private var startGateIsEnabled = false
+        private var startGateWaiters: [CheckedContinuation<Void, Never>] = []
 
         /// Deterministic valid still bytes (content is irrelevant to
         /// state assertions; only presence matters).
@@ -78,11 +88,24 @@ struct ScanViewModelTests {
         init(
             configureError: CameraSessionError? = nil,
             startError: CameraSessionError? = nil,
+            startErrorOnCall: Int? = nil,
             captureError: CameraSessionError? = nil
         ) {
             self.configureError = configureError
             self.startError = startError
+            self.startErrorOnCall = startErrorOnCall
             self.captureError = captureError
+        }
+
+        func enableStartGate() {
+            startGateIsEnabled = true
+        }
+
+        func releaseStartGate() {
+            startGateIsEnabled = false
+            let waiters = startGateWaiters
+            startGateWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
         }
 
         func configureIfNeeded() async throws {
@@ -95,7 +118,10 @@ struct ScanViewModelTests {
 
         func start() async throws {
             startCount += 1
-            if let startError {
+            if startGateIsEnabled {
+                await withCheckedContinuation { startGateWaiters.append($0) }
+            }
+            if let startError, startErrorOnCall == nil || startErrorOnCall == startCount {
                 throw startError
             }
         }
@@ -461,5 +487,320 @@ struct ScanViewModelTests {
         #expect(await session.configureCount == 1)
         #expect(await session.startCount == 2)
         #expect(await session.stopCount == 2) // capture-stop + disappear-stop
+    }
+
+    // MARK: - T05 photo import: selection success
+
+    @Test("preview → begin import → session stops → selected image reaches imageSelected state")
+    func photoImportSelectionStopsSessionAndEntersImageSelected() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        await vm.beginPhotoImport()
+
+        // Camera is released before the picker is presented.
+        #expect(await session.stopCount == 1)
+        #expect(vm.isPickerPresented)
+        #expect(vm.photoImport == .pickerPresented)
+
+        let importedBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
+        vm.handleSelectedImage(importedBytes)
+
+        // Selection clears the picker flag and stores the image.
+        #expect(!vm.isPickerPresented)
+        guard case .imageSelected(let photo) = vm.photoImport else {
+            Issue.record("expected .imageSelected, got \(vm.photoImport)")
+            return
+        }
+        #expect(photo.data == importedBytes)
+        #expect(photo.source == .photoLibrary)
+        // Camera stays stopped after a selection (§11).
+        #expect(await session.startCount == 1) // only the initial preview start
+    }
+
+    // MARK: - T05 photo import: cancel is first-class
+
+    @Test("picker cancel clears state and restarts camera preview")
+    func photoImportCancelRestartsPreview() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        #expect(await session.stopCount == 1)
+
+        await vm.handleImportCancel()
+
+        // Cancel does not produce an image and returns the scanner to
+        // a usable preview state (camera restarted).
+        #expect(vm.photoImport == .idle)
+        #expect(!vm.isPickerPresented)
+        if case .imageSelected = vm.photoImport {
+            Issue.record("cancel must never enter .imageSelected")
+        }
+        #expect(await session.startCount == 2) // initial + restart
+        #expect(vm.state == .preview)
+    }
+
+    // MARK: - T05 photo import: load failure
+
+    @Test("selection load failure enters importFailed, never imageSelected")
+    func photoImportLoadFailureEntersImportFailed() {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        vm.handleImportLoadFailure()
+
+        #expect(vm.photoImport == .importFailed)
+        #expect(!vm.isPickerPresented)
+        if case .imageSelected = vm.photoImport {
+            Issue.record("load failure must never enter .imageSelected")
+        }
+    }
+
+    // MARK: - T05 photo import: wrong-state / duplicate guard
+
+    @Test("beginPhotoImport is ignored outside preview")
+    func photoImportIgnoredWhenNotPreview() async {
+        let auth = FakeAuthorization(initialStatus: .denied)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .permissionDenied)
+
+        await vm.beginPhotoImport()
+
+        // No picker presented, no session stop from the import path.
+        #expect(!vm.isPickerPresented)
+        #expect(vm.photoImport == .idle)
+        #expect(await session.stopCount == 0)
+    }
+
+    @Test("a second beginPhotoImport while one is presented is ignored")
+    func photoImportDoesNotPresentTwice() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        #expect(vm.isPickerPresented)
+
+        // Attempt to present again while already presented.
+        await vm.beginPhotoImport()
+
+        // The guard prevents a second stop or state mutation.
+        #expect(await session.stopCount == 1)
+        #expect(vm.photoImport == .pickerPresented)
+    }
+
+    // MARK: - T05 photo import: camera lifecycle (select → remain stopped)
+
+    @Test("after a successful import the camera session remains stopped")
+    func photoImportSelectionKeepsCameraStopped() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()     // startCount == 1
+        await vm.beginPhotoImport()     // stopCount == 1
+        vm.handleSelectedImage(Data([0x01, 0x02]))
+
+        await Task.yield()
+
+        // Selection must NOT restart the camera (§11).
+        #expect(await session.startCount == 1)
+        #expect(await session.stopCount == 1)
+    }
+
+    // MARK: - T05 photo import: active import blocks still capture
+
+    @Test("still capture is blocked while the import picker is presented")
+    func photoImportPickerPresentedBlocksCapture() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        await vm.beginPhotoImport()
+        #expect(vm.photoImport == .pickerPresented)
+        // `.preview` is still set even though the session is stopped —
+        // the shutter action must be gated on the import lifecycle,
+        // not on the camera state alone.
+        #expect(vm.state == .preview)
+
+        await vm.capture()
+
+        #expect(await session.captureCount == 0)
+        #expect(vm.photoImport == .pickerPresented)
+        if case .captured = vm.state {
+            Issue.record("capture must not run while the picker is presented")
+        }
+    }
+
+    @Test("still capture is blocked while an imported image is shown")
+    func photoImportImageSelectedBlocksCapture() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        vm.handleSelectedImage(Data([0x01, 0x02]))
+
+        await vm.capture()
+
+        #expect(await session.captureCount == 0)
+        guard case .imageSelected = vm.photoImport else {
+            Issue.record("imported image must survive a blocked capture")
+            return
+        }
+        if case .captured = vm.state {
+            Issue.record("capture must not run in imageSelected")
+        }
+    }
+
+    @Test("still capture is blocked on the import-failure fallback")
+    func photoImportFailedBlocksCapture() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        vm.handleImportLoadFailure()
+
+        await vm.capture()
+
+        #expect(await session.captureCount == 0)
+        #expect(vm.photoImport == .importFailed)
+        if case .captured = vm.state {
+            Issue.record("capture must not run in importFailed")
+        }
+    }
+
+    // MARK: - T05 photo import: cancel → restart ordering contract
+
+    @Test("cancel reports idle only after the camera restart completes")
+    func photoImportCancelBecomesIdleOnlyAfterRestartCompletes() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()     // startCount == 1
+        await session.enableStartGate()
+        await vm.beginPhotoImport()     // stopCount == 1; pickerPresented
+
+        let cancelTask = Task { await vm.handleImportCancel() }
+
+        // Deterministically wait (no wall-clock) until the restart
+        // start() call has reached the gated fake — the camera is now
+        // mid-restart.
+        while await session.startCount < 2 {
+            await Task.yield()
+        }
+
+        // Mid-restart: the picker flow must NOT have reported idle yet.
+        #expect(vm.photoImport == .pickerPresented)
+        #expect(!vm.isPickerPresented)
+
+        await session.releaseStartGate()
+        await cancelTask.value
+
+        // Terminal contract: idle only after the restart resolved.
+        #expect(vm.photoImport == .idle)
+        #expect(vm.state == .preview)
+        #expect(await session.startCount == 2)
+    }
+
+    @Test("cancel with failing restart ends the picker flow in cameraUnavailable")
+    func photoImportCancelWithRestartFailureLeavesPickerFlowCleanly() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        // Fail only the SECOND start call (the restart); the initial
+        // preview start succeeds.
+        let session = FakeSession(startError: .startFailed, startErrorOnCall: 2)
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        await vm.beginPhotoImport()
+        await vm.handleImportCancel()
+
+        // Restart failure: never surface .preview; the picker flow
+        // still ends cleanly (idle) — the import is over, the camera
+        // failure is surfaced through the camera state.
+        #expect(vm.state == .cameraUnavailable(.startFailed))
+        #expect(vm.photoImport == .idle)
+        #expect(!vm.isPickerPresented)
+        if case .imageSelected = vm.photoImport {
+            Issue.record("cancel must never enter .imageSelected")
+        }
+    }
+
+    // MARK: - T05 photo import: selection dismissal ≠ cancel
+
+    @Test("dismissal after selection clears only the presentation flag; loading stays pickerPresented")
+    func photoPickerDismissalAfterSelectionKeepsImportResolving() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+        #expect(vm.isPickerPresented)
+        #expect(vm.photoImport == .pickerPresented)
+        #expect(await session.stopCount == 1)
+
+        // System dismissed the sheet after a selection, before
+        // loadTransferable completes. NOT a cancel: only the
+        // presentation flag clears — no restart, no idle, no image.
+        vm.photoPickerDidDismissAfterSelection()
+
+        #expect(!vm.isPickerPresented)
+        #expect(vm.photoImport == .pickerPresented)
+        #expect(await session.startCount == 1) // camera remains stopped
+
+        // Load succeeds → imageSelected.
+        let bytes = Data([0x89, 0x50, 0x4E, 0x47])
+        vm.handleSelectedImage(bytes)
+        guard case .imageSelected(let photo) = vm.photoImport else {
+            Issue.record("expected .imageSelected after load success")
+            return
+        }
+        #expect(photo.data == bytes)
+        #expect(photo.source == .photoLibrary)
+        #expect(await session.startCount == 1) // selection never restarts
+    }
+
+    @Test("dismissal after selection then load failure enters importFailed without restart")
+    func photoPickerDismissalThenLoadFailureEntersImportFailed() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        await vm.beginPhotoImport()
+
+        vm.photoPickerDidDismissAfterSelection()
+        #expect(vm.photoImport == .pickerPresented)
+
+        vm.handleImportLoadFailure()
+
+        #expect(vm.photoImport == .importFailed)
+        #expect(!vm.isPickerPresented)
+        #expect(await session.startCount == 1) // no restart on failure
+        if case .imageSelected = vm.photoImport {
+            Issue.record("load failure must never enter .imageSelected")
+        }
     }
 }

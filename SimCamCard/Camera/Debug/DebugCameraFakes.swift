@@ -129,6 +129,7 @@ actor DebugCameraSessionController: CameraSessionControlling {
 enum DebugCameraEnvironment {
 
     static let launchArgument = "-SimCamCardCamera"
+    static let photoImportArgument = "-SimCamCardPhotoImport"
 
     enum Mode: String {
         case authorized
@@ -140,6 +141,9 @@ enum DebugCameraEnvironment {
 
     /// Returns a fixture-configured ScanViewModel when the launch
     /// requests one; nil for normal launches (real AVFoundation path).
+    /// Also honors `-SimCamCardPhotoImport <imported|cancel|loadfailure>`
+    /// to deterministically drive the photo-import path without the
+    /// real system PhotosPicker (T05 fixture-driven UI regression).
     static func makeViewModelIfRequested(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> ScanViewModel? {
@@ -168,10 +172,26 @@ enum DebugCameraEnvironment {
             )
         }
 
+        let photoImportFixture = parsePhotoImportFixture(arguments: arguments)
+
         return ScanViewModel(
             authorization: authorization,
-            sessionController: DebugCameraSessionController()
+            sessionController: DebugCameraSessionController(),
+            photoImportFixture: photoImportFixture
         )
+    }
+
+    /// Parses the optional `-SimCamCardPhotoImport` launch argument.
+    /// Returns nil when absent or unrecognized.
+    private static func parsePhotoImportFixture(
+        arguments: [String]
+    ) -> PhotoImportFixtureMode? {
+        guard let index = arguments.firstIndex(of: photoImportArgument),
+              index + 1 < arguments.count
+        else {
+            return nil
+        }
+        return PhotoImportFixtureMode(rawValue: arguments[index + 1].lowercased())
     }
 }
 

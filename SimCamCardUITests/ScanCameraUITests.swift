@@ -40,9 +40,16 @@ final class ScanCameraUITests: XCTestCase {
 
     @discardableResult
     @MainActor
-    private func launchAndEnterScanner(cameraMode: String) -> XCUIApplication {
+    private func launchAndEnterScanner(
+        cameraMode: String,
+        photoImportMode: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardCamera", cameraMode]
+        var args = ["-SimCamCardCamera", cameraMode]
+        if let photoImportMode {
+            args += ["-SimCamCardPhotoImport", photoImportMode]
+        }
+        app.launchArguments = args
         app.launch()
 
         XCTAssertTrue(
@@ -199,6 +206,77 @@ final class ScanCameraUITests: XCTestCase {
             app.descendants(matching: .any)["scan-camera-preview"].exists,
             "Preview must not appear after denial."
         )
+        closeScanner(app)
+    }
+
+    // MARK: - T05 photo import: fixture selection success
+
+    /// Fixture-driven import UI test: authorized → tap 相册 → the
+    /// DEBUG photo-import fixture simulates a successful selection →
+    /// the imported image presentation appears, the shutter is gone,
+    /// and the scanner does not crash.
+    ///
+    /// NON-CLAIM: this is NOT real system PhotosPicker selection. The
+    /// DEBUG fixture bypasses the native picker entirely and feeds
+    /// valid image bytes directly to the ViewModel. Native picker
+    /// runtime verification is recorded as NOT INDEPENDENTLY VERIFIED
+    /// in ai/changes.md.
+    @MainActor
+    func testPhotoImportFixtureShowsImportedPhoto() throws {
+        let app = launchAndEnterScanner(cameraMode: "authorized", photoImportMode: "imported")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Preview should be running before import."
+        )
+
+        app.buttons["scan-photo-import"].tap()
+
+        // The imported image presentation appears (fixture-driven).
+        let imported = app.descendants(matching: .any)["scan-imported-photo"]
+        XCTAssertTrue(imported.waitForExistence(timeout: 5),
+                      "Tapping 相册 with the imported fixture should reach imageSelected.")
+
+        // No active shutter in the imported state; no crash.
+        XCTAssertFalse(app.buttons["scan-capture"].exists,
+                       "The shutter must not be offered in the imported state.")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-entry-view"].exists,
+            "Scanner must not crash after import."
+        )
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i3-scan-imported-photo-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        closeScanner(app)
+    }
+
+    // MARK: - T05 photo import: fixture cancel returns to preview
+
+    /// Fixture-driven cancel UI test: authorized → tap 相册 → the DEBUG
+    /// fixture simulates a picker cancel → the scanner returns to the
+    /// preview state with the shutter available again.
+    @MainActor
+    func testPhotoImportCancelReturnsToPreview() throws {
+        let app = launchAndEnterScanner(cameraMode: "authorized", photoImportMode: "cancel")
+
+        app.buttons["scan-photo-import"].tap()
+
+        // After cancel, the preview returns and the shutter is offered
+        // again. No imported image, no crash.
+        let preview = app.descendants(matching: .any)["scan-camera-preview"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5),
+                      "Cancelling the import should return to the camera preview.")
+        XCTAssertTrue(app.buttons["scan-capture"].waitForExistence(timeout: 2),
+                      "The shutter should be available again after cancel.")
+        XCTAssertFalse(
+            app.descendants(matching: .any)["scan-imported-photo"].exists,
+            "Cancel must not show an imported photo."
+        )
+
         closeScanner(app)
     }
 }

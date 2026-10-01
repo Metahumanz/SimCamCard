@@ -115,21 +115,11 @@ final class ScanEntryUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Coming soon"].exists)
         XCTAssertFalse(app.staticTexts["Not implemented"].exists)
 
-        // Photo import remains visual-only (T05 not implemented):
-        // tapping it must keep the user on the Scanner shell.
-        app.buttons["scan-photo-import"].tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["scan-entry-view"].exists,
-            "Tapping the shell photo entry must not present a picker or leave the page."
-        )
-        XCTAssertTrue(
-            app.buttons["scan-capture"].exists,
-            "Photo-import tap must not change the scanner state."
-        )
-
         // Shutter is a real T04 capture action (Week 3 Increment 2):
         // tapping it in preview captures and reaches the captured state.
-        // (Full capture-flow coverage lives in ScanCameraUITests.)
+        // (Full capture-flow coverage lives in ScanCameraUITests.
+        // T05 photo-import coverage lives in ScanCameraUITests with the
+        // `-SimCamCardPhotoImport` fixture.)
         app.buttons["scan-capture"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["scan-captured-photo"].waitForExistence(timeout: 5),

@@ -4,7 +4,8 @@
 //
 //  P02 Scanner (Week 2 Increment 6 static shell; Week 3 Increment 1
 //  camera permission + real live preview; Week 3 Increment 2 adds
-//  T04 single still capture → S02 captured).
+//  T04 single still capture → S02 captured; Week 3 Increment 3 adds
+//  T05 system photo import → S03 pickerPresented/imageSelected).
 //
 //  Spec sources:
 //   - spec/page-inventory.md P02 Scanner (Camera preview and card
@@ -34,8 +35,9 @@
 //     simulator). Infrastructure state, not an S02 permission state.
 //
 //  Still NOT implemented (later increments):
-//   - Photo Import / PhotosPicker (T05 — 相册 stays visual-only),
-//     detection, crop, OCR/Vision, recognition navigation, saving.
+//   - Card Detection, Crop, OCR/Vision, recognition navigation, saving
+//     (T04 capture → recognition and T05 import → recognition are out
+//     of scope; only the capture/import mechanics exist).
 //
 //  Concurrency: the permission provider and this ViewModel stay
 //  MainActor-isolated; the camera session lifecycle runs on the
@@ -44,6 +46,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ScanEntryView: View {
 
@@ -56,6 +59,15 @@ struct ScanEntryView: View {
     /// `-SimCamCardCamera` launch argument, and previews/tests may pass
     /// an explicit ViewModel.
     @State private var viewModel: ScanViewModel
+
+    /// The selected `PhotosPickerItem`. Bound to the system
+    /// `PhotosPicker`. Never stored long-term — its data is loaded into
+    /// stable `Data` and handed to the ViewModel immediately.
+    @State private var selectedItem: PhotosPickerItem?
+
+    /// Tracks whether the user made a selection (so the picker's
+    /// dismissal can be distinguished from a cancel).
+    @State private var didSelectItem = false
 
     init(viewModel: ScanViewModel? = nil) {
         if let viewModel {
@@ -84,27 +96,43 @@ struct ScanEntryView: View {
             VStack(spacing: 0) {
                 topBar
 
-                switch viewModel.state {
-                case .permissionDenied:
+                // Photo-import transient states take priority over the
+                // camera state: a selected/imported image or an import
+                // failure renders on top of the underlying scanner
+                // shell.
+                switch viewModel.photoImport {
+                case .imageSelected(let photo):
+                    imageSection(photo, identifier: "scan-imported-photo")
+                case .importFailed:
                     permissionFallback(
-                        systemImage: "camera.slash",
-                        title: "无法访问相机",
-                        message: "请在系统“设置”中允许 SimCamCard 访问相机后再扫描名片。",
-                        identifier: "scan-permission-denied"
+                        systemImage: "photo.on.rectangle.angled",
+                        title: "无法导入照片",
+                        message: "所选照片无法读取，请重试或选择其他照片。",
+                        identifier: "scan-import-failed"
                     )
-                case .cameraUnavailable:
-                    permissionFallback(
-                        systemImage: "camera.fill",
-                        title: "相机不可用",
-                        message: "当前设备无法启动相机预览。",
-                        identifier: "scan-camera-unavailable"
-                    )
-                case .captured(let photo):
-                    capturedSection(photo)
-                case .permissionUnknown, .preview:
-                    viewportSection
-                    modeTabs
-                    controlBar
+                case .idle, .pickerPresented:
+                    switch viewModel.state {
+                    case .permissionDenied:
+                        permissionFallback(
+                            systemImage: "camera.slash",
+                            title: "无法访问相机",
+                            message: "请在系统“设置”中允许 SimCamCard 访问相机后再扫描名片。",
+                            identifier: "scan-permission-denied"
+                        )
+                    case .cameraUnavailable:
+                        permissionFallback(
+                            systemImage: "camera.fill",
+                            title: "相机不可用",
+                            message: "当前设备无法启动相机预览。",
+                            identifier: "scan-camera-unavailable"
+                        )
+                    case .captured(let photo):
+                        imageSection(photo, identifier: "scan-captured-photo")
+                    case .permissionUnknown, .preview:
+                        viewportSection
+                        modeTabs
+                        controlBar
+                    }
                 }
             }
         }
@@ -114,6 +142,56 @@ struct ScanEntryView: View {
         .preferredColorScheme(.dark)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .photosPicker(
+            isPresented: Binding(
+                get: { viewModel.isPickerPresented },
+                set: { presented in
+                    // The picker sheet was dismissed by the system.
+                    // A dismissal AFTER a selection is NOT a cancel:
+                    // clear only the presentation flag (prevents stale
+                    // re-presentation while Data is still loading); a
+                    // dismissal WITHOUT a selection is a first-class
+                    // cancel (§12).
+                    guard !presented else { return }
+                    if didSelectItem {
+                        viewModel.photoPickerDidDismissAfterSelection()
+                    } else {
+                        Task { await viewModel.handleImportCancel() }
+                    }
+                    didSelectItem = false
+                }
+            ),
+            selection: $selectedItem,
+            matching: .images,
+            // Ask the system to preserve the item's current encoding
+            // (avoid PhotosPicker transcoding when possible). SimCamCard
+            // performs NO app-side decode/re-encode: the `Data` returned
+            // by `loadTransferable` is preserved unchanged. Bit-for-bit
+            // original asset identity is NOT guaranteed.
+            preferredItemEncoding: .current
+        )
+        .onChange(of: selectedItem) { _, newItem in
+            // nil is the reset value (see below) — never an event.
+            guard let item = newItem else { return }
+            didSelectItem = true
+            Task {
+                do {
+                    if let data = try await item.loadTransferable(type: Data.self),
+                       !data.isEmpty {
+                        viewModel.handleSelectedImage(data)
+                    } else {
+                        viewModel.handleImportLoadFailure()
+                    }
+                } catch {
+                    viewModel.handleImportLoadFailure()
+                }
+                // Terminal result handled — release the item so a later
+                // picker session never holds the previous
+                // PhotosPickerItem. Setting nil re-fires onChange,
+                // which returns immediately on nil and is NOT a cancel.
+                selectedItem = nil
+            }
+        }
         .task {
             await viewModel.scannerDidAppear()
         }
@@ -225,19 +303,24 @@ struct ScanEntryView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Captured presentation (T04)
+    // MARK: - Image presentation (camera capture + photo import)
 
-    /// Minimal functional captured presentation. Frozen evidence has
-    /// NO standalone "captured holding page" (T04 flows straight into
-    /// recognition in the Reference, which is a later increment), so
-    /// this is deliberately minimal: the actual captured photo plus
-    /// the existing top-bar ✕ back path. Reference fidelity: not
-    /// established (functional transitional UI).
+    /// Shared presentation for a selected/imported image. Used by BOTH
+    /// the camera-capture path (T04, id `scan-captured-photo`) and the
+    /// photo-import path (T05, id `scan-imported-photo`) — §13: reuse
+    /// one image-display component rather than duplicating it.
+    ///
+    /// Frozen evidence has NO standalone "captured holding page" (T04
+    /// flows straight into recognition in the Reference, which is a
+    /// later increment), so this is deliberately minimal: the actual
+    /// image bytes plus the existing top-bar close back path.
+    /// Reference fidelity: functional transitional UI; reference
+    /// fidelity not established.
     ///
     /// The raw Data remains the source of truth; UIImage exists only
     /// as this View-layer rendering adapter — never stored in the
     /// Domain, never persisted.
-    private func capturedSection(_ photo: CapturedPhoto) -> some View {
+    private func imageSection(_ photo: CapturedPhoto, identifier: String) -> some View {
         Group {
             if let image = UIImage(data: photo.data) {
                 Image(uiImage: image)
@@ -251,14 +334,14 @@ struct ScanEntryView: View {
                 permissionFallback(
                     systemImage: "exclamationmark.triangle",
                     title: "照片不可用",
-                    message: "拍摄到的照片无法显示。",
-                    identifier: "scan-captured-undecodable"
+                    message: "所选的照片无法显示。",
+                    identifier: identifier + "-undecodable"
                 )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("scan-captured-photo")
+        .accessibilityIdentifier(identifier)
     }
 
     /// Minimal functional fallback for denied/unavailable states.
@@ -339,9 +422,12 @@ struct ScanEntryView: View {
 
     private var controlBar: some View {
         HStack {
-            // Photo-library entry — visual shell only. Tapping performs
-            // no action: no PhotosPicker, no photo permission (T05).
+            // Photo-library entry — T05 system photo import. Tapping
+            // stops the camera session and presents the system
+            // `PhotosPicker` (out-of-process; no photo-library
+            // permission required).
             Button {
+                Task { await viewModel.beginPhotoImport() }
             } label: {
                 VStack(spacing: 5) {
                     Image(systemName: "photo")
