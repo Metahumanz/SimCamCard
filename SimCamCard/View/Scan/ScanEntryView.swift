@@ -135,6 +135,14 @@ struct ScanEntryView: View {
                     }
                 }
             }
+
+            // P04 Crop / Boundary Adjust owns the full screen whenever
+            // the still pipeline is active (prepare / adjust / confirm
+            // / failed); retakeRequested transiently renders the
+            // Scanner while preview restarts.
+            if viewModel.cardRegion.isCropScreenActive {
+                CardCropView(viewModel: viewModel)
+            }
         }
         // The whole page is a dark full-screen surface in the Reference;
         // force dark appearance so host-owned status bar content stays
@@ -178,7 +186,7 @@ struct ScanEntryView: View {
                 do {
                     if let data = try await item.loadTransferable(type: Data.self),
                        !data.isEmpty {
-                        viewModel.handleSelectedImage(data)
+                        await viewModel.handleSelectedImage(data)
                     } else {
                         viewModel.handleImportLoadFailure()
                     }

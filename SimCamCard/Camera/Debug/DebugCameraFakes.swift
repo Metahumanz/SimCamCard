@@ -28,6 +28,8 @@
 #if DEBUG
 
 @preconcurrency import AVFoundation
+import CoreGraphics
+import ImageIO
 
 // MARK: - Fake authorization provider
 
@@ -174,6 +176,7 @@ enum DebugCameraEnvironment {
     static let launchArgument = "-SimCamCardCamera"
     static let photoImportArgument = "-SimCamCardPhotoImport"
     static let detectionArgument = "-SimCamCardDetection"
+    static let cropArgument = "-SimCamCardCrop"
 
     enum Mode: String {
         case authorized
@@ -218,13 +221,16 @@ enum DebugCameraEnvironment {
 
         let photoImportFixture = parsePhotoImportFixture(arguments: arguments)
         let detectionFixture = parseDetectionFixture(arguments: arguments)
+        let cropFixture = parseCropFixture(arguments: arguments)
 
         return ScanViewModel(
             authorization: authorization,
             sessionController: DebugCameraSessionController(
                 detectionFixture: detectionFixture
             ),
-            photoImportFixture: photoImportFixture
+            photoImportFixture: photoImportFixture,
+            cropProcessor: cropFixture == nil ? nil : DebugCropProcessor(),
+            cropFixture: cropFixture
         )
     }
 
@@ -253,6 +259,138 @@ enum DebugCameraEnvironment {
         }
         return DetectionFixtureMode(rawValue: arguments[index + 1].lowercased())
     }
+
+    /// Parses the optional `-SimCamCardCrop auto|manual|confirmed`
+    /// launch argument. Returns nil when absent or unrecognized.
+    private static func parseCropFixture(
+        arguments: [String]
+    ) -> CropFixtureMode? {
+        guard let index = arguments.firstIndex(of: cropArgument),
+              index + 1 < arguments.count
+        else {
+            return nil
+        }
+        return CropFixtureMode(rawValue: arguments[index + 1].lowercased())
+    }
+}
+
+// MARK: - Fake crop processor (P04 fixtures)
+
+/// Deterministic P04 fixture processor. Preparation returns a fixed
+/// VALID synthetic image + valid region (no Vision involved — real
+/// still detection is covered by the dataset smoke tests). Confirm
+/// delegates to a REAL CardCropProcessor so the fixture exercises the
+/// actual Core Image perspective-correction + PNG pipeline on
+/// deterministic input. DEBUG-only; never instantiated in Release.
+actor DebugCropProcessor: CardCropProcessing {
+
+    private let realProcessor = CardCropProcessor()
+
+    func prepare(_ photo: CapturedPhoto) async throws -> CropPreparation {
+        let synthetic = CapturedPhoto(
+            data: Self.syntheticCardImageData,
+            source: photo.source
+        )
+        let draft = CropDraft(
+            source: synthetic,
+            sourceOrientation: .up,
+            sourcePixelWidth: Self.syntheticPixelWidth,
+            sourcePixelHeight: Self.syntheticPixelHeight,
+            region: Self.fixtureRegion
+        )
+        return CropPreparation(draft: draft, wasDetected: true)
+    }
+
+    func perspectiveCorrect(_ draft: CropDraft) async throws -> CardCropResult {
+        try await realProcessor.perspectiveCorrect(draft)
+    }
+
+    nonisolated static let syntheticPixelWidth = 600
+    nonisolated static let syntheticPixelHeight = 380
+
+    /// Fixed card-like quadrilateral matching the white rectangle
+    /// painted into `syntheticCardImageData`.
+    nonisolated static let fixtureRegion = CardRegion(
+        topLeft: NormalizedPoint(x: 0.10, y: 0.16),
+        topRight: NormalizedPoint(x: 0.90, y: 0.16),
+        bottomRight: NormalizedPoint(x: 0.90, y: 0.84),
+        bottomLeft: NormalizedPoint(x: 0.10, y: 0.84),
+        sourcePixelWidth: syntheticPixelWidth,
+        sourcePixelHeight: syntheticPixelHeight
+    )
+
+    /// Deterministic card-like PNG: dark background, white inset
+    /// rounded rectangle (exactly `fixtureRegion`) with a few gray
+    /// lines. Built once via Core Graphics; never reads fixture
+    /// arguments from production code.
+    nonisolated static let syntheticCardImageData: Data = {
+        let width = syntheticPixelWidth
+        let height = syntheticPixelHeight
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+        func setPixel(_ x: Int, _ y: Int, r: UInt8, g: UInt8, b: UInt8) {
+            guard x >= 0, x < width, y >= 0, y < height else { return }
+            let offset = y * bytesPerRow + x * 4
+            pixels[offset] = r
+            pixels[offset + 1] = g
+            pixels[offset + 2] = b
+            pixels[offset + 3] = 255
+        }
+
+        // Dark gray background.
+        for y in 0..<height {
+            for x in 0..<width {
+                setPixel(x, y, r: 45, g: 45, b: 48)
+            }
+        }
+
+        // White card rectangle at fixtureRegion (inset).
+        let cardX0 = Int(Double(width) * 0.10)
+        let cardX1 = Int(Double(width) * 0.90)
+        let cardY0 = Int(Double(height) * 0.16)
+        let cardY1 = Int(Double(height) * 0.84)
+        for y in cardY0..<cardY1 {
+            for x in cardX0..<cardX1 {
+                setPixel(x, y, r: 245, g: 245, b: 247)
+            }
+        }
+        // A few dark horizontal "text lines" so the image is not flat.
+        for y in stride(from: cardY0 + 90, to: cardY1 - 40, by: 46) {
+            for x in (cardX0 + 60)..<(cardX1 - 60) {
+                setPixel(x, y, r: 90, g: 96, b: 110)
+            }
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let cgImage = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo,
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              )
+        else {
+            return Data()
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output, "public.png" as CFString, 1, nil
+        ) else {
+            return Data()
+        }
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        guard CGImageDestinationFinalize(destination) else { return Data() }
+        return output as Data
+    }()
 }
 
 extension ScanViewModel {

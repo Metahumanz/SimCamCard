@@ -1944,3 +1944,238 @@ Unchanged (re-affirmed): preview RotationCoordinator mutates only the preview co
 Accepted — 2026-10-01 (human review).
 
 AI did not commit, merge or tag. Increment 5 not entered.
+
+## 2026-10-01 — Week 3 Increment 5: Crop / Boundary Adjust + Perspective Correction (P04 / S04, T06 second half)
+
+Baseline: db0cc90.
+
+### P04 Reference evidence (actual observation of REF-crop-01-manual-adjust.png, 1224×1626@2x)
+
+- Top bar: plain white "取消" top-left (retake semantics — no "重拍" text, no chevron/icon), plain blue "完成" top-right.
+- Full-bleed black background; complete image centered aspect-fit with black letterbox.
+- Thin bright-blue quadrilateral stroke; NO dim/mask fill inside or outside.
+- Four bright-blue filled circular corner handles (~16pt), four-corner-only interaction.
+- Four dark slate-gray edge-midpoint dots centered on each edge ARE visible in the Reference (OBSERVED IN REFERENCE). They are rendered for black-box visual replication; PRESENTATION ONLY (`allowsHitTesting(false)`) because the Reference does not establish midpoint-drag semantics (edge-midpoint interaction: NOT ESTABLISHED). (Wording corrected in the pre-Accept correction section below — an earlier draft of this entry wrongly recorded them as NOT OBSERVED / not rendered.)
+- No guidance text, magnifier, or animation evidence.
+- Reference fidelity for the transient preparing/failed/confirmed pages: NOT ESTABLISHED (Reference shows only the editing page) — these are minimal IMPLEMENTATION BEHAVIOR.
+
+### Shared still pipeline (camera + photo import converge)
+
+`camera capture OR photo import → CapturedPhoto → CardImageDecoder.decode (ImageIO + orientation) → CardRegionDetector (still image, reused from Increment 4) → CropDraft → P04 manual corner adjustment → confirm → CIPerspectiveCorrection → CardCropResult (new upright PNG; original bytes untouched)`. Capture and import run the SAME `ScanViewModel.prepareCrop` path — no duplicated pipelines. Heavy work is confined to the `CardCropProcessor` actor on a dedicated `DispatchSerialQueue` (`com.metahumanz.SimCamCard.crop.processing`); the MainActor ViewModel only holds Sendable values (Data / Int / enums), never CGImage/CIImage/UIImage. No OCR (no VNRecognizeTextRequest), no Recognition/Edit, no structured fields, no BusinessCard creation, no Repository save, no auto enhancement, no multi-card.
+
+### CardImageDecoder + orientation consumption
+
+`CardImageDecoder.decode(_ data:) throws -> DecodedImage` uses ImageIO directly (never UIImage as processing source of truth): primary CGImage + resolved `CGImagePropertyOrientation` (via the existing `ImageOrientationResolver`) + ORIENTED pixel dimensions (axes swapped for `.left/.right` and mirrored variants). Unreadable bytes → `CropError.invalidImageData` (stable, no crash).
+
+### No-detection fallback (IMPLEMENTATION BEHAVIOR, not Reference-observed)
+
+When still detection returns nil, preparation produces an inset axis-aligned rectangle (`fallbackInset = 0.06`) and enters `manualAdjusting` — cropping stays possible instead of dead-ending. Clearly labeled implementation robustness; Reference fidelity not established.
+
+### Geometry validity gate (pure, no UIKit/Core Image)
+
+`CardRegionGeometry.isValid`: all four edges ≥ 1e-4, shoelace area/2 ≥ 0.01 of the normalized square, every consecutive cross product non-zero and same-sign (rejects self-intersecting bow-ties and collinear triples). `NormalizedPoint` clamps to 0...1 before validation. Drag policy: an invalid candidate is silently ignored — the draft can NEVER hold a degenerate region, and confirm is never the first validity gate. The first accepted drag permanently transitions autoDetected → manualAdjusting.
+
+### Aspect-fit coordinate mapping
+
+`AspectFitCoordinateMapper` (pure): `scale = min(cw/sw, ch/sh)` with centered letterbox offsets; forward normalized→view and inverse view→normalized (subtracts letterbox offset, clamps to 0...1, so a drag ending in the letterbox maps to the nearest edge). The Scanner's aspect-fill math is deliberately not reused.
+
+### Perspective correction + PNG contract
+
+`CIPerspectiveCorrection` (typed `CIFilter.perspectiveCorrection()`, crop = true) on the `CIImage.oriented(...)` upright image; extent normalized to (0,0) before corner mapping. Corner conversion `PerspectiveCoordinateMapping.coreImagePoint`: `ciX = x·w`, `ciY = (1−y)·h` on the ORIENTED dimensions (guards against double y-flip and double axis-swap). Output rendered via a shared `CIContext`, encoded PNG with NO properties dictionary → no EXIF orientation is written: the pixels are physically upright and the result's orientation semantics are `.up`. `CardCropResult` carries the untouched `original: CapturedPhoto`, `confirmedRegion`, processed PNG Data and processed pixel dimensions. Guarded errors: `.invalidImageData / .invalidRegion / .correctionFailed`.
+
+### S04 state machine
+
+Separate `CardRegionState` family (deliberately NOT merged into the camera `State` enum): `inactive / preparing / autoDetected(CropDraft) / manualAdjusting(CropDraft) / confirmed(CardCropResult) / retakeRequested / failed(CropError)`. Frozen S04 mapping: autoDetected, manualAdjusting, confirmed, retakeRequested all IMPLEMENTED; `preparing`/`failed` are implementation transients. `confirmCrop()` is guarded by `isCropInFlight` (double tap → exactly one correction; confirmed state has no draft so a later call is a no-op). `retake()` ("取消") discards the draft/result, clears import/picker state, restarts preview and resumes live detection; for a photo-library source it returns to the same Scanner without re-opening the system picker; restart failure maps to the existing `cameraUnavailable` contract. Retake outside an active crop screen is ignored.
+
+### DEBUG fixtures
+
+`-SimCamCardCrop {auto|manual|confirmed}` drives `DebugCropProcessor` (deterministic 600×380 synthetic card PNG + fixed region; prepare is faked, perspectiveCorrect delegates to the REAL processor). The 4×4 capture fixture bytes are replaced by the synthetic image for prepare. Entire fixture surface is `#if DEBUG`.
+
+### Dataset end-to-end smoke (real decode + real Vision + real Core Image, no fixture)
+
+`CropPipelineDatasetSmokeTests`, dataset files read in place via `#filePath`:
+
+- card-001-standard-bilingual.png → prepare detected → correct → decodable upright PNG: PASS
+- card-007-vertical-medical-bilingual.png → same: PASS
+- card-013-english-bio-photographed.png → same: PASS
+
+Assertions are smoke-contract only: `wasDetected == true`, valid region, positive processed dimensions, output decodes with orientation `.up`, original bytes retained equal.
+
+### Builds and tests (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty; DEBUG fixtures compiled out)
+- Unit tests: 146/146 PASS (was 102; +44 executed cases: geometry validity/clamp/fallback, aspect-fit mapper + round-trip + letterbox clamp, perspective coordinate mapping incl parameterized .up/.down/.left/.right oriented dims, CardImageDecoder, synthetic-image processor success/failure/EXIF-.right physical-upright, 3 real-card dataset smoke, 14 ScanViewModel S04 workflow tests)
+- UI regression: 21/21 PASS (was 18; +3 crop tests: auto-detected boundary+4 handles+controls, manual drag page stability, confirm corrected image with handles absent; the existing capture and import fixture tests were UPDATED because capture/import now intentionally flow into P04 — their mechanics assertions are preserved via the crop page + retake path)
+- Validation screenshots: `ai/validation/2026-10-01-increment5-crop-auto-detected.png`, `2026-10-01-increment5-crop-manual-adjust.png`, `2026-10-01-increment5-crop-confirmed.png`
+
+### Traceability
+
+- T04 capture mechanics: PASS automated (capture now hands off into P04)
+- T05 import mechanics: PASS automated (import shares the same pipeline)
+- T06 Vision rectangle detector (live + still): live PASS automated / physical PENDING; still-image Detection→Crop PASS automated incl dataset
+- T06 manual boundary adjustment: PASS automated (fixture UI + unit geometry; Reference-fidelity PENDING human)
+- T06 confirm + perspective correction: PASS automated (real Core Image on synthetic + dataset images)
+- T06 overall: PARTIAL (physical live camera verification outstanding)
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: IMPLEMENTED / PASS automated
+
+### Orientation status update
+
+End-to-end still-image Detection/Crop orientation consumption: PASS automated (parameterized .up/.down/.left/.right oriented dimensions; EXIF-.right portrait source corrects into landscape physically-upright PNG with no residual EXIF; dataset images pass the real chain). Physical-camera captured-photo EXIF on real hardware: still PENDING. Native `PhotosPicker` runtime selection: still NOT INDEPENDENTLY VERIFIED (DEBUG import fixture bypasses native picker UI as in Increment 3).
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep clean; matches only in explanatory comments).
+- No Vision/CMSampleBuffer/CIImage/CIFilter import or reference in ViewModel/View (`UIImage(data:)` in CardCropView is a display adapter only); Vision remains confined to Detection and the crop processor's off-main actor.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj: unchanged (new files picked up by filesystem-synchronized groups).
+- `git status` shows no `_local` prompt path.
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 6 not entered.
+
+## 2026-10-01 — Week 3 Increment 5 pre-Accept correction: confirmation interaction freeze + P04 edge-midpoint evidence/visual calibration
+
+Human review of the Increment 5 body: approved, subject to this one production concurrency/state blocker and the P04 reference-fidelity calibration. Scope was limited to ViewModel/View/tests; the approved Apple/Core Image path was NOT refactored.
+
+### 1. Confirmation interaction freeze contract (stale-result race prevention)
+
+Blocker: while `isCropInFlight == true` (between `confirmCrop()` entry and the awaited correction settling), Cancel/retake and corner drags could still execute, allowing `confirm A → move to B → confirmed A clobbers B` and `confirm → retake to scanner → old confirm returns → .confirmed reappears`.
+
+Fix (state ownership stays in the ViewModel):
+
+- `ScanViewModel.moveCorner` now starts with `guard !isCropInFlight, let draft = cardRegion.draft else { return }` — the CropDraft is immutable for the duration of a correction.
+- `ScanViewModel.retake` now requires `guard cardRegion.isCropScreenActive, !isCropInFlight else { return }` — no workflow reset, no camera restart, no live-detection restart while a correction is running.
+- `confirmCrop` retains its existing double-confirm guard (`!isCropInFlight` + editable draft).
+- CardCropView mirrors the freeze: `scan-crop-confirm` stays disabled (already), `scan-crop-retake` is now `.disabled(viewModel.isCropInFlight)`, and all four corner handles get `.allowsHitTesting(false)` while in flight. No new loading overlay was introduced; the Reference UI is preserved exactly.
+
+### 2. Deterministic gated correction test (no sleep)
+
+`FakeCropProcessor` gained a continuation gate: `enableCorrectionGate()` makes `perspectiveCorrect` suspend after recording entry (`enteredCorrectionCount` incremented synchronously before suspension); `releaseCorrectionGate()` resumes all waiters. New test `crop intents are frozen while a confirmation correction is in flight`:
+
+- capture → autoDetected(draft A); start `confirmCrop()` in a Task; bounded-yield until the fake reports correction entered; assert `isCropInFlight == true`, workflow still on the captured crop page;
+- move while confirming → draft/state unchanged (still autoDetected A);
+- retake while confirming → workflow state unchanged, camera start count unchanged, no new detection stream, live detection not restarted (`cardDetection` still `.inactive`);
+- release gate → exactly one correction completes, state settles `.confirmed(result)` with `confirmedRegion == A`, `isCropInFlight == false`.
+
+The sequential double-confirm test is retained.
+
+### 3. P04 midpoint evidence calibration (correction of an earlier wrong record)
+
+The earlier entry below stated the edge-midpoint dots were recorded "NOT OBSERVED / not rendered". That was wrong and is withdrawn:
+
+```text
+edge-midpoint controls: OBSERVED IN REFERENCE (REF-crop-01)
+edge-midpoint interaction semantics: NOT ESTABLISHED
+```
+
+Re-measurement on the actual reference PNG (1182×1632): one dark slate-gray filled circle centered on each of the four edges; sampled fill ~RGB(69,69,78), diameter ~15–16pt, no independent stroke (the blue edge passes through the center). The earlier "NOT OBSERVED" wording in the Increment 5 evidence bullet has been corrected in place.
+
+### 4. Midpoint visual fidelity (implemented; presentation only)
+
+CardCropView now renders all four edge-midpoint dots for black-box visual replication:
+
+- positions derived LIVE each layout pass as `midpoint(A,B)` of the current four corners in aspect-fit display coordinates (never fixed screen coordinates);
+- small filled circles, `Color(red:0.27,green:0.27,blue:0.31)` sampled from REF-crop-01, diameter 15pt, no animation, no change to quadrilateral geometry;
+- `allowsHitTesting(false)` + accessibilityHidden — PRESENTATION ONLY; no edge drag is implemented because the Reference does not establish midpoint interaction semantics.
+
+P04 visual fidelity status:
+
+```text
+corner handles:            MATCH
+edge midpoint visual:      MATCH / IMPLEMENTED
+edge midpoint interaction: NOT ESTABLISHED
+```
+
+### 5. Untouched production contracts
+
+Explicitly NOT modified in this correction round: CardCropProcessor orientation pipeline, `CIImage.oriented(...)`, PerspectiveCoordinateMapping, the CIFilter perspective-correction call, the processed PNG contract (no EXIF / physically upright), original CapturedPhoto preservation, no-detection fallback (inset 0.06), geometry validity thresholds, AspectFit mapper, T04/T05 routing, and the S04 state family. Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj remain unchanged.
+
+### 6. Re-verification (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS; `SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty and the Release app binary contains neither the `SimCamCardCrop` launch argument nor the `DebugCropProcessor` symbol (DEBUG fixture isolation confirmed)
+- Unit tests: 147/147 PASS (was 146; +1 deterministic gated freeze test), including the 3 real-card dataset Detection→Crop smoke tests
+- UI regression: 21/21 PASS (unchanged count; all three crop screens re-verified after the view changes); the crop validation screenshots were regenerated and now show the four edge-midpoint dots:
+  - ai/validation/2026-10-01-increment5-crop-auto-detected.png
+  - ai/validation/2026-10-01-increment5-crop-manual-adjust.png
+  - ai/validation/2026-10-01-increment5-crop-confirmed.png
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (comment mentions only); boundary audit: no Vision/CIImage/CMSampleBuffer use in ViewModel/View; `git status` shows no `_local` path.
+
+### 7. Traceability (unchanged)
+
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: IMPLEMENTED / PASS automated
+- T06 overall: PARTIAL — physical-device live camera path still NOT INDEPENDENTLY VERIFIED
+
+### Final accepted conclusions (2026-10-01 human review)
+
+Pipeline / contracts:
+
+- shared camera/photo-import still-image crop pipeline: PASS
+- original CapturedPhoto bytes preservation: PASS
+- orientation resolution + upright processing: PASS
+- still-image Vision detection: PASS
+- no-detection manual fallback: PASS / implementation behavior
+- four-corner manual boundary adjustment: PASS
+- quadrilateral validity gate: PASS
+- AspectFit forward/inverse coordinate mapping: PASS
+- Core Image perspective correction: PASS
+- processed upright PNG contract: PASS
+- end-to-end dataset Detection→Crop smoke: PASS
+
+Confirmation concurrency:
+
+- double-confirm guard: PASS
+- moveCorner blocked while correction is in flight: PASS
+- retake blocked while correction is in flight: PASS
+- stale correction cannot overwrite a newer manual draft: PASS
+- stale correction cannot re-open confirmed state after retake: PASS
+- deterministic continuation-gated race test: PASS
+
+P04 Reference:
+
+- black background: MATCH
+- aspectFit image presentation: MATCH
+- Cancel / 完成 toolbar: MATCH
+- blue quadrilateral boundary: MATCH
+- four bright-blue draggable corner handles: MATCH
+- four dark slate-gray edge-midpoint dots: MATCH / IMPLEMENTED (positions derived dynamically from current edge geometry)
+- edge-midpoint interaction semantics: NOT ESTABLISHED — no edge-drag behavior invented
+- no dim mask: MATCH
+- no unsupported animation/magnifier added
+
+Verification:
+
+- Debug build: PASS
+- Release build: PASS
+- Unit: 147/147 PASS
+- UI: 21/21 PASS
+- three Crop UI tests after visual correction: 3/3 PASS
+- real dataset Detection→Crop smoke: PASS
+- Release DEBUG fixture isolation: PASS
+- concurrency audit: PASS
+- Model / Repository / spec / dataset / pbxproj unchanged
+
+Traceability:
+
+- S04 autoDetected: IMPLEMENTED / PASS
+- S04 manualAdjusting: IMPLEMENTED / PASS
+- S04 confirmed: IMPLEMENTED / PASS
+- S04 retakeRequested: IMPLEMENTED / PASS
+- T04 capture mechanics: PASS; T04 capture → Crop: PASS; T04 capture → Recognition: NOT IMPLEMENTED; T04 overall: PARTIAL
+- T05 import mechanics: PASS; T05 import → Crop: PASS; T05 import → Recognition/Edit: NOT IMPLEMENTED; T05 overall: PARTIAL
+- T06 automatic detector: PASS automated/dataset; T06 Scanner detected overlay: PASS fixture-driven; T06 P04 auto-detected region: PASS; T06 manual adjustment: PASS; T06 confirm / perspective-corrected output: PASS; T06 physical-device live path: NOT INDEPENDENTLY VERIFIED; T06 overall: PARTIAL
+
+Orientation:
+
+- end-to-end still-image Detection/Crop orientation consumption: PASS automated
+- physical-camera captured-photo EXIF path: PENDING physical device
+- native PhotosPicker real-asset path: NOT INDEPENDENTLY VERIFIED
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 6 not entered.

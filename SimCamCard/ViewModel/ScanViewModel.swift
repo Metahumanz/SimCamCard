@@ -47,10 +47,22 @@ enum PhotoImportFixtureMode: String {
 }
 /// In DEBUG the photo-import fixture parameter carries a real mode.
 typealias PhotoImportFixtureParam = PhotoImportFixtureMode?
+/// DEBUG-only P04 crop fixture mode: drives the still pipeline into a
+/// deterministic crop page without real camera/picker interaction.
+enum CropFixtureMode: String {
+    /// Crop page enters with the automatic (detected) region.
+    case auto
+    /// Crop page enters directly in manual-adjusting state.
+    case manual
+    /// Crop page prepares and immediately confirms.
+    case confirmed
+}
+typealias CropFixtureParam = CropFixtureMode?
 #else
 /// In Release no photo-import fixture exists; the parameter type is an
 /// always-nil placeholder so the same init signature compiles.
 typealias PhotoImportFixtureParam = Never?
+typealias CropFixtureParam = Never?
 #endif
 
 @MainActor
@@ -130,6 +142,65 @@ final class ScanViewModel {
     /// in `.preview`.
     private(set) var cardDetection: CardDetectionState = .inactive
 
+    // MARK: - S04 Card Region (P04 Crop / Boundary Adjust)
+
+    /// Separate S04 state family (Week 3 Increment 5). Deliberately
+    /// NOT merged into the camera `State`: S04 begins AFTER a capture
+    /// or import already produced a still image, and retake returns to
+    /// the scanner. Frozen S04 mapping:
+    ///   autoDetected   ↔ `.autoDetected(CropDraft)`
+    ///   manualAdjusting↔ `.manualAdjusting(CropDraft)`
+    ///   confirmed      ↔ `.confirmed(CardCropResult)`
+    ///   retakeRequested↔ `.retakeRequested`
+    /// `.preparing` / `.failed` are implementation transients, not
+    /// frozen S04 states.
+    enum CardRegionState: Equatable {
+        /// No crop workflow active (Scanner visible).
+        case inactive
+        /// Still decode + detection running (implementation transient).
+        case preparing
+        /// S04 autoDetected: Vision found the initial region; no
+        /// accepted manual edit yet.
+        case autoDetected(CropDraft)
+        /// S04 manualAdjusting: no-detection fallback OR at least one
+        /// accepted manual corner edit.
+        case manualAdjusting(CropDraft)
+        /// S04 confirmed: perspective-corrected result produced.
+        case confirmed(CardCropResult)
+        /// S04 retakeRequested: the draft/result is discarded and the
+        /// Scanner is being restored (transient).
+        case retakeRequested
+        /// Preparation/correction failed (implementation transient).
+        case failed(CropError)
+
+        var draft: CropDraft? {
+            switch self {
+            case .autoDetected(let draft), .manualAdjusting(let draft):
+                return draft
+            case .inactive, .preparing, .confirmed, .retakeRequested, .failed:
+                return nil
+            }
+        }
+
+        /// True while P04 must own the screen content.
+        var isCropScreenActive: Bool {
+            switch self {
+            case .inactive, .retakeRequested: return false
+            case .preparing, .autoDetected, .manualAdjusting, .confirmed, .failed:
+                return true
+            }
+        }
+    }
+
+    /// Current S04 state. `.inactive` until a capture/import enters the
+    /// still pipeline.
+    private(set) var cardRegion: CardRegionState = .inactive
+
+    /// Transient confirm-in-flight guard (NOT a frozen state): while
+    /// true 完成 is disabled and a second tap cannot start a second
+    /// Core Image correction.
+    private(set) var isCropInFlight = false
+
     /// Whether the system `PhotosPicker` sheet should be presented.
     /// Driven by `beginPhotoImport()`; cleared by every terminal
     /// import outcome (selected / cancelled / load failure).
@@ -154,6 +225,14 @@ final class ScanViewModel {
     /// path compiled out).
     private let photoImportFixture: PhotoImportFixtureParam
 
+    /// P04 crop fixture mode (DEBUG only; `Never?` in Release).
+    private let cropFixture: CropFixtureParam
+
+    /// Heavy still pipeline (decode / Vision / Core Image) runs on this
+    /// service's dedicated serial executor — never synchronously on the
+    /// MainActor.
+    private let cropProcessor: any CardCropProcessing
+
     /// The single Task consuming the live detection stream while in
     /// `.preview`. Cancelled on scanner disappear, on capture, on photo
     /// import, and on any transition out of preview. Never more than
@@ -163,13 +242,17 @@ final class ScanViewModel {
     init(
         authorization: CameraAuthorizationProviding = AVCameraAuthorizationProvider(),
         sessionController: (any CameraSessionControlling)? = nil,
-        photoImportFixture: PhotoImportFixtureParam = nil
+        photoImportFixture: PhotoImportFixtureParam = nil,
+        cropProcessor: (any CardCropProcessing)? = nil,
+        cropFixture: CropFixtureParam = nil
     ) {
         self.authorization = authorization
         let controller = sessionController ?? CameraSessionController()
         self.sessionController = controller
         self.cameraSession = controller.session
         self.photoImportFixture = photoImportFixture
+        self.cropProcessor = cropProcessor ?? CardCropProcessor()
+        self.cropFixture = cropFixture
     }
 
     // MARK: - Lifecycle
@@ -251,6 +334,9 @@ final class ScanViewModel {
             await sessionController.stop()
             stopDetectionConsumption()
             state = .captured(photo)
+            // Shared still pipeline: camera capture enters P04 exactly
+            // like a photo-library import.
+            await prepareCrop(photo)
         } catch let error as CameraSessionError {
             // Failure path must also release the camera session: never
             // leave the session running behind the error fallback.
@@ -286,7 +372,7 @@ final class ScanViewModel {
         if let fixture = photoImportFixture {
             switch fixture {
             case .imported:
-                handleSelectedImage(DebugCameraSessionController.fixtureImageData)
+                await handleSelectedImage(DebugCameraSessionController.fixtureImageData)
             case .cancel:
                 await handleImportCancel()
             case .loadFailure:
@@ -319,12 +405,13 @@ final class ScanViewModel {
     /// The system picker returned a selected image and its bytes loaded
     /// successfully. The camera session stays stopped (we do NOT
     /// restart it after a selection — §11). `data` is the source of
-    /// truth; `PhotosPickerItem` is never stored.
-    func handleSelectedImage(_ data: Data) {
+    /// truth; `PhotosPickerItem` is never stored. The image enters the
+    /// SAME shared still pipeline as a camera capture (prepare → P04).
+    func handleSelectedImage(_ data: Data) async {
         isPickerPresented = false
-        photoImport = .imageSelected(
-            CapturedPhoto(data: data, source: .photoLibrary)
-        )
+        let photo = CapturedPhoto(data: data, source: .photoLibrary)
+        photoImport = .imageSelected(photo)
+        await prepareCrop(photo)
     }
 
     /// The user cancelled the system picker (first-class behavior,
@@ -422,5 +509,109 @@ final class ScanViewModel {
         detectionConsumer?.cancel()
         detectionConsumer = nil
         cardDetection = .inactive
+    }
+
+    // MARK: - S04 Crop workflow (P04)
+
+    /// Runs the shared still pipeline: decode → orientation resolve →
+    /// still rectangle detection → initial CropDraft. Heavy work happens
+    /// on the crop processor's dedicated serial executor.
+    ///
+    /// Detection success → `.autoDetected` (S04); no-detection fallback
+    /// → `.manualAdjusting` (implementation robustness); undecodable
+    /// data → `.failed(.invalidImageData)` (stable, no crash).
+    private func prepareCrop(_ photo: CapturedPhoto) async {
+        cardRegion = .preparing
+        do {
+            let preparation = try await cropProcessor.prepare(photo)
+
+            #if DEBUG
+            switch cropFixture {
+            case .manual:
+                cardRegion = .manualAdjusting(preparation.draft)
+            case .confirmed:
+                cardRegion = preparation.wasDetected
+                    ? .autoDetected(preparation.draft)
+                    : .manualAdjusting(preparation.draft)
+                await performCropConfirmation()
+            case .auto, nil:
+                cardRegion = preparation.wasDetected
+                    ? .autoDetected(preparation.draft)
+                    : .manualAdjusting(preparation.draft)
+            }
+            #else
+            cardRegion = preparation.wasDetected
+                ? .autoDetected(preparation.draft)
+                : .manualAdjusting(preparation.draft)
+            #endif
+        } catch let error as CropError {
+            cardRegion = .failed(error)
+        } catch {
+            cardRegion = .failed(.invalidImageData)
+        }
+    }
+
+    /// User dragged one corner. The candidate is applied ONLY when it
+    /// still forms a valid convex quadrilateral — an invalid move is
+    /// ignored, so the draft can never become a bow-tie/collapsed
+    /// region. The first accepted edit transitions autoDetected →
+    /// manualAdjusting; later edits stay there.
+    func moveCorner(_ corner: CardCorner, to point: NormalizedPoint) {
+        // Confirmation in-flight freeze (pre-Accept correction): the
+        // draft is immutable while a correction is running, so a stale
+        // correction result can never clobber a concurrent drag.
+        guard !isCropInFlight, let draft = cardRegion.draft else { return }
+        let candidate = draft.moving(corner, to: point)
+        guard CardRegionGeometry.isValid(candidate.region) else { return }
+        cardRegion = .manualAdjusting(candidate)
+    }
+
+    /// User tapped 完成: perspective-correct the current valid region
+    /// exactly once. Guarded by `isCropInFlight` so a double tap cannot
+    /// start two Core Image corrections. On failure the draft stays
+    /// usable (`.failed` surfaces the stable fallback).
+    func confirmCrop() async {
+        guard !isCropInFlight, let draft = cardRegion.draft else { return }
+        isCropInFlight = true
+        defer { isCropInFlight = false }
+        await performCropConfirmation(draft: draft)
+    }
+
+    private func performCropConfirmation(draft providedDraft: CropDraft? = nil) async {
+        guard let draft = providedDraft ?? cardRegion.draft else { return }
+        do {
+            let result = try await cropProcessor.perspectiveCorrect(draft)
+            cardRegion = .confirmed(result)
+        } catch let error as CropError {
+            cardRegion = .failed(error)
+        } catch {
+            cardRegion = .failed(.correctionFailed)
+        }
+    }
+
+    /// User tapped 取消 (P04 retake): discard the draft/result, clear
+    /// the captured/imported transitional state, restart the camera
+    /// preview and resume live detection. For a photo-library source
+    /// this returns to the same Scanner (no system picker is re-opened).
+    /// A restart failure maps to `cameraUnavailable` — the existing
+    /// camera failure contract is preserved.
+    func retake() async {
+        // In-flight freeze: a correction that is already running must
+        // settle before retake can reset the workflow — otherwise
+        // "confirm → retake to scanner → old confirm returns" would
+        // resurrect a stale .confirmed state.
+        guard cardRegion.isCropScreenActive, !isCropInFlight else { return }
+        cardRegion = .retakeRequested
+
+        // Clear still-image transitional state before restarting.
+        photoImport = .idle
+        isPickerPresented = false
+        isCropInFlight = false
+
+        // configureIfNeeded() already succeeded on first scanner entry;
+        // restartPreview() runs idempotent start() and flips the camera
+        // state back to .preview (or .cameraUnavailable on failure).
+        await restartPreview()
+        cardRegion = .inactive
     }
 }

@@ -551,7 +551,7 @@ struct ScanViewModelTests {
         #expect(vm.photoImport == .pickerPresented)
 
         let importedBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
-        vm.handleSelectedImage(importedBytes)
+        await vm.handleSelectedImage(importedBytes)
 
         // Selection clears the picker flag and stores the image.
         #expect(!vm.isPickerPresented)
@@ -654,7 +654,7 @@ struct ScanViewModelTests {
 
         await vm.scannerDidAppear()     // startCount == 1
         await vm.beginPhotoImport()     // stopCount == 1
-        vm.handleSelectedImage(Data([0x01, 0x02]))
+        await vm.handleSelectedImage(Data([0x01, 0x02]))
 
         await Task.yield()
 
@@ -698,7 +698,7 @@ struct ScanViewModelTests {
 
         await vm.scannerDidAppear()
         await vm.beginPhotoImport()
-        vm.handleSelectedImage(Data([0x01, 0x02]))
+        await vm.handleSelectedImage(Data([0x01, 0x02]))
 
         await vm.capture()
 
@@ -815,7 +815,7 @@ struct ScanViewModelTests {
 
         // Load succeeds → imageSelected.
         let bytes = Data([0x89, 0x50, 0x4E, 0x47])
-        vm.handleSelectedImage(bytes)
+        await vm.handleSelectedImage(bytes)
         guard case .imageSelected(let photo) = vm.photoImport else {
             Issue.record("expected .imageSelected after load success")
             return
@@ -1034,5 +1034,446 @@ struct ScanViewModelTests {
 
         let unsupported = VideoRotationDecision.supportedAngle(45) { $0 == 90 }
         #expect(unsupported == nil)
+    }
+
+    // MARK: - S04 P04 crop workflow fakes
+
+    /// Deterministic crop-processor fake: same actor/async shape as
+    /// the real CardCropProcessor, with controllable preparation and
+    /// correction outcomes. Never decodes bytes or runs Core Image.
+    private actor FakeCropProcessor: CardCropProcessing {
+        enum Outcome {
+            case detected
+            case fallback
+            case invalidData
+        }
+
+        private let outcome: Outcome
+        private let correctionError: CropError?
+        private(set) var prepareCount = 0
+        private(set) var correctCount = 0
+
+        /// Deterministic in-flight gate (no sleep): when enabled,
+        /// `perspectiveCorrect` suspends after recording entry until
+        /// `releaseCorrectionGate()` resumes every waiter.
+        private var correctionGateEnabled = false
+        private var correctionWaiters: [CheckedContinuation<Void, Never>] = []
+        /// Incremented synchronously BEFORE the gate suspension, so a
+        /// test can deterministically observe correction entry.
+        private(set) var enteredCorrectionCount = 0
+
+        init(outcome: Outcome = .detected, correctionError: CropError? = nil) {
+            self.outcome = outcome
+            self.correctionError = correctionError
+        }
+
+        func enableCorrectionGate() {
+            correctionGateEnabled = true
+        }
+
+        func releaseCorrectionGate() {
+            correctionGateEnabled = false
+            let pending = correctionWaiters
+            correctionWaiters.removeAll()
+            for waiter in pending {
+                waiter.resume()
+            }
+        }
+
+        func prepare(_ photo: CapturedPhoto) throws -> CropPreparation {
+            prepareCount += 1
+            if outcome == .invalidData {
+                throw CropError.invalidImageData
+            }
+            let draft = CropDraft(
+                source: photo,
+                sourceOrientation: .up,
+                sourcePixelWidth: 600,
+                sourcePixelHeight: 380,
+                region: Self.draftRegion
+            )
+            return CropPreparation(draft: draft, wasDetected: outcome == .detected)
+        }
+
+        func perspectiveCorrect(_ draft: CropDraft) async throws -> CardCropResult {
+            correctCount += 1
+            enteredCorrectionCount += 1
+            if correctionGateEnabled {
+                await withCheckedContinuation { continuation in
+                    correctionWaiters.append(continuation)
+                }
+            }
+            if let correctionError {
+                throw correctionError
+            }
+            return CardCropResult(
+                original: draft.source,
+                confirmedRegion: draft.region,
+                processedImageData: Self.processedBytes,
+                processedPixelWidth: 420,
+                processedPixelHeight: 260
+            )
+        }
+
+        nonisolated static let draftRegion = CardRegion(
+            topLeft: NormalizedPoint(x: 0.10, y: 0.16),
+            topRight: NormalizedPoint(x: 0.90, y: 0.16),
+            bottomRight: NormalizedPoint(x: 0.90, y: 0.84),
+            bottomLeft: NormalizedPoint(x: 0.10, y: 0.84),
+            sourcePixelWidth: 600,
+            sourcePixelHeight: 380
+        )
+
+        /// Content is irrelevant to state assertions; presence only.
+        private static let processedBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
+    }
+
+    /// Builds an authorized, preview-ready VM with controllable crop
+    /// processing and waits for the initial detection stream.
+    private func makePreviewViewModel(
+        session: FakeSession = FakeSession(),
+        crop: FakeCropProcessor
+    ) async -> ScanViewModel {
+        let vm = ScanViewModel(
+            authorization: FakeAuthorization(initialStatus: .authorized),
+            sessionController: session,
+            cropProcessor: crop
+        )
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+        await waitForDetectionStream(session, count: 1)
+        return vm
+    }
+
+    // MARK: - S04 preparation
+
+    @Test("camera capture prepares an autoDetected region")
+    func capturedPhotoPreparesAutoDetected() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+
+        await vm.capture()
+
+        guard case .captured(let photo) = vm.state else {
+            Issue.record("expected .captured, got \(vm.state)")
+            return
+        }
+        guard case .autoDetected(let draft) = vm.cardRegion else {
+            Issue.record("expected .autoDetected, got \(vm.cardRegion)")
+            return
+        }
+        #expect(draft.source == photo)
+        #expect(draft.sourcePixelWidth == 600)
+        #expect(await crop.prepareCount == 1)
+        #expect(vm.cardDetection == .inactive)
+    }
+
+    @Test("photo import prepares an autoDetected region")
+    func importedPhotoPreparesAutoDetected() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+
+        let importedBytes = Data([0xAA, 0xBB, 0xCC])
+        await vm.handleSelectedImage(importedBytes)
+
+        guard case .imageSelected(let photo) = vm.photoImport else {
+            Issue.record("expected .imageSelected, got \(vm.photoImport)")
+            return
+        }
+        guard case .autoDetected(let draft) = vm.cardRegion else {
+            Issue.record("expected .autoDetected, got \(vm.cardRegion)")
+            return
+        }
+        #expect(draft.source == photo)
+        #expect(photo.source == .photoLibrary)
+        #expect(photo.data == importedBytes)
+        #expect(await crop.prepareCount == 1)
+    }
+
+    @Test("no-detection preparation enters manualAdjusting")
+    func fallbackPreparationEntersManualAdjusting() async {
+        let crop = FakeCropProcessor(outcome: .fallback)
+        let vm = await makePreviewViewModel(crop: crop)
+
+        await vm.capture()
+
+        guard case .manualAdjusting = vm.cardRegion else {
+            Issue.record("expected .manualAdjusting, got \(vm.cardRegion)")
+            return
+        }
+    }
+
+    @Test("undecodable capture enters the failed crop state")
+    func invalidPreparationEntersFailed() async {
+        let crop = FakeCropProcessor(outcome: .invalidData)
+        let vm = await makePreviewViewModel(crop: crop)
+
+        await vm.capture()
+
+        guard case .failed(let error) = vm.cardRegion else {
+            Issue.record("expected .failed, got \(vm.cardRegion)")
+            return
+        }
+        #expect(error == .invalidImageData)
+    }
+
+    // MARK: - S04 corner adjustment
+
+    @Test("first valid drag in autoDetected moves into manualAdjusting")
+    func firstValidDragTransitionsToManual() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        vm.moveCorner(.topLeft, to: NormalizedPoint(x: 0.2, y: 0.2))
+
+        guard case .manualAdjusting(let draft) = vm.cardRegion else {
+            Issue.record("expected .manualAdjusting, got \(vm.cardRegion)")
+            return
+        }
+        #expect(abs(draft.region.topLeft.x - 0.2) < 1e-12)
+        #expect(abs(draft.region.topLeft.y - 0.2) < 1e-12)
+        // The other three corners keep the detected positions.
+        #expect(abs(draft.region.bottomRight.x - 0.9) < 1e-12)
+    }
+
+    @Test("invalid drag candidate is ignored and keeps the previous region")
+    func invalidDragIsIgnored() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        let before = vm.cardRegion.draft?.region
+        // Flinging top-left to the opposite corner creates a
+        // self-intersecting polygon: must be rejected.
+        vm.moveCorner(.topLeft, to: NormalizedPoint(x: 0.95, y: 0.95))
+
+        guard case .autoDetected(let draft) = vm.cardRegion else {
+            Issue.record("invalid drag must not transition to manualAdjusting; got \(vm.cardRegion)")
+            return
+        }
+        #expect(draft.region == before)
+    }
+
+    @Test("valid drag while already manual stays manual with updated region")
+    func subsequentValidDragUpdatesRegion() async {
+        let crop = FakeCropProcessor(outcome: .fallback)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        vm.moveCorner(.bottomRight, to: NormalizedPoint(x: 0.8, y: 0.75))
+
+        guard case .manualAdjusting(let draft) = vm.cardRegion else {
+            Issue.record("expected .manualAdjusting, got \(vm.cardRegion)")
+            return
+        }
+        #expect(abs(draft.region.bottomRight.x - 0.8) < 1e-12)
+        #expect(abs(draft.region.bottomRight.y - 0.75) < 1e-12)
+    }
+
+    @Test("moveCorner is ignored outside an editable state")
+    func moveCornerIgnoredWhenInactive() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(crop: crop)
+
+        // Still in preview: no draft exists yet.
+        vm.moveCorner(.topLeft, to: NormalizedPoint(x: 0.2, y: 0.2))
+        #expect(vm.cardRegion == .inactive)
+    }
+
+    // MARK: - S04 confirm
+
+    @Test("confirm produces the corrected result once")
+    func confirmProducesResult() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        await vm.confirmCrop()
+
+        guard case .confirmed(let result) = vm.cardRegion else {
+            Issue.record("expected .confirmed, got \(vm.cardRegion)")
+            return
+        }
+        #expect(result.processedPixelWidth == 420)
+        #expect(result.processedPixelHeight == 260)
+        #expect(!vm.isCropInFlight)
+        #expect(await crop.correctCount == 1)
+    }
+
+    @Test("double confirm invokes the processor only once")
+    func doubleConfirmIsGuarded() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        await vm.confirmCrop()
+        // The first confirmation has already replaced the editable
+        // draft; the second call has nothing left to confirm.
+        await vm.confirmCrop()
+
+        #expect(await crop.correctCount == 1)
+        guard case .confirmed = vm.cardRegion else {
+            Issue.record("expected .confirmed, got \(vm.cardRegion)")
+            return
+        }
+    }
+
+    @Test("crop intents are frozen while a confirmation correction is in flight")
+    func cropIntentsFrozenWhileConfirming() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+        await vm.capture()
+
+        let draftBefore = vm.cardRegion.draft
+        let regionBefore = draftBefore?.region
+        #expect(regionBefore != nil)
+        let cameraStartsBefore = await session.startCount
+        let detectionStreamsBefore = await session.makeDetectionEventsCount
+
+        // Start a confirmation that parks INSIDE the fake processor
+        // via a continuation gate (deterministic; no sleep).
+        await crop.enableCorrectionGate()
+        let confirmTask = Task { await vm.confirmCrop() }
+
+        // Wait until the correction has actually been entered.
+        var entered = false
+        for _ in 0..<200 {
+            if await crop.enteredCorrectionCount == 1 {
+                entered = true
+                break
+            }
+            await Task.yield()
+        }
+        guard entered else {
+            Issue.record("gated correction never entered")
+            await crop.releaseCorrectionGate()
+            return
+        }
+        #expect(vm.isCropInFlight)
+        guard case .captured = vm.state else {
+            Issue.record("workflow should still be on the captured crop page; got \(vm.state)")
+            return
+        }
+
+        // (a) move while confirming: the draft must not move, and the
+        // state must remain autoDetected(draft A) — no manualAdjusting B.
+        vm.moveCorner(.topLeft, to: NormalizedPoint(x: 0.2, y: 0.2))
+        #expect(vm.cardRegion.draft?.region == regionBefore)
+        guard case .autoDetected(let draftDuringMove) = vm.cardRegion else {
+            Issue.record("move during in-flight must not leave autoDetected; got \(vm.cardRegion)")
+            return
+        }
+        #expect(draftDuringMove.region == regionBefore)
+
+        // (b) retake while confirming: ignored entirely.
+        await vm.retake()
+        #expect(vm.cardRegion.draft?.region == regionBefore)
+        guard case .autoDetected = vm.cardRegion else {
+            Issue.record("retake during in-flight must not change workflow state; got \(vm.cardRegion)")
+            return
+        }
+        guard case .captured = vm.state else {
+            Issue.record("retake during in-flight must keep the captured state; got \(vm.state)")
+            return
+        }
+        // No camera restart and no new live-detection stream.
+        #expect(await session.startCount == cameraStartsBefore)
+        #expect(await session.makeDetectionEventsCount == detectionStreamsBefore)
+        // Capture had stopped live detection; a blocked retake must
+        // not have restarted it either.
+        #expect(vm.cardDetection == .inactive)
+
+        // Release the gate: exactly one correction completes and the
+        // settled result (draft A) wins — no stale clobbering.
+        await crop.releaseCorrectionGate()
+        await confirmTask.value
+
+        #expect(!vm.isCropInFlight)
+        #expect(await crop.correctCount == 1)
+        guard case .confirmed(let result) = vm.cardRegion else {
+            Issue.record("expected gated confirmation to settle .confirmed; got \(vm.cardRegion)")
+            return
+        }
+        #expect(result.confirmedRegion == regionBefore)
+    }
+
+    @Test("correction failure enters the failed state")
+    func correctionFailureEntersFailed() async {
+        let crop = FakeCropProcessor(outcome: .detected, correctionError: .invalidRegion)
+        let vm = await makePreviewViewModel(crop: crop)
+        await vm.capture()
+
+        await vm.confirmCrop()
+
+        guard case .failed(let error) = vm.cardRegion else {
+            Issue.record("expected .failed, got \(vm.cardRegion)")
+            return
+        }
+        #expect(error == .invalidRegion)
+    }
+
+    // MARK: - S04 retake
+
+    @Test("retake discards the draft, restarts preview and resumes detection")
+    func retakeRestartsPreviewAndDetection() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+        await vm.capture()
+        guard case .autoDetected = vm.cardRegion else {
+            Issue.record("precondition: expected .autoDetected")
+            return
+        }
+
+        await vm.retake()
+
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+        #expect(vm.cardDetection == .cardNotDetected)
+        #expect(!vm.isCropInFlight)
+        // A second detection stream was made for the restarted preview.
+        await waitForDetectionStream(session, count: 2)
+        #expect(await session.makeDetectionEventsCount == 2)
+
+        // The user can capture again on the restarted preview.
+        await vm.capture()
+        guard case .captured = vm.state else {
+            Issue.record("capture after retake must succeed, got \(vm.state)")
+            return
+        }
+    }
+
+    @Test("retake after photo import clears the import state without reopening the picker")
+    func retakeAfterImportClearsImportState() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+
+        await vm.handleSelectedImage(Data([0x01]))
+        #expect(vm.photoImport != .idle)
+
+        await vm.retake()
+
+        #expect(vm.photoImport == .idle)
+        #expect(!vm.isPickerPresented)
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+    }
+
+    @Test("retake is ignored when no crop screen is active")
+    func retakeIgnoredWhenInactive() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let vm = await makePreviewViewModel(session: session, crop: crop)
+        let startCountBefore = await session.startCount
+
+        await vm.retake()
+
+        #expect(vm.cardRegion == .inactive)
+        #expect(await session.startCount == startCountBefore)
     }
 }

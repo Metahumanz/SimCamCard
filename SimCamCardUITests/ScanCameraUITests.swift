@@ -43,7 +43,8 @@ final class ScanCameraUITests: XCTestCase {
     private func launchAndEnterScanner(
         cameraMode: String,
         photoImportMode: String? = nil,
-        detectionMode: String? = nil
+        detectionMode: String? = nil,
+        cropMode: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         var args = ["-SimCamCardCamera", cameraMode]
@@ -52,6 +53,9 @@ final class ScanCameraUITests: XCTestCase {
         }
         if let detectionMode {
             args += ["-SimCamCardDetection", detectionMode]
+        }
+        if let cropMode {
+            args += ["-SimCamCardCrop", cropMode]
         }
         app.launchArguments = args
         app.launch()
@@ -112,8 +116,9 @@ final class ScanCameraUITests: XCTestCase {
     // MARK: - T04 capture (fixture-driven)
 
     /// Fixture-driven capture UI test: authorized → preview → tap
-    /// shutter → captured presentation appears, scanner does not
-    /// crash, shutter is gone, ✕ back path works.
+    /// shutter → the P04 crop page appears (Week 3 Increment 5: capture
+    /// now flows into the shared still pipeline), the scanner does not
+    /// crash, the shutter is gone, and retake returns to preview.
     ///
     /// NON-CLAIM: this is NOT real camera hardware capture. The DEBUG
     /// fake session returns a fixed valid tiny PNG; this verifies the
@@ -130,17 +135,26 @@ final class ScanCameraUITests: XCTestCase {
 
         app.buttons["scan-capture"].tap()
 
-        // Captured presentation appears (fixture-driven).
-        let captured = app.descendants(matching: .any)["scan-captured-photo"]
-        XCTAssertTrue(captured.waitForExistence(timeout: 5),
-                      "Tapping the shutter in preview should reach the captured state.")
+        // Capture now enters P04 crop preparation/adjustment.
+        let cropView = app.descendants(matching: .any)["scan-crop-view"]
+        XCTAssertTrue(cropView.waitForExistence(timeout: 5),
+                      "Tapping the shutter should enter the crop page.")
+        XCTAssertTrue(app.buttons["scan-crop-confirm"].waitForExistence(timeout: 3),
+                      "The crop page offers the confirm action.")
 
-        // No active shutter in the captured state; no crash.
+        // No active shutter while the crop page owns the screen; no crash.
         XCTAssertFalse(app.buttons["scan-capture"].exists,
-                       "The shutter must not be offered in the captured state.")
+                       "The shutter must not be offered during crop adjustment.")
         XCTAssertTrue(
             app.descendants(matching: .any)["scan-entry-view"].exists,
             "Scanner must not crash after capture."
+        )
+
+        // Retake returns to the live preview.
+        app.buttons["scan-crop-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake should return to the camera preview."
         )
 
         let screenshot = XCUIScreen.main.screenshot()
@@ -236,18 +250,27 @@ final class ScanCameraUITests: XCTestCase {
 
         app.buttons["scan-photo-import"].tap()
 
-        // The imported image presentation appears (fixture-driven).
-        let imported = app.descendants(matching: .any)["scan-imported-photo"]
-        XCTAssertTrue(imported.waitForExistence(timeout: 5),
-                      "Tapping 相册 with the imported fixture should reach imageSelected.")
+        // The import now enters the shared still pipeline → P04.
+        let cropView = app.descendants(matching: .any)["scan-crop-view"]
+        XCTAssertTrue(cropView.waitForExistence(timeout: 5),
+                      "Tapping 相册 with the imported fixture should enter the crop page.")
 
-        // No active shutter in the imported state; no crash.
+        // No active shutter while the crop page owns the screen; no crash.
         XCTAssertFalse(app.buttons["scan-capture"].exists,
-                       "The shutter must not be offered in the imported state.")
+                       "The shutter must not be offered during crop adjustment.")
         XCTAssertTrue(
             app.descendants(matching: .any)["scan-entry-view"].exists,
             "Scanner must not crash after import."
         )
+
+        // Retake returns to the live preview; the user can tap 相册 again.
+        app.buttons["scan-crop-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake should return to the scanner preview."
+        )
+        XCTAssertTrue(app.buttons["scan-photo-import"].exists,
+                      "The photo-library entry must be available again after retake.")
 
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
@@ -371,5 +394,135 @@ final class ScanCameraUITests: XCTestCase {
         add(attachment)
 
         closeScanner(app)
+    }
+
+    // MARK: - P04 crop: auto detected fixture
+
+    /// Fixture-driven P04 regression: authorized → shutter → crop page
+    /// with boundary, four handles, confirm and retake controls.
+    ///
+    /// NON-CLAIM: the initial region comes from the DEBUG fixture, not
+    /// real still-image Vision; geometry mutation is covered by unit
+    /// tests, and real dataset Detection→Crop by processor smoke tests.
+    @MainActor
+    private func enterCropPage(cropMode: String) -> XCUIApplication {
+        let app = launchAndEnterScanner(cameraMode: "authorized", cropMode: cropMode)
+        app.buttons["scan-capture"].tap()
+
+        let cropView = app.descendants(matching: .any)["scan-crop-view"]
+        XCTAssertTrue(cropView.waitForExistence(timeout: 5),
+                      "Shutter should enter the crop page.")
+        return app
+    }
+
+    @MainActor
+    func testCropAutoDetectedShowsBoundaryHandlesAndControls() throws {
+        let app = enterCropPage(cropMode: "auto")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
+            "Auto-detected crop page must show the boundary quadrilateral."
+        )
+        for handleId in [
+            "scan-crop-handle-top-left",
+            "scan-crop-handle-top-right",
+            "scan-crop-handle-bottom-right",
+            "scan-crop-handle-bottom-left",
+        ] {
+            XCTAssertTrue(app.descendants(matching: .any)[handleId].exists,
+                          "Crop page must show handle \(handleId).")
+        }
+        XCTAssertTrue(app.buttons["scan-crop-confirm"].exists)
+        XCTAssertTrue(app.buttons["scan-crop-retake"].exists)
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i5-crop-auto-detected-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-crop-retake"].tap()
+        closeScanner(app)
+    }
+
+    // MARK: - P04 crop: manual adjust fixture
+
+    /// Deterministic manual-adjust regression: starting directly in
+    /// manual-adjust state, drag one corner inward; the page stays
+    /// stable with boundary and confirm controls usable.
+    @MainActor
+    func testCropManualDragKeepsPageStable() throws {
+        let app = enterCropPage(cropMode: "manual")
+
+        let handle = app.descendants(matching: .any)["scan-crop-handle-top-left"]
+        XCTAssertTrue(handle.waitForExistence(timeout: 5),
+                      "Manual-adjust page must show the corner handle.")
+
+        // Small inward drag; the candidate stays a valid convex region.
+        let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = start.withOffset(CGVector(dx: 30, dy: 24))
+        start.press(forDuration: 0.1, thenDragTo: end)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].exists,
+            "Boundary must remain after the drag."
+        )
+        XCTAssertTrue(app.buttons["scan-crop-confirm"].isEnabled,
+                      "Confirm must remain usable after the drag.")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-view"].exists,
+            "Page must stay stable (no crash, no navigation) after the drag."
+        )
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i5-crop-manual-adjust-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-crop-retake"].tap()
+        closeScanner(app)
+    }
+
+    // MARK: - P04 crop: confirm fixture
+
+    /// Confirm runs the REAL CardCropProcessor on the deterministic
+    /// fixture image: tap 完成 → the perspective-corrected image is
+    /// presented, handles/boundary are gone, and no OCR/recognition UI
+    /// is faked.
+    @MainActor
+    func testCropConfirmShowsCorrectedImageWithoutHandles() throws {
+        let app = enterCropPage(cropMode: "auto")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
+            "Crop page should be ready before confirm."
+        )
+
+        app.buttons["scan-crop-confirm"].tap()
+
+        let confirmed = app.descendants(matching: .any)["scan-crop-confirmed-image"]
+        XCTAssertTrue(confirmed.waitForExistence(timeout: 10),
+                      "Confirm should present the perspective-corrected image.")
+
+        for handleId in [
+            "scan-crop-handle-top-left",
+            "scan-crop-handle-top-right",
+            "scan-crop-handle-bottom-right",
+            "scan-crop-handle-bottom-left",
+        ] {
+            XCTAssertFalse(app.descendants(matching: .any)[handleId].exists,
+                           "Handles must be absent after confirm (\(handleId)).")
+        }
+        XCTAssertFalse(
+            app.descendants(matching: .any)["scan-crop-boundary"].exists,
+            "Editing boundary must be absent after confirm."
+        )
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i5-crop-confirmed-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
