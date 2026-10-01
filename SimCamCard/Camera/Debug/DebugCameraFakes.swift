@@ -74,6 +74,7 @@ actor DebugCameraSessionController: CameraSessionControlling {
     private(set) var configureCount = 0
     private(set) var startCount = 0
     private(set) var stopCount = 0
+    private(set) var captureCount = 0
 
     /// When non-nil, `configureIfNeeded()` throws this error to emulate
     /// hardware/configuration failure with permission already granted.
@@ -102,6 +103,25 @@ actor DebugCameraSessionController: CameraSessionControlling {
     func stop() async {
         stopCount += 1
     }
+
+    /// Deterministic T04 fixture capture: returns a fixed, VALID tiny
+    /// PNG (4×4 green pixels) so the captured-state UI can decode and
+    /// display it. Never arbitrary bytes, never nil. The same bytes on
+    /// every call — fully deterministic for UI tests.
+    func capturePhoto() async throws -> CapturedPhoto {
+        captureCount += 1
+        return CapturedPhoto(data: DebugCameraSessionController.fixtureImageData)
+    }
+
+    /// Fixed 4×4 green PNG (71 bytes). Valid image data required because
+    /// the captured presentation decodes it with UIImage(data:).
+    nonisolated static let fixtureImageData: Data = Data([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x08, 0x06, 0x00, 0x00, 0x00, 0xA9, 0xF1, 0x9E,
+        0x7E, 0x00, 0x00, 0x00, 0x0E, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x60, 0xF8, 0x8F, 0x06,
+        0x19, 0x18, 0x00, 0x57, 0xBC, 0x07, 0xF9, 0xA7, 0xB4, 0x03, 0xCB, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ])
 }
 
 // MARK: - Launch-argument environment

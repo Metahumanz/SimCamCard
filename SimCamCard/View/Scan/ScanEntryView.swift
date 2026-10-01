@@ -3,7 +3,8 @@
 //  SimCamCard
 //
 //  P02 Scanner (Week 2 Increment 6 static shell; Week 3 Increment 1
-//  upgrades it with T03 camera permission + real live preview).
+//  camera permission + real live preview; Week 3 Increment 2 adds
+//  T04 single still capture → S02 captured).
 //
 //  Spec sources:
 //   - spec/page-inventory.md P02 Scanner (Camera preview and card
@@ -33,9 +34,8 @@
 //     simulator). Infrastructure state, not an S02 permission state.
 //
 //  Still NOT implemented (later increments):
-//   - Shutter capture / AVCapturePhotoOutput (T04), Photo Import /
-//     PhotosPicker (T05), detection, crop, OCR/Vision, saving.
-//   - Shutter and 相册 remain visual-only controls.
+//   - Photo Import / PhotosPicker (T05 — 相册 stays visual-only),
+//     detection, crop, OCR/Vision, recognition navigation, saving.
 //
 //  Concurrency: the permission provider and this ViewModel stay
 //  MainActor-isolated; the camera session lifecycle runs on the
@@ -99,6 +99,8 @@ struct ScanEntryView: View {
                         message: "当前设备无法启动相机预览。",
                         identifier: "scan-camera-unavailable"
                     )
+                case .captured(let photo):
+                    capturedSection(photo)
                 case .permissionUnknown, .preview:
                     viewportSection
                     modeTabs
@@ -200,7 +202,7 @@ struct ScanEntryView: View {
                         .accessibilityIdentifier("scan-camera-preview")
                 case .permissionUnknown:
                     Color.clear
-                case .permissionDenied, .cameraUnavailable:
+                case .permissionDenied, .cameraUnavailable, .captured:
                     Color.clear
                 }
 
@@ -221,6 +223,42 @@ struct ScanEntryView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Captured presentation (T04)
+
+    /// Minimal functional captured presentation. Frozen evidence has
+    /// NO standalone "captured holding page" (T04 flows straight into
+    /// recognition in the Reference, which is a later increment), so
+    /// this is deliberately minimal: the actual captured photo plus
+    /// the existing top-bar ✕ back path. Reference fidelity: not
+    /// established (functional transitional UI).
+    ///
+    /// The raw Data remains the source of truth; UIImage exists only
+    /// as this View-layer rendering adapter — never stored in the
+    /// Domain, never persisted.
+    private func capturedSection(_ photo: CapturedPhoto) -> some View {
+        Group {
+            if let image = UIImage(data: photo.data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // The DEBUG fixture always supplies valid image bytes;
+                // a decode failure here means corrupt pipeline data —
+                // show a stable fallback rather than a fake image.
+                permissionFallback(
+                    systemImage: "exclamationmark.triangle",
+                    title: "照片不可用",
+                    message: "拍摄到的照片无法显示。",
+                    identifier: "scan-captured-undecodable"
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("scan-captured-photo")
     }
 
     /// Minimal functional fallback for denied/unavailable states.
@@ -320,10 +358,12 @@ struct ScanEntryView: View {
 
             Spacer()
 
-            // Shutter — visual shell only. Tapping does not capture,
-            // navigate, create a BusinessCard or mutate the Repository
-            // (T04 capture workflow deferred; no PhotoOutput exists).
+            // Shutter — real T04 capture action. Only reachable in
+            // .preview (the control bar only renders there) and
+            // disabled while a capture is in flight, so a fast double
+            // tap cannot start two capture workflows.
             Button {
+                Task { await viewModel.capture() }
             } label: {
                 ZStack {
                     Circle()
@@ -333,7 +373,9 @@ struct ScanEntryView: View {
                         .fill(.white)
                         .frame(width: 62, height: 62)
                 }
+                .opacity(viewModel.isCaptureInFlight ? 0.5 : 1.0)
             }
+            .disabled(viewModel.isCaptureInFlight)
             .accessibilityLabel("拍摄")
             .accessibilityIdentifier("scan-capture")
 

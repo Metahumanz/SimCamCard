@@ -1374,3 +1374,94 @@ Accepted — 2026-10-01 (human review). Final conclusions recorded in the correc
 - No `@unchecked Sendable`; no `nonisolated(unsafe)`; no `Task.detached`
 
 AI did not commit, merge or tag. Increment 2 not entered.
+
+## 2026-10-01 — Week 3 Increment 2: Still Capture (T04 mechanics)
+
+### Task
+
+T04 still-photo capture mechanics: Scanner preview → tap shutter → AVCapturePhotoOutput captures one real still → stable captured-photo value → S02 `captured` state. Baseline: branch `week3/camera-ocr` @ `eeefbbe` (Increment 1 accepted). Explicitly out of scope: Card Detection, Crop, OCR, Recognition/Edit, BusinessCard creation, Repository save, PhotosPicker.
+
+### Files
+
+New (filesystem-synchronized groups; no pbxproj change):
+- `SimCamCard/Camera/CapturedPhoto.swift` — camera-pipeline transport value (`nonisolated struct`, `Sendable, Equatable`): raw `data: Data` (AVCapturePhoto.fileDataRepresentation bytes, EXIF orientation metadata preserved — never stripped) + `capturedAt: Date`. NOT a Domain Model; no OCR text/rectangle/structured fields/BusinessCard id/tags/notes.
+- `SimCamCard/Camera/PhotoCaptureProcessor.swift` — one-shot `AVCapturePhotoCaptureDelegate` bridge; `nonisolated final class` (only state is the immutable continuation let). Converts `AVCapturePhoto` → `Data` INSIDE the delegate callback; `AVCapturePhoto` never crosses any actor/Sendable boundary and is never claimed Sendable.
+- `ai/validation/2026-10-01-increment2-captured-photo-fixture.png` — fixture-driven captured-state presentation evidence. NOT physical camera capture proof.
+
+Modified:
+- `SimCamCard/Camera/CameraSessionController.swift` — `configureIfNeeded()` now also adds ONE `AVCapturePhotoOutput` inside the same begin/commitConfiguration transaction (input once + output once + configure once; re-entry never re-adds). `canAddOutput == false` → new `CameraSessionError.cannotAddPhotoOutput` (infrastructure, never disguised as permissionDenied). New `capturePhoto() async throws -> CapturedPhoto`: guards configured+running and single in-flight (atomic check-and-set on the serial executor), minimal `AVCapturePhotoSettings()` defaults (no flash UI/burst/bracket/RAW/Live Photo/depth/portrait/metadata output), processor strongly held in `inFlightCapture` for the whole capture and cleared via `defer` on both paths. New errors `captureFailed` (delegate error / not running) and `emptyPhotoData` (no usable bytes).
+- `SimCamCard/ViewModel/ScanViewModel.swift` — new frozen S02 state `case captured(CapturedPhoto)` (Equatable preserved); transient `isCaptureInFlight` Bool (NOT added to the frozen enum); `capture()` accepts only `.preview` and not-in-flight, otherwise ignored. Success: capture → stop session → `.captured(photo)`. Failure: no crash, never `.captured`, never permissionDenied — mapped to `.cameraUnavailable(...)` infrastructure fallback (no retry UI).
+- `SimCamCard/View/Scan/ScanEntryView.swift` — shutter `scan-capture` is now the real capture action, disabled (dimmed) while in flight; new `.captured` branch renders `capturedSection`: the ACTUAL captured bytes decoded to UIImage in the View layer only (Data remains source of truth; UIImage is a transient rendering adapter, never stored/persisted), root id `scan-captured-photo`; existing top-bar ✕ is the back path. No 识别中/完成/下一步/重拍 buttons, no crop handles, no recognition fields. Reference fidelity: functional transitional UI; reference fidelity not established. 相册 `scan-photo-import` remains visual-only (T05 NOT IMPLEMENTED).
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — DEBUG-only fake gains `capturePhoto()` returning a deterministic fixed VALID tiny PNG (4×4 green, 71 bytes) + `captureCount`. Release builds compile all fakes out (`#if DEBUG`); Release never touches the fake capture path.
+- Tests: `SimCamCardTests/ViewModel/ScanViewModelTests.swift` (fake gains `captureError` injection + `captureCount`; 7 new tests); `SimCamCardUITests/ScanCameraUITests.swift` (new fixture capture test; removed obsolete "shutter is visual-only" tap assertion); `SimCamCardUITests/ScanEntryUITests.swift` (shell test updated: photo-import still visual-only no-op; shutter now verified to reach captured).
+
+### Architecture preserved
+
+ScanViewModel stays @MainActor UI state owner; CameraSessionController stays an actor on its dedicated `DispatchSerialQueue` custom executor; CameraPreviewView stays presentation-only. ALL session configuration / input mutation / output mutation / startRunning / stopRunning / capture-request orchestration execute on the camera actor executor. No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`. The `@preconcurrency import AVFoundation` compatibility bridge is retained under the same ownership contract (it relaxes compile-time diagnostics only; it does not itself guarantee thread safety).
+
+### Orientation contract (prompt §14)
+
+What this increment actually guarantees:
+
+- Raw captured photo bytes/attachments preservation: **PASS** — `AVCapturePhoto.fileDataRepresentation()` returns the photo image data with AVFoundation attachments/metadata retained; `CapturedPhoto.data` preserves those returned bytes without stripping any metadata.
+
+What this increment does NOT establish:
+
+- Correct upright/canonical captured orientation: **NOT ESTABLISHED** in this increment.
+- Physical-device orientation verification (portrait / landscape / iPad rotation): **PENDING**.
+- RotationCoordinator / explicit preview+capture connection rotation (no `AVCaptureDevice.RotationCoordinator` use, no explicit rotation angle set on the AVCapturePhotoOutput video connection): **DEFERRED** — must be resolved before Detection/OCR consumes canonical image orientation.
+
+### Verification (all rerun — production camera lifecycle modified)
+
+- Debug standalone build: **BUILD SUCCEEDED** (one compile iteration: PhotoCaptureProcessor needed explicit `nonisolated` because SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor would otherwise pin the NSObject delegate subclass to MainActor, making it unusable from the camera actor).
+- Release build: **BUILD SUCCEEDED** (DEBUG fake capture path compiled out; production capture path uses real AVFoundation).
+- Unit tests: **58/58 PASS** (51 prior + 7 new): capture success (session stopped, captured(photo), in-flight cleared); capture failure → cameraUnavailable, never captured, in-flight cleared; capture ignored in permissionDenied / permissionUnknown / cameraUnavailable (captureCount == 0); double-tap single-in-flight (captureCount == 1, counter-based, no wall-clock timing); re-entry after capture (configure 1 / start 2 / stop 2). All Increment 1 contracts (configure once, start/stop many, serialization under concurrency, initial-start-failure) still pass.
+- UI regression, one clean round: **14/14 PASS** (13 prior + 1 new fixture capture test). `ScanEntryUITests.testEnterScannerShowsStaticShell` was updated for the now-real shutter (first UI run caught the stale visual-only assertion; corrected and rerun green).
+- Boundary audit: zero changes under SimCamCard/Model, SimCamCard/Repository, spec/, dataset/, MockBusinessCards.swift; project.pbxproj untouched; no PhotosPicker/Vision/OCR/AppRoute additions.
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` anywhere in app/tests.
+- Release fake-isolation audit: DebugCameraFakes.swift wrapped in `#if DEBUG`; Release build succeeds without any fake capture path.
+
+### Traceability
+
+- T04 still-photo capture mechanics: **PASS (automated / fixture supported)**
+- T04 physical-device still capture: **NOT INDEPENDENTLY VERIFIED**
+- T04 capture → recognition workflow: **NOT IMPLEMENTED**
+- T04 overall: **PARTIAL**
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- S02 `captured` state/orchestration: **PASS**; captured fixture-driven presentation: **PASS**; physical-device captured photo: **PENDING**
+- S02 `cardNotDetected` dynamic state: NOT IMPLEMENTED; `cardDetected`: NOT IMPLEMENTED (REF-scanner-02-card-detected.png is NOT evidence of implemented detection); `cancelled`: NOT MODELED
+- T05 Photo Import / T06 Detection / T07 OCR / Crop / structured extraction: NOT IMPLEMENTED
+- Fixture-driven capture UI: PASS; physical-device photo capture: NOT INDEPENDENTLY VERIFIED
+
+### Correction before acceptance
+
+1. **Capture failure releases camera session** — [ScanViewModel.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/ViewModel/ScanViewModel.swift) `capture()`: both success and failure paths now `await sessionController.stop()` before updating state, so the camera session is never left running behind the error fallback. Updated unit test assertion: `captureCount == 1 && stopCount == 1 && state == .cameraUnavailable(...) && state != .captured`.
+2. **Orientation wording calibrated** — changes.md orientation section rewritten to distinguish "raw bytes/attachments preservation: PASS" from "correct upright/canonical orientation: NOT ESTABLISHED"; `RotationCoordinator` and explicit connection rotation explicitly deferred.
+3. **Git working tree cleaned** — `git restore ai/prompts/week2-skeleton.md`; untracked prompt file moved to `/tmp/w3inc2-plan.md`; final `git status --short` shows only Increment 2 files plus validation screenshot.
+
+### Human Decision
+
+**Accepted — 2026-10-01 (human review).** Week 3 Increment 2 (Still Capture) final conclusions, unchanged at acceptance:
+
+- T04 still-photo capture mechanics: PASS (automated / fixture)
+- Capture success → stop session → captured: PASS
+- Capture failure → stop session → cameraUnavailable (never captured): PASS
+- Delegate lifetime (PhotoCaptureProcessor strongly held until callback resumes): PASS
+- Double-capture prevention (single in-flight contract): PASS
+- S02 captured state/presentation: PASS (fixture-driven)
+- Physical-device still capture: NOT INDEPENDENTLY VERIFIED
+- Raw captured bytes/attachments preservation: PASS
+- Correct upright/canonical captured orientation: NOT ESTABLISHED
+- Physical-device orientation verification: PENDING
+- RotationCoordinator / explicit preview+capture connection rotation: DEFERRED — must be resolved before Detection/OCR consumes canonical image orientation
+- T04 capture → recognition workflow: NOT IMPLEMENTED
+- T04 overall: PARTIAL
+- T05 Photo Import / T06 Detection / T07 OCR / Crop / structured extraction: NOT IMPLEMENTED
+- Debug build: PASS; Release build: PASS
+- Unit tests: 58/58 PASS; UI regression: 14/14 PASS
+
+AI did not commit, merge or tag. Increment 3 not entered.

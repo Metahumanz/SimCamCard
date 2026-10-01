@@ -66,15 +66,23 @@ struct ScanViewModelTests {
         private(set) var configureCount = 0
         private(set) var startCount = 0
         private(set) var stopCount = 0
+        private(set) var captureCount = 0
         private let configureError: CameraSessionError?
         private let startError: CameraSessionError?
+        private let captureError: CameraSessionError?
+
+        /// Deterministic valid still bytes (content is irrelevant to
+        /// state assertions; only presence matters).
+        private static let fixtureBytes = Data([0x89, 0x50, 0x4E, 0x47])
 
         init(
             configureError: CameraSessionError? = nil,
-            startError: CameraSessionError? = nil
+            startError: CameraSessionError? = nil,
+            captureError: CameraSessionError? = nil
         ) {
             self.configureError = configureError
             self.startError = startError
+            self.captureError = captureError
         }
 
         func configureIfNeeded() async throws {
@@ -94,6 +102,14 @@ struct ScanViewModelTests {
 
         func stop() async {
             stopCount += 1
+        }
+
+        func capturePhoto() async throws -> CapturedPhoto {
+            captureCount += 1
+            if let captureError {
+                throw captureError
+            }
+            return CapturedPhoto(data: Self.fixtureBytes)
         }
     }
 
@@ -299,5 +315,151 @@ struct ScanViewModelTests {
         #expect(await session.configureCount == 1)
         #expect(await session.startCount == 3)
         #expect(await session.stopCount == 3)
+    }
+
+    // MARK: - T04 capture: success
+
+    @Test("preview → capture → session stops → state is captured(photo)")
+    func successfulCaptureStopsSessionAndEntersCaptured() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        await vm.capture()
+
+        guard case .captured(let photo) = vm.state else {
+            Issue.record("expected .captured, got \(vm.state)")
+            return
+        }
+        #expect(!photo.data.isEmpty)
+        // Capture success stops the camera session (release hardware).
+        #expect(await session.captureCount == 1)
+        #expect(await session.stopCount == 1)
+        #expect(!vm.isCaptureInFlight)
+    }
+
+    // MARK: - T04 capture: failure never produces captured
+
+    @Test("capture failure → session stopped → stable cameraUnavailable, never captured")
+    func captureFailureMapsToCameraUnavailableNotCaptured() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession(captureError: .captureFailed)
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        await vm.capture()
+
+        // Contract: capture was attempted once, the failure path also
+        // STOPS the session (camera released behind the fallback),
+        // state is cameraUnavailable and NEVER captured.
+        #expect(await session.captureCount == 1)
+        #expect(await session.stopCount == 1)
+        #expect(vm.state == .cameraUnavailable(.captureFailed))
+        #expect(!vm.isCaptureInFlight)
+        if case .captured = vm.state {
+            Issue.record("capture failure must never enter .captured")
+        }
+    }
+
+    // MARK: - T04 capture: wrong states ignore capture
+
+    @Test("capture is ignored in permissionDenied")
+    func captureIgnoredWhenDenied() async {
+        let auth = FakeAuthorization(initialStatus: .denied)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .permissionDenied)
+
+        await vm.capture()
+
+        #expect(vm.state == .permissionDenied)
+        #expect(await session.captureCount == 0)
+    }
+
+    @Test("capture is ignored before the scanner appears (permissionUnknown)")
+    func captureIgnoredWhenPermissionUnknown() async {
+        let auth = FakeAuthorization(initialStatus: .notDetermined, grantsOnRequest: true)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+        #expect(vm.state == .permissionUnknown)
+
+        await vm.capture()
+
+        #expect(vm.state == .permissionUnknown)
+        #expect(await session.captureCount == 0)
+    }
+
+    @Test("capture is ignored in cameraUnavailable")
+    func captureIgnoredWhenCameraUnavailable() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession(configureError: .noVideoDevice)
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .cameraUnavailable(.noVideoDevice))
+
+        await vm.capture()
+
+        #expect(vm.state == .cameraUnavailable(.noVideoDevice))
+        #expect(await session.captureCount == 0)
+    }
+
+    // MARK: - T04 capture: single in-flight contract
+
+    @Test("a second capture while one is in flight is ignored (single-card contract)")
+    func doubleTapStartsOnlyOneCapture() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+
+        // Simulate a fast double tap: two capture() calls racing. The
+        // ViewModel's isCaptureInFlight guard (MainActor-serialized)
+        // plus the service's in-flight guard ensure only one reaches
+        // the camera service. No wall-clock timing involved.
+        async let first: Void = vm.capture()
+        async let second: Void = vm.capture()
+        _ = await (first, second)
+
+        #expect(await session.captureCount == 1)
+        guard case .captured = vm.state else {
+            Issue.record("expected .captured, got \(vm.state)")
+            return
+        }
+        #expect(!vm.isCaptureInFlight)
+    }
+
+    // MARK: - T04: re-entry after capture restarts cleanly
+
+    @Test("leaving the captured state and re-entering restarts preview without reconfigure")
+    func reentryAfterCaptureRestartsPreview() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let session = FakeSession()
+        let vm = ScanViewModel(authorization: auth, sessionController: session)
+
+        // First visit: preview → capture → captured.
+        await vm.scannerDidAppear()
+        await vm.capture()
+        guard case .captured = vm.state else {
+            Issue.record("expected .captured, got \(vm.state)")
+            return
+        }
+        await vm.scannerDidDisappear()
+
+        // Re-enter: configure stays at 1, start runs again, preview.
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+        #expect(await session.configureCount == 1)
+        #expect(await session.startCount == 2)
+        #expect(await session.stopCount == 2) // capture-stop + disappear-stop
     }
 }

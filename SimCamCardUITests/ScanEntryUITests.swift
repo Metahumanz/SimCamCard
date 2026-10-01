@@ -115,18 +115,25 @@ final class ScanEntryUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Coming soon"].exists)
         XCTAssertFalse(app.staticTexts["Not implemented"].exists)
 
-        // Visual controls have no out-of-scope behavior: tapping them
-        // must keep the user on the Scanner shell (no navigation, no
-        // system picker, no crash).
-        app.buttons["scan-capture"].tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["scan-entry-view"].exists,
-            "Tapping the shell shutter must not leave the Scanner page."
-        )
+        // Photo import remains visual-only (T05 not implemented):
+        // tapping it must keep the user on the Scanner shell.
         app.buttons["scan-photo-import"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["scan-entry-view"].exists,
             "Tapping the shell photo entry must not present a picker or leave the page."
+        )
+        XCTAssertTrue(
+            app.buttons["scan-capture"].exists,
+            "Photo-import tap must not change the scanner state."
+        )
+
+        // Shutter is a real T04 capture action (Week 3 Increment 2):
+        // tapping it in preview captures and reaches the captured state.
+        // (Full capture-flow coverage lives in ScanCameraUITests.)
+        app.buttons["scan-capture"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-captured-photo"].waitForExistence(timeout: 5),
+            "Tapping the shutter in preview should reach the captured state."
         )
 
         // Validation evidence (separate from frozen REF-* screenshots).

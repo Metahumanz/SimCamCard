@@ -7,11 +7,14 @@
 //
 //  Scope:
 //   - One AVCaptureSession with a single rear video input feeding the
-//     live preview layer.
+//     live preview layer, plus ONE AVCapturePhotoOutput for T04
+//     single-card still capture (added exactly once, minimal settings).
 //   - Idempotent lifecycle: configure once; start many; stop many.
-//   - NOT configured: AVCapturePhotoOutput, metadata output, Vision/OCR,
-//     rectangle detection, QR, audio. No microphone permission is ever
-//     requested.
+//   - Single in-flight capture: a second capturePhoto() request while
+//     one is in flight throws `captureFailed`.
+//   - NOT configured: metadata output, Vision/OCR, rectangle detection,
+//     QR, audio. No microphone permission is ever requested. No flash
+//     UI, burst, bracket, RAW, Live Photo, depth or portrait effects.
 //
 //  Concurrency ownership (Swift 6, correction supersedes the original
 //  MainActor-owned design):
@@ -69,6 +72,13 @@ enum CameraSessionError: Error, Equatable {
     /// this via Swift throw; it is detected by the post-start
     /// `isRunning` contract check on the serial executor.
     case startFailed
+    /// The photo output could not be added to the session (T04).
+    case cannotAddPhotoOutput
+    /// The capture request failed (delegate reported an error), or a
+    /// capture was requested while the session was not running.
+    case captureFailed
+    /// The capture delegate delivered no usable image bytes.
+    case emptyPhotoData
 }
 
 /// Camera session lifecycle service. Implementations execute ALL
@@ -108,6 +118,16 @@ nonisolated protocol CameraSessionControlling: Sendable {
 
     /// Stops the running session (idempotent; safe when not running).
     func stop() async
+
+    /// Captures one still photo (T04 single-card workflow).
+    ///
+    /// Requires a configured, running session (i.e. the caller must be
+    /// in the S02 preview state). At most ONE capture may be in flight
+    /// at a time; implementations reject or serialize additional
+    /// requests. Throws `CameraSessionError.captureFailed` /
+    /// `.emptyPhotoData` on failure — a failed capture must never
+    /// produce a CapturedPhoto.
+    func capturePhoto() async throws -> CapturedPhoto
 }
 
 actor CameraSessionController: CameraSessionControlling {
@@ -135,6 +155,18 @@ actor CameraSessionController: CameraSessionControlling {
     /// cheap (Apple's blocking-call guidance targets configuration
     /// and start/stop, which all run on `sessionQueue`).
     nonisolated let session = AVCaptureSession()
+
+    /// The still-capture output. Added to the session exactly once in
+    /// `configureIfNeeded()`; minimal single-photo configuration only
+    /// (no flash UI, burst, bracket, RAW, Live Photo, depth, portrait
+    /// effects or metadata output).
+    private let photoOutput = AVCapturePhotoOutput()
+
+    /// Strongly-held delegate bridge for the at-most-one in-flight
+    /// capture. Non-nil while a capture is in flight; guarantees the
+    /// delegate outlives the AVFoundation callback. Cleared when the
+    /// continuation resumes.
+    private var inFlightCapture: PhotoCaptureProcessor?
 
     private var isConfigured = false
 
@@ -165,6 +197,16 @@ actor CameraSessionController: CameraSessionControlling {
             throw CameraSessionError.cannotAddVideoInput
         }
         session.addInput(input)
+
+        // T04: one photo output, added exactly once, inside the same
+        // configuration transaction. canAddOutput failure is an
+        // infrastructure error — never disguised as permissionDenied.
+        guard session.canAddOutput(photoOutput) else {
+            session.commitConfiguration()
+            throw CameraSessionError.cannotAddPhotoOutput
+        }
+        session.addOutput(photoOutput)
+
         session.commitConfiguration()
 
         isConfigured = true
@@ -188,5 +230,32 @@ actor CameraSessionController: CameraSessionControlling {
     func stop() async {
         guard isConfigured, session.isRunning else { return }
         session.stopRunning()
+    }
+
+    func capturePhoto() async throws -> CapturedPhoto {
+        // Single-card contract: reject when not capturing-capable or
+        // when a capture is already in flight. The actor's serial
+        // executor makes this check-and-set atomic.
+        guard isConfigured, session.isRunning else {
+            throw CameraSessionError.captureFailed
+        }
+        guard inFlightCapture == nil else {
+            throw CameraSessionError.captureFailed
+        }
+
+        // Minimal single-photo settings: SDK defaults (HEIF/JPEG per
+        // device support). No flash UI, burst, bracket, RAW, Live
+        // Photo, depth or portrait effects.
+        let settings = AVCapturePhotoSettings()
+
+        // The processor is strongly held in `inFlightCapture` for the
+        // entire capture so the AVFoundation delegate callback always
+        // has a live target; cleared on both success and failure paths.
+        defer { inFlightCapture = nil }
+        return try await withCheckedThrowingContinuation { continuation in
+            let processor = PhotoCaptureProcessor(continuation: continuation)
+            inFlightCapture = processor
+            photoOutput.capturePhoto(with: settings, delegate: processor)
+        }
     }
 }

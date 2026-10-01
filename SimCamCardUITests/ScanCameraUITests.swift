@@ -89,14 +89,52 @@ final class ScanCameraUITests: XCTestCase {
         XCTAssertTrue(app.buttons["scan-capture"].exists)
         XCTAssertTrue(app.buttons["scan-photo-import"].exists)
 
-        // Shutter remains visual-only: no capture workflow exists.
-        app.buttons["scan-capture"].tap()
-        XCTAssertTrue(preview.exists,
-                      "Tapping the visual shutter must not leave the Scanner.")
-
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = "w3i1-scan-preview-authorized-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        closeScanner(app)
+    }
+
+    // MARK: - T04 capture (fixture-driven)
+
+    /// Fixture-driven capture UI test: authorized → preview → tap
+    /// shutter → captured presentation appears, scanner does not
+    /// crash, shutter is gone, ✕ back path works.
+    ///
+    /// NON-CLAIM: this is NOT real camera hardware capture. The DEBUG
+    /// fake session returns a fixed valid tiny PNG; this verifies the
+    /// captured-state UI wiring only. Physical-device still capture is
+    /// recorded as NOT INDEPENDENTLY VERIFIED in ai/changes.md.
+    @MainActor
+    func testCaptureShowsCapturedPhotoFixture() throws {
+        let app = launchAndEnterScanner(cameraMode: "authorized")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Preview should be running before capture."
+        )
+
+        app.buttons["scan-capture"].tap()
+
+        // Captured presentation appears (fixture-driven).
+        let captured = app.descendants(matching: .any)["scan-captured-photo"]
+        XCTAssertTrue(captured.waitForExistence(timeout: 5),
+                      "Tapping the shutter in preview should reach the captured state.")
+
+        // No active shutter in the captured state; no crash.
+        XCTAssertFalse(app.buttons["scan-capture"].exists,
+                       "The shutter must not be offered in the captured state.")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-entry-view"].exists,
+            "Scanner must not crash after capture."
+        )
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i2-scan-captured-photo-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
 
