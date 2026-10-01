@@ -2,64 +2,45 @@
 //  ScanEntryView.swift
 //  SimCamCard
 //
-//  P02 Scanner — static UI shell (Week 2 Increment 6).
+//  P02 Scanner (Week 2 Increment 6 static shell; Week 3 Increment 1
+//  upgrades it with T03 camera permission + real live preview).
 //
 //  Spec sources:
 //   - spec/page-inventory.md P02 Scanner (Camera preview and card
 //     detection; exits: Capture, Photo Import, Back)
-//   - spec/state-inventory.md S02 Camera / Scanner
-//   - spec/reference-tests.md T02 Enter Scanner
-//     ("Scan entry opens scanner/camera UI.")
-//   - Evidence: evidence/screenshots/REF-scanner-01-initial.png
-//     (sole primary visual basis for the initial state)
+//   - spec/state-inventory.md S02 permissionUnknown / permissionDenied
+//     / preview
+//   - spec/reference-tests.md T02 Enter Scanner, T03 Camera Permission
+//     ("Allow/deny must produce defined states; denial path must not
+//     crash."); T04 Capture remains a later boundary.
+//   - Evidence: REF-scanner-01-initial.png (scanner chrome),
+//     REF-permission-01-camera.png (native system permission dialog —
+//     presented by iOS, NEVER replicated by the app).
 //   - REF-scanner-02-card-detected.png is a later-state boundary
-//     reference ONLY; the blue detection frame / live camera feed /
-//     "发现名片，点击拍摄" tip are deliberately NOT built here.
+//     reference ONLY; detection UI is deliberately not built here.
 //
-//  What this is:
-//   - A static, evidence-driven scanner page the user can navigate to
-//     and back from (Holder → Scan → Back → Holder).
+//  State rendering:
+//   - permissionUnknown → Week 2 static shell (black viewport, aiming
+//     frame, guidance tip) while the NATIVE system dialog is shown by
+//     iOS. No custom permission dialog.
+//   - preview           → real AVCaptureVideoPreviewLayer feed with the
+//     same Week 2 evidence-driven overlays on top.
+//   - permissionDenied  → minimal functional fallback (no crash, no
+//     session); Reference fidelity not established — frozen evidence
+//     shows the native dialog only, not a custom denied page.
+//   - cameraUnavailable → minimal functional fallback for hardware/
+//     configuration failure with permission already granted (e.g.
+//     simulator). Infrastructure state, not an S02 permission state.
 //
-//  What this is NOT (Week 3+ concerns):
-//   - No AVFoundation / AVCaptureSession / live preview layer.
-//   - No camera or photo-library permission requests.
-//   - No PhotosPicker / PHPicker import.
-//   - No shutter capture, detection, crop, OCR/Vision, saving.
-//   - No mode switching, more menu or batch review behavior.
-//   - No Domain draft model and no fabricated captured image.
+//  Still NOT implemented (later increments):
+//   - Shutter capture / AVCapturePhotoOutput (T04), Photo Import /
+//     PhotosPicker (T05), detection, crop, OCR/Vision, saving.
+//   - Shutter and 相册 remain visual-only controls.
 //
-//  The black viewport is a pure SwiftUI background + stroked shape; it
-//  never pretends to show a real camera feed. No developer placeholder
-//  text is shown anywhere ("Coming soon" etc. are prohibited).
-//
-//  There is intentionally NO ScanEntryViewModel: this increment has no
-//  camera / capture / permission / business state. Only the close
-//  control has real behavior (system NavigationStack pop via dismiss()).
-//
-//  UI evidence → View element mapping (REF-scanner-01-initial.png):
-//   - macOS window chrome / traffic lights / title "名片全能王"
-//       → host-owned, NOT replicated (iOS status bar / home indicator
-//         remain system-owned)
-//   - Close "✕" (top leading)        → scan-close; real dismiss() back
-//   - Segmented 基础识别 / AI高精度识别 → static visual shell (no switch)
-//   - "•••" more (top trailing)      → static visual only (no menu)
-//   - Black viewport + white rounded aiming frame
-//                                    → Color.black + RoundedRectangle stroke
-//   - Tip "请将镜头靠近名片"          → static user-guidance text from
-//                                      the frozen Reference (not a dev
-//                                      placeholder)
-//   - Mode tabs 连续拍摄/多张拍摄/单张拍摄(selected)/二维码
-//                                    → static visual shell
-//   - 相册 (bottom leading)          → scan-photo-import; empty action
-//                                      (NO PhotosPicker; T05 deferred)
-//   - Shutter (bottom center)        → scan-capture; empty action (no
-//                                      capture/recognition/repository
-//                                      change; T04 deferred)
-//   - Batch stack glyph + badge "5"  → glyph shown statically; the "5"
-//                                      badge is OMITTED on purpose: the
-//                                      shell has zero captured images, so
-//                                      the number would be fabricated
-//                                      state
+//  Concurrency: the permission provider and this ViewModel stay
+//  MainActor-isolated; the camera session lifecycle runs on the
+//  CameraSessionController actor's dedicated serial executor (never
+//  the main thread). Lifecycle is driven by `.task` / `.onDisappear`.
 //
 
 import SwiftUI
@@ -69,6 +50,24 @@ struct ScanEntryView: View {
     /// Pops back to the Card Holder using the system NavigationStack
     /// navigation path (no custom navigation state).
     @Environment(\.dismiss) private var dismiss
+
+    /// UI-facing S02 state owner. Default composition uses the real
+    /// AVFoundation providers; DEBUG UI tests may inject fakes via the
+    /// `-SimCamCardCamera` launch argument, and previews/tests may pass
+    /// an explicit ViewModel.
+    @State private var viewModel: ScanViewModel
+
+    init(viewModel: ScanViewModel? = nil) {
+        if let viewModel {
+            _viewModel = State(initialValue: viewModel)
+        } else {
+            #if DEBUG
+            _viewModel = State(initialValue: ScanViewModel.configuredForDebugLaunch())
+            #else
+            _viewModel = State(initialValue: ScanViewModel())
+            #endif
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -84,9 +83,27 @@ struct ScanEntryView: View {
 
             VStack(spacing: 0) {
                 topBar
-                viewportSection
-                modeTabs
-                controlBar
+
+                switch viewModel.state {
+                case .permissionDenied:
+                    permissionFallback(
+                        systemImage: "camera.slash",
+                        title: "无法访问相机",
+                        message: "请在系统“设置”中允许 SimCamCard 访问相机后再扫描名片。",
+                        identifier: "scan-permission-denied"
+                    )
+                case .cameraUnavailable:
+                    permissionFallback(
+                        systemImage: "camera.fill",
+                        title: "相机不可用",
+                        message: "当前设备无法启动相机预览。",
+                        identifier: "scan-camera-unavailable"
+                    )
+                case .permissionUnknown, .preview:
+                    viewportSection
+                    modeTabs
+                    controlBar
+                }
             }
         }
         // The whole page is a dark full-screen surface in the Reference;
@@ -95,6 +112,14 @@ struct ScanEntryView: View {
         .preferredColorScheme(.dark)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            await viewModel.scannerDidAppear()
+        }
+        .onDisappear {
+            // stop() runs on the session service's serial executor;
+            // hop off the MainActor via the ViewModel's async API.
+            Task { await viewModel.scannerDidDisappear() }
+        }
     }
 
     // MARK: - Top bar
@@ -119,7 +144,7 @@ struct ScanEntryView: View {
 
             Spacer(minLength: 0)
 
-            // Static Reference chrome; the more menu has no Week 2
+            // Static Reference chrome; the more menu has no current
             // actions, so it is a non-interactive glyph (hidden from the
             // accessibility tree to avoid a fake control).
             Image(systemName: "ellipsis")
@@ -134,7 +159,7 @@ struct ScanEntryView: View {
 
     /// Static 基础识别 / AI 高精度识别 segmented selector.
     /// Selection is presented (基础识别) but NOT interactive: mode
-    /// switching has no backing state or behavior in the Week 2 shell.
+    /// switching has no backing state or behavior yet.
     private var recognitionModeSelector: some View {
         HStack(spacing: 0) {
             Text("基础识别")
@@ -166,22 +191,65 @@ struct ScanEntryView: View {
     private var viewportSection: some View {
         GeometryReader { proxy in
             ZStack {
-                // Static aiming guide: thin white rounded frame over the
-                // black viewport. The interior stays black — there is no
-                // live camera feed and no fake captured imagery.
+                // Live preview fills the viewport when authorized; the
+                // pre-permission state stays black. No fake camera image
+                // is ever shown.
+                switch viewModel.state {
+                case .preview:
+                    CameraPreviewView(session: viewModel.cameraSession)
+                        .accessibilityIdentifier("scan-camera-preview")
+                case .permissionUnknown:
+                    Color.clear
+                case .permissionDenied, .cameraUnavailable:
+                    Color.clear
+                }
+
+                // Static aiming guide + guidance tip overlay retained
+                // over BOTH the pre-permission shell and the live feed.
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.white, lineWidth: 1)
                     .aspectRatio(Self.viewportAspectRatio, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
                     .overlay(alignment: .top) {
                         guidanceTip
                             .padding(.top, 12)
                     }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+    }
+
+    /// Minimal functional fallback for denied/unavailable states.
+    /// Functional fallback only — Reference fidelity is not established:
+    /// frozen evidence documents the native dialog, not a custom page.
+    /// Keeps the page stable (no crash, no AVCaptureSession start) and
+    /// the top-bar ✕ remains the real Back path.
+    private func permissionFallback(
+        systemImage: String,
+        title: String,
+        message: String,
+        identifier: String
+    ) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(.white.opacity(0.7))
+            Text(title)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+            Text(message)
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.65))
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(identifier)
     }
 
     /// Frozen Reference guidance copy. This is user-facing scanner
@@ -197,13 +265,14 @@ struct ScanEntryView: View {
                 Capsule()
                     .fill(.white.opacity(0.18))
             )
+            .allowsHitTesting(false)
     }
 
     // MARK: - Capture mode tabs
 
     /// Static capture-mode tab row. 单张拍摄 is presented as selected
     /// (bold white + blue indicator), exactly as in the initial
-    /// Reference. Tabs are not interactive in the Week 2 shell.
+    /// Reference. Tabs are not interactive yet.
     private var modeTabs: some View {
         HStack(spacing: 28) {
             modeTab("连续拍摄", isSelected: false)
@@ -233,8 +302,7 @@ struct ScanEntryView: View {
     private var controlBar: some View {
         HStack {
             // Photo-library entry — visual shell only. Tapping performs
-            // no action: no PhotosPicker, no photo permission (T05/T03
-            // deferred).
+            // no action: no PhotosPicker, no photo permission (T05).
             Button {
             } label: {
                 VStack(spacing: 5) {
@@ -254,7 +322,7 @@ struct ScanEntryView: View {
 
             // Shutter — visual shell only. Tapping does not capture,
             // navigate, create a BusinessCard or mutate the Repository
-            // (T04 capture workflow deferred).
+            // (T04 capture workflow deferred; no PhotoOutput exists).
             Button {
             } label: {
                 ZStack {
@@ -299,11 +367,23 @@ struct ScanEntryView: View {
 
 #if DEBUG
 
-// MARK: - SwiftUI Preview
+// MARK: - SwiftUI Previews (DEBUG fakes only — no real camera in Canvas)
 
-#Preview("Scanner Shell") {
+#Preview("Scanner Authorized Fixture") {
     NavigationStack {
-        ScanEntryView()
+        ScanEntryView(viewModel: ScanViewModel(
+            authorization: DebugCameraAuthorizationProvider(initialStatus: .authorized),
+            sessionController: DebugCameraSessionController()
+        ))
+    }
+}
+
+#Preview("Scanner Denied Fixture") {
+    NavigationStack {
+        ScanEntryView(viewModel: ScanViewModel(
+            authorization: DebugCameraAuthorizationProvider(initialStatus: .denied),
+            sessionController: DebugCameraSessionController()
+        ))
     }
 }
 

@@ -1147,3 +1147,230 @@ Final conclusions (unchanged on acceptance):
 - T12→T13 real saved-card end-to-end workflow: NOT IMPLEMENTED
 - Reference UI fidelity: PARTIAL
 - Week 2 skeleton readiness: READY FOR HUMAN MERGE/TAG DECISION with documented deferred gaps
+
+## 2026-09-30 — Week 3 Increment 1: Camera Permission + Real Live Preview
+
+### Task
+
+T03 Camera Permission + S02 live preview state machine: Card Holder → Scanner → check/request camera permission → authorized shows the real `AVCaptureVideoPreviewLayer` live preview; denied/restricted stays on a stable minimal fallback (no crash, no session); Back stops the camera session. Shutter / 相册 remain visual-only (T04/T05 deferred).
+
+Frozen scope:
+- `spec/page-inventory.md` P02 Scanner (Camera preview and card detection; exits: Capture, Photo Import, Back)
+- `spec/state-inventory.md` S02: `permissionUnknown` / `permissionDenied` / `preview`
+- `spec/reference-tests.md` T02 Enter Scanner, T03 Camera Permission ("Allow/deny must produce defined states; denial path must not crash.")
+- Evidence: `REF-scanner-01-initial.png` (scanner chrome), `REF-permission-01-camera.png` (the NATIVE system permission dialog — owned/presented by iOS, never replicated), `REF-scanner-02-card-detected.png` (later-state boundary reference only — detection NOT built)
+
+Baseline: branch `week3/camera-ocr` @ `2cdcea9` (merge 完成Week 2软件骨架), tag `week2-skeleton-baseline`. Xcode 27 / Swift 6.0 language mode / iOS 27.0 target / `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` / `SWIFT_APPROACHABLE_CONCURRENCY = YES` / `GENERATE_INFOPLIST_FILE = YES`.
+
+### Constraints
+
+- No `AVCapturePhotoOutput`, metadata/rectangle/QR output, Vision/OCR, `PhotosPicker`/Photos, SwiftData, audio input — no microphone permission is ever requested.
+- Native system permission dialog only; the app never builds a custom pre-permission dialog.
+- No `@unchecked Sendable` / `nonisolated(unsafe)` suppression; single (MainActor) session execution context.
+- No Domain Model / Repository / frozen spec / MockBusinessCards changes.
+- Mock/fake camera dependencies are DEBUG-only; normal launch and Release builds always use real AVFoundation.
+- Accessibility IDs preserved: `scan-entry`, `scan-entry-view`, `scan-close`, `scan-capture`, `scan-photo-import`; new IDs: `scan-camera-preview`, `scan-permission-denied`, `scan-camera-unavailable`.
+- Verification split is explicit: state/orchestration = automated PASS; native permission dialog + real-device live frames = NOT INDEPENDENTLY VERIFIED (never claimed as PASS).
+- Plan file kept out of the repository working tree; no commit/merge/tag by AI.
+
+### AI Changes
+
+Build settings:
+- `SimCamCard.xcodeproj/project.pbxproj` — added `INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以扫描和识别名片。";` to the SimCamCard app target Debug and Release configurations only (exactly 2 added lines; verified in the built Release `Info.plist`). No manual Info.plist file is introduced (build-generated plist remains in use). Test targets untouched.
+
+New production source:
+- `SimCamCard/Camera/CameraAuthorizationProviding.swift` — `CameraAuthorizationStatus` (`notDetermined / authorized / denied / restricted`, `Sendable, Equatable`) and `@MainActor protocol CameraAuthorizationProviding` (`videoAuthorizationStatus()`, `requestVideoAccess() async -> Bool`).
+- `SimCamCard/Camera/AVCameraAuthorizationProvider.swift` — production adapter mapping `AVCaptureDevice.authorizationStatus(for: .video)` and requesting via `AVCaptureDevice.requestAccess(for: .video)`; `@unknown default` conservatively maps to `.denied`. Owns no UI state.
+- `SimCamCard/Camera/CameraSessionController.swift` — `CameraSessionError { noVideoDevice, cannotAddVideoInput }`, `@MainActor protocol CameraSessionControlling` and `CameraSessionController`: one rear wide-angle video input on one `AVCaptureSession`; configure-once / start-many / stop-many with idempotency guards; `canAddInput` checked; no photo/metadata/audio outputs.
+- `SimCamCard/View/Scan/CameraPreviewView.swift` — `UIViewRepresentable` presentation adapter over `AVCaptureVideoPreviewLayer` (`videoGravity = .resizeAspectFill`, black background). Presentation only: never owns/starts/stops the session and never requests permission.
+- `SimCamCard/ViewModel/ScanViewModel.swift` — `@MainActor @Observable final class`, `State { permissionUnknown, permissionDenied, preview, cameraUnavailable(CameraSessionError) }`; exposes the session for the preview layer; lifecycle `scannerDidAppear() async` / `scannerDidDisappear()`.
+
+Modified production source:
+- `SimCamCard/View/Scan/ScanEntryView.swift` — Week 2 static shell upgraded: body switches on `viewModel.state`. `permissionUnknown` and `preview` render the same Week 2 evidence-driven chrome (aiming frame + 「请将镜头靠近名片」 tip + mode tabs + control bar); `CameraPreviewView` (id `scan-camera-preview`) is inserted into the viewport only in `.preview`. `permissionDenied` → minimal functional fallback (id `scan-permission-denied`, camera.slash / 无法访问相机 / 系统设置指引, no shutter/album/capture-mode controls); `cameraUnavailable` → id `scan-camera-unavailable`. `.task { await viewModel.scannerDidAppear() }` / `.onDisappear { viewModel.scannerDidDisappear() }`. DEBUG `#Preview` blocks for authorized/denied. All Week 2 chrome and accessibility IDs preserved (root `scan-entry-view` remains on the childless background sibling to avoid SwiftUI identifier propagation onto child controls).
+
+DEBUG-only fixtures (compiled into the app target under `#if DEBUG`; absent from Release):
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — `DebugCameraAuthorizationProvider` (with `requestCount`), `DebugCameraSessionController` (counts, injectable `configureError`, never calls `startRunning()`), `DebugCameraEnvironment` parsing `-SimCamCardCamera <mode>` (`authorized / denied / restricted / notDeterminedGranted / notDeterminedDenied`), and `ScanViewModel.configuredForDebugLaunch()` (fixture VM when the argument is present, otherwise the real production VM — a bare DEBUG launch without the argument uses real AVFoundation).
+
+Tests:
+- `SimCamCardTests/ViewModel/ScanViewModelTests.swift` — Swift Testing, 9 tests with test-local fakes: fresh state = `permissionUnknown`; notDetermined+grant → preview with exactly 1 request + configure/start; notDetermined+deny → `permissionDenied`, zero session calls; authorized → preview with zero requests; denied → no re-prompt, no session; restricted → same; disappear → stop once; re-entry → configure once, start twice, stop once (no duplicate inputs); configure failure with granted permission → `.cameraUnavailable(.noVideoDevice)` and no start.
+- `SimCamCardUITests/ScanCameraUITests.swift` — 4 fixture-driven UI cases: authorized (preview container + Week 2 overlays + visual shutter remains non-navigating + close returns), denied (fallback exists, no preview/shutter/album, no crash, close returns), notDeterminedGranted (request path → preview), notDeterminedDenied (request path → fallback).
+- `SimCamCardUITests/ScanEntryUITests.swift` — Week 6 scanner regression helper now launches with `["-SimCamCardCamera", "authorized"]` so no native dialog is involved; existing chrome/back/no-side-effect assertions retained; adds a `scan-camera-preview` existence assertion.
+- `SimCamCardUITests/Week2IntegrationUITests.swift` — populated-holder integration launch arguments extended with `["-SimCamCardCamera", "authorized"]` for the Scanner leg; all existing assertions unchanged.
+
+Validation evidence (fixture-driven UI state, NOT frozen REF, NOT a real camera feed):
+- `ai/validation/2026-09-30-increment1-camera-preview-authorized-fixture.png`
+- `ai/validation/2026-09-30-increment1-camera-permission-denied-fixture.png`
+
+### Design decisions
+
+- **Permission state machine** (all transitions driven from `scannerDidAppear()`):
+
+  | AVAuthorizationStatus | Behavior | Resulting state |
+  |---|---|---|
+  | `.notDetermined` | set `permissionUnknown`, call `requestAccess(for: .video)` once (iOS presents the native dialog) | granted → `preview`; denied → `permissionDenied` |
+  | `.authorized` | start preview, NO request | `preview` |
+  | `.denied` | stable fallback, never re-prompt | `permissionDenied` |
+  | `.restricted` | same as denied (restricted ≠ authorized) | `permissionDenied` |
+  | `@unknown default` | conservative deny mapping | `permissionDenied` |
+
+- **Infrastructure failure is a distinct state.** Permission can be granted while the hardware cannot produce a preview (e.g. simulator, missing rear camera, input conflict). Such failures are `.cameraUnavailable(CameraSessionError)`, never disguised as `permissionDenied`.
+- **Denied UI = minimal functional fallback**, not a large "去设置" page and not a custom dialog: the frozen evidence (`REF-permission-01-camera.png`) documents only the native macOS/iOS permission dialog; Reference fidelity for an in-app denied page is not established. The fallback keeps the page stable, explains the path via system Settings, and the top-bar ✕ remains the real Back.
+- **Overlays are state-independent.** The aiming frame and guidance tip render identically over the pre-permission shell and the live feed; no fake camera image is ever shown.
+- **Session lifecycle**: configure once (reused across Scanner re-entry, so no duplicate inputs), start on entry, stop on disappear; all three operations are idempotent and guarded by configuration/running flags.
+- **Concurrency ownership**: `ScanViewModel`, both protocols, the production controller and all fakes are `@MainActor`; the `AVCaptureSession`, its input and the `AVCaptureVideoPreviewLayer` never leave the MainActor, so no non-Sendable reference crosses an isolation boundary and no suppression annotations exist. Accepted trade-off (documented): `startRunning()` / `stopRunning()` are synchronous AV calls and block the main executor briefly; if profiling later shows a meaningful hitch, a dedicated session queue can be introduced in a later increment.
+- **Testability seam**: production code depends on the two protocols; unit tests inject local fakes, UI tests inject DEBUG launch-argument fakes. No test-only hooks exist in Release.
+
+### Verification
+
+- Debug standalone build (iOS Simulator iPhone 18 Pro): **BUILD SUCCEEDED**, zero errors/warnings of isolation relevance.
+- Release standalone build: **BUILD SUCCEEDED** — verifies the `#if DEBUG` DI composition compiles out and Release uses the real `ScanViewModel()`; built `Info.plist` confirmed to contain `NSCameraUsageDescription = 需要访问相机以扫描和识别名片。`.
+- Unit tests (Swift Testing, simulator UDID `5B32D815-5F37-4EE0-825C-85DE864E0B02`, `-parallel-testing-enabled NO`): **48/48 PASS** (39 Week 2 + 9 new ScanViewModel tests; 0.066 s).
+- UI regression, one clean round: **13/13 PASS** (11 business cases + 2 template tests) — Holder empty/populated (2), Detail full/minimal (2), ScanEntry shell/close (2), Week2 integration (1), new camera states (4), template launch tests (2).
+- Boundary audit vs `2cdcea9`: changed tracked files limited to `project.pbxproj` (2 added NSCameraUsageDescription lines only), `ScanEntryView.swift`, and the two adapted UI test files; zero changes under `SimCamCard/Model/`, `SimCamCard/Repository/`, `spec/`, `dataset/`, MockBusinessCards. Grep for `PhotoOutput|Vision|VNImage|PhotosUI|PHPhotoLibrary|SwiftData|MovieFileOutput|AVAudioSession|metadataOutput|@unchecked Sendable|nonisolated(unsafe)` in app source: comment-only matches documenting exclusion, zero usages.
+
+Verification level (honest split):
+- T03 permission STATE/ORCHESTRATION (allow/deny/restricted/no-reprompt defined states, denial does not crash): **PASS** (9 unit + 4 fixture UI tests).
+- S02 `permissionUnknown` / `permissionDenied` / `preview` UI states: **PASS (fixture-driven UI)**.
+- Preview layer wiring (`AVCaptureVideoPreviewLayer` + real session configuration path): implementation complete, compiles Debug+Release; **real live camera frames on a physical device: NOT INDEPENDENTLY VERIFIED** (simulator has no camera; fixture sessions intentionally never start hardware).
+- Native iOS permission dialog presentation/result: implementation uses the standard `AVCaptureDevice.requestAccess` path with the usage string present; **native dialog interaction on device: NOT INDEPENDENTLY VERIFIED** (not automatable; fixtures deliberately bypass it).
+- `cameraUnavailable` state: unit-tested via injected error; no standalone UI test (the simulator real-hardware path is nondeterministic).
+
+### Regression
+
+- Week 2 suite fully green (unit 39 prior tests unchanged; all 7 Week 2 business UI cases pass under the authorized camera fixture).
+- Scanner visual shell is pixel-comparable to Week 2 in the fixture screenshot: same top bar/mode selector/aiming frame/tip/tabs/shutter/album; root and control accessibility IDs unchanged.
+- Card Holder / Detail flows and the populated-fixture repository remain untouched (boundary audit confirms zero Model/Repository changes).
+- T04 shutter / T05 相册 remain visual-only: tapping the shutter in the authorized fixture keeps the user on the Scanner; no output/picker is added.
+
+### S02 / T03 traceability update
+
+| Item | This increment status |
+|---|---|
+| T03 Camera Permission — state machine / no crash on denial | PASS (automated) |
+| T03 native system dialog (device) | NOT INDEPENDENTLY VERIFIED |
+| S02 `permissionUnknown` | IMPLEMENTED (shell shown while request is pending) |
+| S02 `permissionDenied` | IMPLEMENTED (minimal functional fallback; denied + restricted; Reference fidelity not established) |
+| S02 `preview` | IMPLEMENTED; real live frames on device PENDING verification |
+| S02 `cardNotDetected` visual | remains PARTIAL (static guidance only; dynamic detection NOT IMPLEMENTED — T06 scope) |
+| S02 `cardDetected` / `captured` | NOT IMPLEMENTED (T04/T06 scope) |
+| S02 `cancelled` | NOT MODELED in the frozen state inventory; Back stops the session and pops (behavior exists, no state value) |
+| T04 Capture / T05 Photo Import | NOT IMPLEMENTED (visual controls only) |
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review). Acceptance is recorded with final conclusions in the correction-2 entry below. Plan file was moved out of the repository working tree (`ai/Week 3 IncrementCamera Permission + Live Preview` → `/tmp/w3i1-plan.md`) and is not part of the change set.
+
+## 2026-09-30 — Week 3 Increment 1 correction: Camera session concurrency (SUPERSEDES MainActor-owned session design)
+
+### Task
+
+Architecture correction before Accept: the original Increment 1 implementation isolated the entire `AVCaptureSession` lifecycle (creation / configure / start / stop) on the MainActor. This is superseded because Apple AVFoundation guidance states configuration is expensive and `startRunning()` / `stopRunning()` are blocking calls that must not execute on the main thread. This is a production camera-foundation fix, not a profiling-deferred optimization.
+
+### What was superseded
+
+- Original: `@MainActor final class CameraSessionController` owning `AVCaptureSession`; synchronous `configure()` / `start()` / `stop()` executed on the main thread; documented as an "accepted trade-off".
+- Corrected: camera session lifecycle moved OFF the MainActor entirely.
+
+### Corrected architecture
+
+- **Ownership**: `CameraSessionController` is now an `actor` (in `SimCamCard/Camera/CameraSessionController.swift`). It owns the `AVCaptureSession`, the `isConfigured` flag and the full ordering contract.
+- **Executor/queue**: the actor runs on a dedicated serial executor — `DispatchSerialQueue(label: "com.metahumanz.SimCamCard.camera.session")` exposed via `nonisolated var unownedExecutor`. ALL of `beginConfiguration` / `commitConfiguration` / input mutation / `startRunning` / `stopRunning` execute strictly serialized on that one non-main serial context; `startRunning` can never run concurrently with configuration.
+- **Async API**: `configureIfNeeded() async throws`, `start() async throws`, `stop() async` (protocol `nonisolated protocol CameraSessionControlling: Sendable` — explicitly `nonisolated` because `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` would otherwise force the protocol onto the MainActor and block actor conformance). `ScanViewModel` (still `@MainActor @Observable`, still owns permissionUnknown/permissionDenied/preview/cameraUnavailable and the mapping to UI state) now `await`s these calls; `.onDisappear` hops to the service via `Task { await viewModel.scannerDidDisappear() }`.
+- **Ordering contract preserved**: configure once (a failed configure leaves the session unconfigured so a later entry may retry), start many, stop many; all idempotent.
+- **Preview isolation boundary**: `CameraPreviewView` remains a pure presentation adapter (no configure/start/stop in the UIViewRepresentable). Current SDK exposes AVCaptureSession as non-Sendable for this Swift 6 build, so `@preconcurrency import AVFoundation` is used as a narrow compatibility/interoperability bridge for the preview-session reference. Concurrency safety therefore relies on the explicit ownership contract: all AVCaptureSession mutation/configure/start/stop occurs on CameraSessionController's dedicated serial actor executor; MainActor/UI only attaches the session to AVCaptureVideoPreviewLayer for presentation; UI code does not mutate session topology/lifecycle. `@preconcurrency` only relaxes compile-time diagnostics — it does NOT itself guarantee thread safety. There is NO `@unchecked Sendable`, NO `nonisolated(unsafe)`, NO `Task.detached`. The session instance is created inline (`nonisolated let session = AVCaptureSession()` — instantiating an empty session is cheap; the expensive lifecycle runs on the serial queue), and only the actor ever mutates it.
+- **DEBUG fakes**: `DebugCameraSessionController` is now an actor mirroring the same serialized contract (configure-once / start-many / stop-many counters, error injection via init). The permission provider stays `@MainActor` (no blocking capture-session work).
+
+### Verification (all rerun — prior round's results NOT carried over)
+
+- Debug build (iOS Simulator iPhone 18 Pro): **BUILD SUCCEEDED** (three compile iterations fixed: protocol `nonisolated`, inline `nonisolated let session`, `@preconcurrency` bridge).
+- Release build: **BUILD SUCCEEDED** (DEBUG DI composition still compiles out; production path uses the actor service).
+- Unit tests: **50/50 PASS** (48 prior + 2 new serialization-contract tests). All 9 original behavior contracts still hold (notDetermined→grant / notDetermined→deny / authorized / denied / restricted / configure-failure→cameraUnavailable / disappear→stop / re-enter→configure-once+start-many). New tests prove the orchestration API serialization/idempotency via counters (16 concurrent `configureIfNeeded` calls → configureCount == 1; three appear/disappear cycles → configure 1 / start 3 / stop 3) — no wall-clock timing, no thread identity.
+- UI regression, one clean round: **13/13 PASS** (unchanged case set; the `-SimCamCardCamera` fixture path now drives the actor-based service).
+- Boundary audit: grep for `Task.detached` / `nonisolated(unsafe)` / `@unchecked` in app+test source: comment-only matches (documenting exclusion), zero usages. Zero changes under Model/Repository/spec/dataset/MockBusinessCards.
+
+### Traceability calibration (supersedes the coarser wording in the Increment 1 entry above)
+
+- T03 permission state-machine / deny-no-crash automated verification: **PASS**
+- T03 native system permission dialog allow/deny: **NOT INDEPENDENTLY VERIFIED**
+- S02 `permissionUnknown` orchestration/UI: **PASS**
+- S02 `permissionDenied` orchestration/UI: **PASS**
+- S02 `preview` state + preview-layer wiring: **PASS**
+- S02 real live-preview runtime verification: **PENDING physical-device verification**
+- S02 `preview` overall verification: **PARTIAL pending real-device frames**
+- S02 `cardNotDetected` visual: remains PARTIAL (static guidance only; dynamic NOT IMPLEMENTED — T06 scope)
+- S02 `cardDetected` / `captured`: NOT IMPLEMENTED (T04/T06 scope); `cancelled`: NOT MODELED (Back behavior exists, no state value)
+- T04 Capture / T05 Photo Import / T06 Detection / Crop / OCR / extraction: NOT IMPLEMENTED
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review). Final conclusions recorded in the correction-2 entry below.
+
+## 2026-10-01 — Week 3 Increment 1 correction 2: initial camera-session start failure contract + @preconcurrency wording calibration
+
+### Task
+
+1. Close the initial camera-session start failure gap: `AVCaptureSession.startRunning()` does NOT report an initial start failure via Swift `throw`. The prior implementation called `startRunning()` and unconditionally set state to `.preview` — a failed initial start would have been misreported as preview. Contract required: configure success → start requested → session actually starts → preview; configure success → initial start failure → cameraUnavailable, NOT preview.
+2. Calibrate `@preconcurrency` wording in code comments and this file (removes unverifiable "Apple-sanctioned / AVCam-sample" claims).
+
+### Changes
+
+- `SimCamCard/Camera/CameraSessionController.swift`
+  - New error case `CameraSessionError.startFailed`.
+  - Protocol + actor: `start() async` → `start() async throws`. Implemented contract (exact scope):
+    1. configuration succeeds (`configureIfNeeded()`);
+    2. `startRunning()` is invoked on the dedicated serial camera executor;
+    3. when the initial start attempt returns but `session.isRunning == false`, `start()` throws `CameraSessionError.startFailed`;
+    4. `ScanViewModel.beginPreview()` maps this to `.cameraUnavailable(.startFailed)`;
+    5. the state must not become `.preview`.
+  - Explicitly NOT IMPLEMENTED (deferred robustness, NOT part of this increment's completion scope): post-start `AVCaptureSessionRuntimeErrorNotification` handling, interruption handling, automatic recovery/retry, media-services-reset recovery. The contract above covers the INITIAL start attempt only.
+- `SimCamCard/ViewModel/ScanViewModel.swift` — `beginPreview()` now `try await sessionController.start()`; a thrown initial start failure maps to `.cameraUnavailable(.startFailed)`, never `.preview`.
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — fake `start()` signature updated to `async throws` (never throws in UI fixtures).
+- `SimCamCardTests/ViewModel/ScanViewModelTests.swift` — FakeSession gains deterministic `startError` injection; new test: authorized → configure succeeds → initial start fails (`.startFailed`) → state == `.cameraUnavailable(.startFailed)` AND state != `.preview`, with configureCount == 1 / startCount == 1. No real hardware involved.
+- Wording calibration (code comments in `CameraSessionController.swift` / `CameraPreviewView.swift` and the correction-1 entry above): `@preconcurrency import AVFoundation` is described accurately as a narrow compatibility/interoperability bridge for the display-only preview-session reference that relaxes COMPILE-TIME diagnostics only; safety derives from the explicit ownership contract (all mutation on the actor's serial executor; UI only attaches the session to the preview layer). No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`.
+
+### Verification (full rerun — production lifecycle was modified)
+
+- Debug build: **BUILD SUCCEEDED**
+- Release build: **BUILD SUCCEEDED**
+- Unit tests: **51/51 PASS** (50 prior + 1 new initial-start-failure contract test)
+- UI regression, one clean round: **13/13 PASS** (count unchanged per instruction; internal failure contract needs no new UI case)
+- Boundary audit unchanged: no banned constructs, no Model/Repository/spec/dataset changes, no PhotoOutput/Photos/Vision/OCR.
+
+### Traceability (unchanged + one addition)
+
+- T03 permission state-machine / denial no-crash automated verification: PASS
+- T03 native permission-dialog allow/deny: NOT INDEPENDENTLY VERIFIED
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- Initial camera-session start failure → cameraUnavailable: **PASS (automated)**
+- Post-start AVCaptureSession runtime-error notification handling / interruption handling / automatic recovery: **NOT IMPLEMENTED — deferred robustness work** (not part of this increment's completion scope)
+- Debug build: PASS; Release build: PASS; Unit tests: 51/51 PASS; UI regression: 13/13 PASS
+- No `@unchecked Sendable`; no `nonisolated(unsafe)`; no `Task.detached`
+- T04/T05/T06/OCR/extraction: NOT IMPLEMENTED
+
+### Human Decision
+
+**Accepted — 2026-10-01 (human review).** Week 3 Increment 1 (Camera Permission + Real Live Preview) final conclusions, unchanged at acceptance:
+
+- Camera permission abstraction: PASS
+- ScanViewModel state ownership (@MainActor): PASS
+- Dedicated serial CameraSessionController actor executor (DispatchSerialQueue custom executor): PASS
+- MainActor blocking lifecycle issue: FIXED (session lifecycle runs off the main thread on the actor's serial executor)
+- Initial camera-session start failure → cameraUnavailable (never preview): PASS (automated)
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- T03 automated permission state-machine / denial no-crash: PASS
+- Native system permission dialog allow/deny: NOT INDEPENDENTLY VERIFIED
+- Post-start runtime-error notification handling / interruption handling / automatic recovery: NOT IMPLEMENTED — deferred robustness work
+- Debug build: PASS; Release build: PASS
+- Unit tests: 51/51 PASS; UI regression: 13/13 PASS
+- T04/T05/T06/OCR/extraction: NOT IMPLEMENTED
+- No `@unchecked Sendable`; no `nonisolated(unsafe)`; no `Task.detached`
+
+AI did not commit, merge or tag. Increment 2 not entered.
