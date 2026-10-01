@@ -1128,16 +1128,76 @@ struct ScanViewModelTests {
         private static let processedBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
     }
 
+    /// Deterministic OCR-processor fake: same actor/async shape as the
+    /// real CardOCRProcessor, with controllable outcomes and an
+    /// in-flight continuation gate (no sleep). Never invokes Vision.
+    private actor FakeOCRProcessor: CardOCRProcessing {
+        enum Outcome {
+            case success
+            case empty
+            case failure
+        }
+
+        private let outcome: Outcome
+        private(set) var enteredCount = 0
+
+        /// When enabled, `recognize` suspends after recording entry
+        /// until `releaseGate()` resumes every waiter.
+        private var gateEnabled = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        init(outcome: Outcome = .success) {
+            self.outcome = outcome
+        }
+
+        func enableGate() {
+            gateEnabled = true
+        }
+
+        func releaseGate() {
+            gateEnabled = false
+            let pending = waiters
+            waiters.removeAll()
+            for waiter in pending {
+                waiter.resume()
+            }
+        }
+
+        func recognize(_ crop: CardCropResult) async throws -> CardOCRResult {
+            enteredCount += 1
+            if gateEnabled {
+                await withCheckedContinuation { continuation in
+                    waiters.append(continuation)
+                }
+            }
+            switch outcome {
+            case .success:
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "张伟", confidence: 1.0),
+                    OCRLine(text: "+86 138 0013 8000", confidence: 1.0),
+                ])
+            case .empty:
+                return CardOCRResult(cropResult: crop, lines: [])
+            case .failure:
+                throw OCRError.recognitionFailed
+            }
+        }
+    }
+
     /// Builds an authorized, preview-ready VM with controllable crop
     /// processing and waits for the initial detection stream.
+    /// T07: a deterministic immediate-success OCR fake is injected by
+    /// default so crop-only tests never invoke real Vision.
     private func makePreviewViewModel(
         session: FakeSession = FakeSession(),
-        crop: FakeCropProcessor
+        crop: FakeCropProcessor,
+        ocr: FakeOCRProcessor = FakeOCRProcessor(outcome: .success)
     ) async -> ScanViewModel {
         let vm = ScanViewModel(
             authorization: FakeAuthorization(initialStatus: .authorized),
             sessionController: session,
-            cropProcessor: crop
+            cropProcessor: crop,
+            ocrProcessor: ocr
         )
         await vm.scannerDidAppear()
         #expect(vm.state == .preview)
@@ -1475,5 +1535,285 @@ struct ScanViewModelTests {
 
         #expect(vm.cardRegion == .inactive)
         #expect(await session.startCount == startCountBefore)
+    }
+
+    // MARK: - T07 raw recognition
+
+    /// Drives confirmCrop off the MainActor and waits until the OCR
+    /// fake records entry AND the recognition state reaches .processing
+    /// (deterministic; no sleep).
+    private func startGatedConfirmation(
+        vm: ScanViewModel,
+        ocr: FakeOCRProcessor
+    ) async -> Task<Void, Never> {
+        await ocr.enableGate()
+        let task = Task { await vm.confirmCrop() }
+        var entered = false
+        for _ in 0..<200 {
+            if await ocr.enteredCount == 1 {
+                entered = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(entered, "gated OCR must record entry")
+        // The Task inside beginRecognition updates .processing after
+        // the fake has already entered; wait for it.
+        var processing = false
+        for _ in 0..<200 {
+            if case .processing = vm.recognition {
+                processing = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(processing, "recognition must reach .processing")
+        return task
+    }
+
+    @Test("confirmed crop auto-starts OCR: processing then raw text, crop stays confirmed")
+    func recognitionAutoStartsAndProducesRawText() async {
+        let crop = FakeCropProcessor(outcome: .detected)
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(crop: crop, ocr: ocr)
+        await vm.capture()
+
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+
+        // Recognition owns the screen while processing; the confirmed
+        // crop remains underneath (separate state families).
+        guard case .processing(let processingCrop) = vm.recognition else {
+            Issue.record("expected .processing, got \(vm.recognition)")
+            await ocr.releaseGate()
+            return
+        }
+        guard case .confirmed(let confirmedCrop) = vm.cardRegion else {
+            Issue.record("cardRegion must stay .confirmed during OCR; got \(vm.cardRegion)")
+            await ocr.releaseGate()
+            return
+        }
+        #expect(processingCrop == confirmedCrop)
+
+        await ocr.releaseGate()
+        await confirmTask.value
+
+        // Wait for the recognition Task to complete its state update.
+        var finalState = vm.recognition
+        for _ in 0..<200 {
+            if case .rawTextAvailable = finalState { break }
+            if case .emptyRawResult = finalState { break }
+            if case .failed = finalState { break }
+            await Task.yield()
+            finalState = vm.recognition
+        }
+
+        guard case .rawTextAvailable(let result) = finalState else {
+            Issue.record("expected .rawTextAvailable, got \(finalState)")
+            return
+        }
+        #expect(result.lines.count == 2)
+        #expect(result.rawText == "张伟\n+86 138 0013 8000")
+        #expect(result.cropResult == confirmedCrop)
+        #expect(await ocr.enteredCount == 1)
+        guard case .confirmed = vm.cardRegion else {
+            Issue.record("crop must remain .confirmed after OCR; got \(vm.cardRegion)")
+            return
+        }
+    }
+
+    @Test("zero-text recognition settles emptyRawResult, not failure")
+    func emptyRecognitionSettlesEmptyResult() async {
+        let ocr = FakeOCRProcessor(outcome: .empty)
+        let vm = await makePreviewViewModel(
+            crop: FakeCropProcessor(outcome: .detected), ocr: ocr
+        )
+        await vm.capture()
+
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        guard case .processing = vm.recognition else {
+            Issue.record("expected .processing, got \(vm.recognition)")
+            await ocr.releaseGate()
+            return
+        }
+
+        await ocr.releaseGate()
+        await confirmTask.value
+
+        // Wait for the recognition Task to complete its state update.
+        var finalState = vm.recognition
+        for _ in 0..<200 {
+            if case .emptyRawResult = finalState { break }
+            if case .failed = finalState { break }
+            await Task.yield()
+            finalState = vm.recognition
+        }
+
+        guard case .emptyRawResult(let result) = finalState else {
+            Issue.record("expected .emptyRawResult, got \(finalState)")
+            return
+        }
+        #expect(result.lines.isEmpty)
+        #expect(result.rawText.isEmpty)
+        guard case .confirmed = vm.cardRegion else {
+            Issue.record("crop must stay .confirmed under an empty OCR result")
+            return
+        }
+    }
+
+    @Test("failed recognition settles .failed without a raw result")
+    func failedRecognitionSettlesFailed() async {
+        let ocr = FakeOCRProcessor(outcome: .failure)
+        let vm = await makePreviewViewModel(
+            crop: FakeCropProcessor(outcome: .detected), ocr: ocr
+        )
+        await vm.capture()
+
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        guard case .processing = vm.recognition else {
+            Issue.record("expected .processing, got \(vm.recognition)")
+            await ocr.releaseGate()
+            return
+        }
+
+        await ocr.releaseGate()
+        await confirmTask.value
+
+        // Wait for the recognition Task to complete its state update.
+        var finalState = vm.recognition
+        for _ in 0..<200 {
+            if case .failed = finalState { break }
+            if case .rawTextAvailable = finalState { break }
+            if case .emptyRawResult = finalState { break }
+            await Task.yield()
+            finalState = vm.recognition
+        }
+
+        guard case .failed(let error) = finalState else {
+            Issue.record("expected .failed, got \(finalState)")
+            return
+        }
+        #expect(error == .recognitionFailed)
+        guard case .confirmed = vm.cardRegion else {
+            Issue.record("a failed OCR must not roll the confirmed crop back")
+            return
+        }
+    }
+
+    @Test("retake during recognition invalidates the late in-flight result")
+    func retakeInvalidatesInFlightRecognition() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(session: session, crop: crop, ocr: ocr)
+        await vm.capture()
+
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        guard case .processing = vm.recognition else {
+            Issue.record("precondition: expected .processing, got \(vm.recognition)")
+            await ocr.releaseGate()
+            return
+        }
+
+        // Retake is allowed while OCR runs (no perspective correction
+        // is in flight): it discards crop + recognition and restarts
+        // the scanner.
+        await vm.retake()
+        #expect(vm.recognition == .inactive)
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+
+        await ocr.releaseGate()
+        await confirmTask.value
+
+        // The late success must not resurrect the recognition screen.
+        #expect(vm.recognition == .inactive, "stale OCR result must be discarded")
+        #expect(await ocr.enteredCount == 1)
+    }
+
+    @Test("scanner disappear invalidates the late in-flight recognition result")
+    func disappearInvalidatesInFlightRecognition() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(session: session, crop: crop, ocr: ocr)
+        await vm.capture()
+
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        let processingCrop = vm.recognition
+
+        // Leaving the scanner invalidates the in-flight generation; the
+        // display state itself is not cleared.
+        await vm.scannerDidDisappear()
+
+        await ocr.releaseGate()
+        await confirmTask.value
+
+        // The stale result must not overwrite the pre-exit state.
+        #expect(vm.recognition == processingCrop,
+                "a post-disappear OCR result must be ignored")
+        guard case .processing = vm.recognition else {
+            Issue.record("state must remain .processing, got \(vm.recognition)")
+            return
+        }
+    }
+
+    @Test("stale A cannot overwrite a newer B after retake + new capture")
+    func staleACannotOverwriteNewerB() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        // Gated fake records each entry; outcome is .success.
+        let ocrA = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(session: session, crop: crop, ocr: ocrA)
+        await vm.capture()
+
+        // Start A: gated OCR so A is in-flight.
+        let confirmTaskA = await startGatedConfirmation(vm: vm, ocr: ocrA)
+        guard case .processing = vm.recognition else {
+            Issue.record("A must be .processing")
+            await ocrA.releaseGate()
+            return
+        }
+        #expect(await ocrA.enteredCount == 1)
+
+        // Retake cancels A (task + generation).
+        await vm.retake()
+        #expect(vm.recognition == .inactive)
+
+        // Release A's gate: its result arrives but must be discarded.
+        await ocrA.releaseGate()
+        await confirmTaskA.value
+        #expect(vm.recognition == .inactive, "stale A must not resurrect recognition")
+
+        // Start B on the SAME view model: new capture → crop → OCR.
+        // The same FakeOCRProcessor instance counts both entries.
+        await vm.capture()
+        let confirmTaskB = await startGatedConfirmation(vm: vm, ocr: ocrA)
+        guard case .processing = vm.recognition else {
+            Issue.record("B must be .processing, got \(vm.recognition)")
+            await ocrA.releaseGate()
+            return
+        }
+
+        await ocrA.releaseGate()
+        await confirmTaskB.value
+
+        // Wait for the recognition Task to complete its state update.
+        var finalState = vm.recognition
+        for _ in 0..<200 {
+            if case .rawTextAvailable = finalState { break }
+            if case .emptyRawResult = finalState { break }
+            if case .failed = finalState { break }
+            await Task.yield()
+            finalState = vm.recognition
+        }
+
+        // B completes normally and owns the final state.
+        guard case .rawTextAvailable(let resultB) = finalState else {
+            Issue.record("expected .rawTextAvailable from B, got \(finalState)")
+            return
+        }
+        #expect(resultB.rawText == "张伟\n+86 138 0013 8000")
+        // A entered once, B entered once — same processor, two tasks.
+        #expect(await ocrA.enteredCount == 2)
     }
 }

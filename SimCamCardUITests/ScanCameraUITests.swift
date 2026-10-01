@@ -44,7 +44,8 @@ final class ScanCameraUITests: XCTestCase {
         cameraMode: String,
         photoImportMode: String? = nil,
         detectionMode: String? = nil,
-        cropMode: String? = nil
+        cropMode: String? = nil,
+        ocrMode: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         var args = ["-SimCamCardCamera", cameraMode]
@@ -56,6 +57,9 @@ final class ScanCameraUITests: XCTestCase {
         }
         if let cropMode {
             args += ["-SimCamCardCrop", cropMode]
+        }
+        if let ocrMode {
+            args += ["-SimCamCardOCR", ocrMode]
         }
         app.launchArguments = args
         app.launch()
@@ -405,8 +409,10 @@ final class ScanCameraUITests: XCTestCase {
     /// real still-image Vision; geometry mutation is covered by unit
     /// tests, and real dataset Detection→Crop by processor smoke tests.
     @MainActor
-    private func enterCropPage(cropMode: String) -> XCUIApplication {
-        let app = launchAndEnterScanner(cameraMode: "authorized", cropMode: cropMode)
+    private func enterCropPage(cropMode: String, ocrMode: String? = nil) -> XCUIApplication {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized", cropMode: cropMode, ocrMode: ocrMode
+        )
         app.buttons["scan-capture"].tap()
 
         let cropView = app.descendants(matching: .any)["scan-crop-view"]
@@ -487,12 +493,13 @@ final class ScanCameraUITests: XCTestCase {
     // MARK: - P04 crop: confirm fixture
 
     /// Confirm runs the REAL CardCropProcessor on the deterministic
-    /// fixture image: tap 完成 → the perspective-corrected image is
-    /// presented, handles/boundary are gone, and no OCR/recognition UI
-    /// is faked.
+    /// fixture image (Week 3 Increment 5). Increment 6 extends the
+    /// flow: tap 完成 → the perspective-corrected image becomes the
+    /// substrate of the T07 raw recognition screen that automatically
+    /// follows; the editing boundary/handles are gone.
     @MainActor
-    func testCropConfirmShowsCorrectedImageWithoutHandles() throws {
-        let app = enterCropPage(cropMode: "auto")
+    func testCropConfirmFlowsIntoRawRecognitionWithoutHandles() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
 
         XCTAssertTrue(
             app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
@@ -501,9 +508,10 @@ final class ScanCameraUITests: XCTestCase {
 
         app.buttons["scan-crop-confirm"].tap()
 
-        let confirmed = app.descendants(matching: .any)["scan-crop-confirmed-image"]
-        XCTAssertTrue(confirmed.waitForExistence(timeout: 10),
-                      "Confirm should present the perspective-corrected image.")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
+            "Confirm must auto-flow into the raw recognition screen."
+        )
 
         for handleId in [
             "scan-crop-handle-top-left",
@@ -519,10 +527,102 @@ final class ScanCameraUITests: XCTestCase {
             "Editing boundary must be absent after confirm."
         )
 
+        app.buttons["scan-recognition-retake"].tap()
+        closeScanner(app)
+    }
+
+    // MARK: - T07 raw OCR: success fixture
+
+    /// Fixture-driven T07 success regression: crop 完成 → the raw
+    /// recognition screen presents the preserved raw text
+    /// (verbatim name / phone / email), offers no structured fields or
+    /// save action, and 重拍 returns to the scanner.
+    ///
+    /// NON-CLAIM: this is NOT real Vision OCR. The DEBUG fixture
+    /// returns fixed lines; real recognition is covered by
+    /// CardOCRProcessorTests and the OCR dataset smoke tests. The
+    /// raw-text screen is an implementation transitional surface — the
+    /// CamCard raw-text page was not externally observed, so no
+    /// Reference fidelity is claimed.
+    @MainActor
+    func testRawOCRSuccessFixtureShowsPreservedRawText() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
+            "Crop page should be ready before confirm."
+        )
+        app.buttons["scan-crop-confirm"].tap()
+
+        let root = app.descendants(matching: .any)["scan-recognition-view"]
+        XCTAssertTrue(root.waitForExistence(timeout: 5),
+                      "Confirm must enter the raw recognition screen.")
+        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
+        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
+                      "The preserved raw text must be presented.")
+        XCTAssertTrue(rawText.label.contains("张伟"),
+                      "Chinese name must be preserved verbatim: \(rawText.label)")
+        XCTAssertTrue(rawText.label.contains("+86 138 0013 8000"),
+                      "Phone spacing/prefix must be preserved verbatim: \(rawText.label)")
+        XCTAssertTrue(rawText.label.contains("wei.zhang@zhiyuntech.com"),
+                      "Email case/punctuation must be preserved verbatim: \(rawText.label)")
+
+        // T07 carries no structured fields and no Save.
+        XCTAssertFalse(app.buttons["保存"].exists,
+                       "No Save action exists in the raw-text increment.")
+
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "w3i5-crop-confirmed-fixture"
+        attachment.name = "w3i6-raw-ocr-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake must return to the scanner preview."
+        )
+        closeScanner(app)
+    }
+
+    // MARK: - T07 raw OCR: empty fixture
+
+    /// Fixture-driven T07 empty-result regression: zero recognized
+    /// lines land on a distinct EMPTY state — not a failure, with no
+    /// fabricated contact fields and a 重拍 recovery path. This is NOT
+    /// the frozen S05 nonCardEmptyResult (which belongs to structured
+    /// extraction in Week 4); only its raw foundation exists now.
+    @MainActor
+    func testRawOCREmptyFixtureShowsEmptyState() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "empty")
+
+        app.buttons["scan-crop-confirm"].tap()
+
+        let empty = app.descendants(matching: .any)["scan-recognition-empty"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 5),
+                      "Zero-text OCR must present the empty state.")
+        XCTAssertTrue(app.staticTexts["未识别到文字"].exists,
+                      "Empty state must explain that no text was recognized.")
+        XCTAssertFalse(
+            app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
+            "Empty state must not present a raw-text block."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-failed"].exists,
+                       "Empty is a valid result, not a failure.")
+        XCTAssertFalse(app.buttons["保存"].exists,
+                       "No fabricated contact fields / save on empty result.")
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i6-empty-ocr-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake must return to the scanner preview."
+        )
+        closeScanner(app)
     }
 }

@@ -177,6 +177,7 @@ enum DebugCameraEnvironment {
     static let photoImportArgument = "-SimCamCardPhotoImport"
     static let detectionArgument = "-SimCamCardDetection"
     static let cropArgument = "-SimCamCardCrop"
+    static let ocrArgument = "-SimCamCardOCR"
 
     enum Mode: String {
         case authorized
@@ -190,7 +191,9 @@ enum DebugCameraEnvironment {
     /// requests one; nil for normal launches (real AVFoundation path).
     /// Also honors `-SimCamCardPhotoImport <imported|cancel|loadfailure>`
     /// to deterministically drive the photo-import path without the
-    /// real system PhotosPicker (T05 fixture-driven UI regression).
+    /// real system PhotosPicker (T05 fixture-driven UI regression), and
+    /// `-SimCamCardOCR <success|empty|failure>` to drive post-confirm
+    /// raw recognition without real Vision (T07 fixture regression).
     static func makeViewModelIfRequested(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> ScanViewModel? {
@@ -222,6 +225,7 @@ enum DebugCameraEnvironment {
         let photoImportFixture = parsePhotoImportFixture(arguments: arguments)
         let detectionFixture = parseDetectionFixture(arguments: arguments)
         let cropFixture = parseCropFixture(arguments: arguments)
+        let ocrFixture = parseOCRFixture(arguments: arguments)
 
         return ScanViewModel(
             authorization: authorization,
@@ -230,6 +234,7 @@ enum DebugCameraEnvironment {
             ),
             photoImportFixture: photoImportFixture,
             cropProcessor: cropFixture == nil ? nil : DebugCropProcessor(),
+            ocrProcessor: ocrFixture.map { DebugOCRProcessor(mode: $0) },
             cropFixture: cropFixture
         )
     }
@@ -271,6 +276,19 @@ enum DebugCameraEnvironment {
             return nil
         }
         return CropFixtureMode(rawValue: arguments[index + 1].lowercased())
+    }
+
+    /// Parses the optional `-SimCamCardOCR success|empty|failure`
+    /// launch argument. Returns nil when absent or unrecognized.
+    private static func parseOCRFixture(
+        arguments: [String]
+    ) -> OCRFixtureMode? {
+        guard let index = arguments.firstIndex(of: ocrArgument),
+              index + 1 < arguments.count
+        else {
+            return nil
+        }
+        return OCRFixtureMode(rawValue: arguments[index + 1].lowercased())
     }
 }
 
@@ -391,6 +409,41 @@ actor DebugCropProcessor: CardCropProcessing {
         guard CGImageDestinationFinalize(destination) else { return Data() }
         return output as Data
     }()
+}
+
+// MARK: - Fake OCR processor (T07 fixtures)
+
+/// Deterministic T07 raw-OCR fixture processor. Returns fixed
+/// preserved lines WITHOUT invoking Vision — real recognition is
+/// covered by CardOCRProcessorTests and the OCR dataset smoke tests.
+/// Being an actor mirrors the real service's isolation contract.
+/// DEBUG-only; never instantiated in Release.
+actor DebugOCRProcessor: CardOCRProcessing {
+
+    private let mode: OCRFixtureMode
+
+    init(mode: OCRFixtureMode) {
+        self.mode = mode
+    }
+
+    func recognize(_ crop: CardCropResult) async throws -> CardOCRResult {
+        switch mode {
+        case .success:
+            // Fixed bilingual lines; punctuation, spacing, case and
+            // digits preserved verbatim (T07 raw contract).
+            return CardOCRResult(cropResult: crop, lines: [
+                OCRLine(text: "张伟", confidence: 1.0),
+                OCRLine(text: "产品总监 | Product Director", confidence: 1.0),
+                OCRLine(text: "+86 138 0013 8000", confidence: 1.0),
+                OCRLine(text: "wei.zhang@zhiyuntech.com", confidence: 1.0),
+            ])
+        case .empty:
+            // A legitimate zero-text result (not a failure).
+            return CardOCRResult(cropResult: crop, lines: [])
+        case .failure:
+            throw OCRError.recognitionFailed
+        }
+    }
 }
 
 extension ScanViewModel {

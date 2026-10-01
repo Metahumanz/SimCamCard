@@ -58,11 +58,24 @@ enum CropFixtureMode: String {
     case confirmed
 }
 typealias CropFixtureParam = CropFixtureMode?
+/// DEBUG-only T07 raw OCR fixture mode: drives recognition AFTER a
+/// confirmed crop without invoking real Vision.
+enum OCRFixtureMode: String {
+    /// Deterministic bilingual raw lines (name / title / phone / email
+    /// preserved verbatim).
+    case success
+    /// A legitimate zero-text result (not a failure).
+    case empty
+    /// The recognition request fails.
+    case failure
+}
+typealias OCRFixtureParam = OCRFixtureMode?
 #else
 /// In Release no photo-import fixture exists; the parameter type is an
 /// always-nil placeholder so the same init signature compiles.
 typealias PhotoImportFixtureParam = Never?
 typealias CropFixtureParam = Never?
+typealias OCRFixtureParam = Never?
 #endif
 
 @MainActor
@@ -201,6 +214,47 @@ final class ScanViewModel {
     /// Core Image correction.
     private(set) var isCropInFlight = false
 
+    // MARK: - T07 Raw Recognition (S05 raw transport)
+
+    /// Separate raw-recognition state family (Week 3 Increment 6).
+    /// Deliberately NOT merged with the S02/S03/S04 families: raw OCR
+    /// begins only AFTER P04 has confirmed an upright crop, and retake
+    /// returns to the scanner. These are T07 RAW TRANSPORT states —
+    /// they must not be misreported as the frozen S05 structured
+    /// states: `structuredResultAvailable` / `missingFields` /
+    /// `multiplePhoneFields` / `manualEditing` arrive with Week 4
+    /// structured extraction.
+    enum RecognitionState: Equatable {
+        /// No recognition active (Scanner / Crop owns the screen).
+        case inactive
+        /// Vision recognition is running for the confirmed crop.
+        case processing(CardCropResult)
+        /// Raw text recognized (one or more preserved lines).
+        case rawTextAvailable(CardOCRResult)
+        /// The request completed legitimately with zero text. A valid
+        /// outcome, NOT a failure — the foundation for Week 4
+        /// nonCardEmptyResult.
+        case emptyRawResult(CardOCRResult)
+        /// The recognition request failed (stable fallback).
+        case failed(OCRError)
+
+        /// True while raw recognition must own the screen content:
+        /// processing plus every settled raw result/failure until
+        /// retake/reset returns to the Scanner.
+        var isActive: Bool {
+            switch self {
+            case .inactive:
+                return false
+            case .processing, .rawTextAvailable, .emptyRawResult, .failed:
+                return true
+            }
+        }
+    }
+
+    /// Current T07 raw-recognition state. `.inactive` until a crop is
+    /// confirmed; recognition then starts automatically.
+    private(set) var recognition: RecognitionState = .inactive
+
     /// Whether the system `PhotosPicker` sheet should be presented.
     /// Driven by `beginPhotoImport()`; cleared by every terminal
     /// import outcome (selected / cancelled / load failure).
@@ -233,17 +287,43 @@ final class ScanViewModel {
     /// MainActor.
     private let cropProcessor: any CardCropProcessing
 
+    /// T07 raw OCR service (Swift-native Vision). Consumes only the
+    /// confirmed upright PNG; heavy work runs inside its actor, never
+    /// on the MainActor.
+    private let ocrProcessor: any CardOCRProcessing
+
     /// The single Task consuming the live detection stream while in
     /// `.preview`. Cancelled on scanner disappear, on capture, on photo
     /// import, and on any transition out of preview. Never more than
     /// one consumer exists at a time; never a Task.detached.
     private var detectionConsumer: Task<Void, Never>?
 
+    /// Generation token for in-flight recognition. Each new recognition
+    /// increments it and captures its own value; retake/scanner
+    /// disappear also increment it to invalidate a running request. A
+    /// result whose captured generation differs from the current one is
+    /// stale and discarded without touching UI state.
+    private var recognitionGeneration = 0
+
+    /// ScanViewModel owns at most one current recognition Task.
+    ///
+    /// Starting a new recognition cancels and supersedes the previously
+    /// owned Task.
+    ///
+    /// recognitionGeneration guarantees that stale completion from an
+    /// older recognition cannot mutate the current workflow state.
+    ///
+    /// Task cancellation does not establish that an already-running
+    /// Vision request aborts immediately; underlying early-abort
+    /// behavior remains framework-dependent.
+    private var recognitionTask: Task<Void, Never>?
+
     init(
         authorization: CameraAuthorizationProviding = AVCameraAuthorizationProvider(),
         sessionController: (any CameraSessionControlling)? = nil,
         photoImportFixture: PhotoImportFixtureParam = nil,
         cropProcessor: (any CardCropProcessing)? = nil,
+        ocrProcessor: (any CardOCRProcessing)? = nil,
         cropFixture: CropFixtureParam = nil
     ) {
         self.authorization = authorization
@@ -252,6 +332,7 @@ final class ScanViewModel {
         self.cameraSession = controller.session
         self.photoImportFixture = photoImportFixture
         self.cropProcessor = cropProcessor ?? CardCropProcessor()
+        self.ocrProcessor = ocrProcessor ?? CardOCRProcessor()
         self.cropFixture = cropFixture
     }
 
@@ -295,6 +376,12 @@ final class ScanViewModel {
     /// service's serial executor.
     func scannerDidDisappear() async {
         stopDetectionConsumption()
+        // Invalidate any in-flight recognition: a late result must not
+        // land on a scanner the user already left. An already-finished
+        // raw result is intentionally retained.
+        recognitionGeneration += 1
+        recognitionTask?.cancel()
+        recognitionTask = nil
         await sessionController.stop()
     }
 
@@ -533,7 +620,9 @@ final class ScanViewModel {
                 cardRegion = preparation.wasDetected
                     ? .autoDetected(preparation.draft)
                     : .manualAdjusting(preparation.draft)
-                await performCropConfirmation()
+                if let result = await performCropConfirmation() {
+                    beginRecognition(result)
+                }
             case .auto, nil:
                 cardRegion = preparation.wasDetected
                     ? .autoDetected(preparation.draft)
@@ -569,23 +658,78 @@ final class ScanViewModel {
     /// User tapped 完成: perspective-correct the current valid region
     /// exactly once. Guarded by `isCropInFlight` so a double tap cannot
     /// start two Core Image corrections. On failure the draft stays
-    /// usable (`.failed` surfaces the stable fallback).
+    /// usable (`.failed` surfaces the stable fallback). On success the
+    /// confirmed crop automatically flows into T07 raw recognition
+    /// (there is no separate "start recognition" action).
     func confirmCrop() async {
         guard !isCropInFlight, let draft = cardRegion.draft else { return }
         isCropInFlight = true
-        defer { isCropInFlight = false }
-        await performCropConfirmation(draft: draft)
+        // The freeze covers perspective correction only: a second tap
+        // cannot start a second correction, but once the S04 terminal
+        // state settles the freeze is released. T07 OCR runs outside
+        // the freeze with its own generation guard, so 重拍 stays
+        // available while recognition is processing.
+        let result = await performCropConfirmation(draft: draft)
+        isCropInFlight = false
+        if let result {
+            beginRecognition(result)
+        }
     }
 
-    private func performCropConfirmation(draft providedDraft: CropDraft? = nil) async {
-        guard let draft = providedDraft ?? cardRegion.draft else { return }
+    /// Runs the perspective correction and records the terminal S04
+    /// state. Returns the confirmed result so the caller can chain T07
+    /// recognition; returns nil on failure (state set to `.failed`).
+    @discardableResult
+    private func performCropConfirmation(
+        draft providedDraft: CropDraft? = nil
+    ) async -> CardCropResult? {
+        guard let draft = providedDraft ?? cardRegion.draft else { return nil }
         do {
             let result = try await cropProcessor.perspectiveCorrect(draft)
             cardRegion = .confirmed(result)
+            return result
         } catch let error as CropError {
             cardRegion = .failed(error)
+            return nil
         } catch {
             cardRegion = .failed(.correctionFailed)
+            return nil
+        }
+    }
+
+    // MARK: - T07 Raw Recognition
+
+    /// Starts raw OCR for a just-confirmed crop (Crop Done →
+    /// Recognition is automatic). The captured generation makes a late
+    /// result harmless: retake / scanner disappear / a newer
+    /// recognition invalidate an in-flight request, whose result is
+    /// then discarded without mutating UI state.
+    ///
+    /// Zero recognized text is a valid `.emptyRawResult`, never a
+    /// failure; only a thrown request error becomes `.failed`.
+    private func beginRecognition(_ crop: CardCropResult) {
+        // Cancel any previous recognition: the new one supersedes it.
+        recognitionTask?.cancel()
+        recognitionTask = nil
+
+        recognition = .processing(crop)
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+
+        recognitionTask = Task {
+            do {
+                let result = try await ocrProcessor.recognize(crop)
+                guard generation == self.recognitionGeneration else { return }
+                self.recognition = result.rawText.isEmpty
+                    ? .emptyRawResult(result)
+                    : .rawTextAvailable(result)
+            } catch let error as OCRError {
+                guard generation == self.recognitionGeneration else { return }
+                self.recognition = .failed(error)
+            } catch {
+                guard generation == self.recognitionGeneration else { return }
+                self.recognition = .failed(.recognitionFailed)
+            }
         }
     }
 
@@ -601,6 +745,16 @@ final class ScanViewModel {
         // "confirm → retake to scanner → old confirm returns" would
         // resurrect a stale .confirmed state.
         guard cardRegion.isCropScreenActive, !isCropInFlight else { return }
+
+        // Retake discards the crop AND its recognition: cancel the
+        // active recognition Task and invalidate its generation (a stale
+        // late result must never resurrect a screen the user already
+        // left) and clear any settled raw text.
+        recognitionGeneration += 1
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognition = .inactive
+
         cardRegion = .retakeRequested
 
         // Clear still-image transitional state before restarting.

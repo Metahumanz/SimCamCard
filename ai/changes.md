@@ -2179,3 +2179,169 @@ Orientation:
 Accepted — 2026-10-01 (human review).
 
 AI did not commit, merge or tag. Increment 6 not entered.
+
+## 2026-10-02 — Week 3 Increment 6: Raw OCR + Raw Text Preservation (T07 raw transport)
+
+Baseline: 68d242c (`feat(crop): 实现名片边界调整与透视校正`). Frozen scope: produce and preserve RAW recognized text only. Structured extraction (name/company/title/phone/email parser), missing-field, multiple-phone and manual correction (T08–T11, P05/P06/P07) remain Week 4 and are deliberately absent.
+
+### Engine choice — Swift-native Vision API
+
+The recognizer uses the iOS 26+ Swift-native `RecognizeTextRequest` (Vision's async `request.perform(on:orientation:)`), NOT the legacy `VNRecognizeTextRequest`/completion-handler API: the native async API eliminates hand-rolled continuation bridges, and the codebase builds with the iOS 27 SDK / Swift 6.4 language mode. Request configuration (`OCRConfiguration`, pure and Equatable): `.accurate`; `recognitionLanguages = [zh-Hans, en-US]` in that preference order; `automaticallyDetectsLanguage = true`; **`usesLanguageCorrection = false`**; **no `customWords`**. Rationale: in T07 nothing may rewrite Vision output before Week 4 extraction — correction/lexicon would silently alter the preserved raw string (the card-001 result below is direct evidence that raw Vision output is imperfect; preservation beats prettification at this stage). Revision stays at the system default. No reading-order reorder: Vision observation order is kept as returned.
+
+### Raw value contract (pipeline transport, NOT a domain model)
+
+- `OCRLine { text: String; confidence: Float }` — one observation's TOP-1 candidate; only surrounding whitespace/newlines trimmed; interior spaces, punctuation, digits, letter case and CJK characters preserved verbatim; no dedup/merge. Confidence is metadata only — never used to filter or reorder.
+- `CardOCRResult { cropResult: CardCropResult; lines: [OCRLine]; rawText: String }` — `rawText = lines.map(\.text).joined(separator: "\n")`, computed exactly once at initialization; empty when Vision returned no usable text. This is a transport value, not `BusinessCard`: no identity, no tags/notes, no Repository persistence.
+- `OCRError.recognitionFailed` — any request execution failure (invalid bytes / Vision error) maps to this stable case. A request that RUNS and returns ZERO observations is NOT an error: it yields an empty `CardOCRResult` and settles a distinct `.emptyRawResult` UI state.
+- `CardOCRProcessor` is a plain `actor` (the native async Vision API provides its own execution pipeline; unlike camera/crop, no DispatchSerialQueue is needed). `RecognizedTextObservation` never crosses the actor boundary — only Sendable project values leave it. NOT `@unchecked Sendable`, NOT `nonisolated(unsafe)`, NOT `Task.detached`.
+
+### ViewModel integration — separate state family + generation guard
+
+- New `ScanViewModel.RecognitionState` family: `inactive / processing(CardCropResult) / rawTextAvailable(CardOCRResult) / emptyRawResult(CardOCRResult) / failed(OCRError)` with `var isActive`. Deliberately NOT merged into the camera `State` or the S04 `CardRegionState` families: raw recognition starts only after P04 confirm, and retake returns to the scanner.
+- Crop → OCR auto-wiring: there is no separate "start recognition" action. `confirmCrop()` awaits perspective correction and chains `beginRecognition(result)`; the DEBUG `.confirmed` crop fixture chains identically. While recognition runs, `cardRegion` stays `.confirmed(crop)` UNDERNEATH — the two families are independent (so the confirmed crop is never rolled back by OCR success/empty/failure).
+- Stale-result guard: each `beginRecognition` captures a monotonic `recognitionGeneration`; `retake()` and `scannerDidDisappear()` increment it. A late result whose generation differs is discarded without touching UI state. Disappear invalidates an in-flight request but intentionally RETAINS an already-finished result.
+- **Pre-Accept fix made during this increment (found by the gated workflow test):** `confirmCrop()` previously held `isCropInFlight` across the OCR await (a single `defer`), which made the recognition screen's 重拍 permanently un-tappable — contradicting the frozen design (retake is available in every recognition state and OCR has its own generation guard). The freeze now wraps perspective CORRECTION ONLY: set before `performCropConfirmation`, reset immediately after; OCR runs outside it. Double-confirm protection is unchanged (second tap still rejected while a correction runs; afterwards `.confirmed` has no draft so the guard rejects). All Increment 5 confirm/retake freeze tests still pass.
+- Injection seam: `CardOCRProcessing` with a default `CardOCRProcessor()`; tests and DEBUG UI fixtures inject fakes.
+
+### Transitional raw recognition UI (IMPLEMENTATION surface — Reference fidelity NOT ESTABLISHED)
+
+The CamCard raw-text screen was NOT externally exposed/observed (spec/reference-tests.md T07). `RawRecognitionView` is therefore a minimal TRANSITIONAL IMPLEMENTATION surface, never a CamCard Reference page. Four states, full-screen overlay with priority over the lingering `.confirmed` crop screen (`ScanEntryView` ZStack): `.processing` (crop image + spinner "正在识别…"; no faked animation), `.rawTextAvailable` (image top ~36% + "原始识别文本" + ScrollView of `Text(rawText)` with system text SELECTION enabled — no TextField, never editable), `.emptyRawResult` ("未识别到文字" + explanation, no fabricated fields, no auto-return), `.failed` ("识别失败"). The ONLY action in every state is 重拍 (`scan-recognition-retake`) → existing P04 retake path (discards crop + recognition, restarts preview). No Save, no Repository, no P06/P07 navigation, no structured fields.
+
+### DEBUG fixtures
+
+`-SimCamCardOCR {success|empty|failure}` → DEBUG-only `DebugOCRProcessor` actor. Success returns 4 FIXED lines (`张伟` / `产品总监 | Product Director` / `+86 138 0013 8000` / `wei.zhang@zhiyuntech.com`, confidence 1.0) WITHOUT Vision; empty returns zero lines; failure throws `OCRError.recognitionFailed`. Entire surface `#if DEBUG`.
+
+### Real Vision results (actual run, no fixture) — dataset detect→crop→OCR smoke
+
+`OCRPipelineDatasetSmokeTests` runs the full REAL chain (`CardCropProcessor.prepare → perspectiveCorrect → CardOCRProcessor.recognize`) on in-repo dataset images (`#filePath`, no fixtures). Tests deliberately normalize for comparison (lowercase + strip whitespace) but the production contract does NOT normalize. Actual observed raw output:
+
+- **card-001-standard-bilingual** — 10 lines: `上海智云科技有限公司` / `Shanghai Zhiyun Tech Co., Ltd.` / `张伟` / `Wei Zhang` / `产品总监 |Product Director` / `手机 Mobile：+86 138 0013 8000` / `电话 Tel： +86 21 5555 1234` / `邮稍 Email: wei.zhang@zhiyuntech.com` / `网址 Web：www.zhiyuntech.com` / `地址 Address：上海市浦东新区世纪大道100号 200120`. Note Vision MISREAD 邮箱 as "邮稍" with language correction OFF — preserved as-is; concrete evidence for the correction-off decision. Test anchors: contains 张伟; digit-only stream contains 13800138000; compact stream contains zhiyuntech.
+- **card-004** — raw name line `张 伟` (Vision INSERTED a space — preserved; the test's whitespace normalization absorbs it) and `+86 138 0013 8000`. Anchors: 张伟 / 13800138000.
+- **card-013-english-bio-photographed** — `Morningside` / `Secure Systems` / `Kevin Park` / `Solutions Architect` / `Mobile: +1 (646) 555-0113` / `Office: +1 (212) 555-0199` / `Web: www.mss-secure.com` / `Address: 305 Madison Ave, New York, NY 10165`. Anchors: compact contains kevin / park / mss-secure; digits contain 5550113.
+- **Ground-truth discrepancy corrected:** prior working notes claimed card-013 depicted "Daniel Wu / stonepinebio.com". The ACTUAL image content is Kevin Park / Morningside Secure Systems / mss-secure.com / +1 (646) 555-0113. Tests anchor on the image's real content; the stale note was wrong.
+
+Processor-level real-Vision tests (`CardOCRProcessorTests`): configuration contract (level/languages/detect/correction=false/no customWords — structure asserted without freezing Vision internals beyond these setters); rawText verbatim newline join; real recognition of a CoreText-rendered bilingual PNG (anchors 13800138000 / wei.zhang@zhiyuntech.com, test-only lowercase/whitespace normalization); textless white PNG → EMPTY result, no throw; invalid bytes → `.recognitionFailed`. (CoreText draws in native bottom-left coordinates on a fresh CGBitmapContext — no UIKit-style context flip, which would double-flip and garble glyphs.)
+
+### Builds and tests (actual reruns)
+
+- Debug build: PASS.
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty — the only definition is `DEBUG $(inherited)` on the Debug config; Release does not override). Release binary strings: ZERO matches for `SimCamCardOCR`, `DebugOCRProcessor`, `SimCamCardCrop`, `DebugCropProcessor`, `SimCamCardCamera`, `DebugCameraSessionController`; production `CardOCRProcessor`/`OCRConfiguration` and the `scan-recognition-*` identifiers DO ship.
+- Unit tests: **160/160 PASS** (was 147; +13 = 5 CardOCRProcessorTests + 3 dataset OCR smoke + 5 ScanViewModel T07 workflow tests: auto-start processing→rawText with crop staying `.confirmed`, empty→`.emptyRawResult`, failure→`.failed(.recognitionFailed)`, retake-during-processing stale discard, scanner-disappear stale discard; the two stale tests use deterministic continuation gates with bounded `Task.yield()` waits — no sleep).
+- UI tests: target total **23** (was 21; +2 new fixture tests; the Increment 5 confirm test was adapted 1:1 to the new auto-flow). Full sequential simulator run: 22/23 passed; the single failure was the PRE-EXISTING `testDeniedShowsStableFallbackWithoutSessionUI` timing out in the shared `closeScanner` existence wait under abnormal simulator load (a foreign QA simulator was booted on the machine; suite ran 857s vs ~90s normal; xcodebuild logged a 60s simulator-boot timeout). That path has no OCR involvement. Isolated rerun on a quiet simulator of the denied test + all three T07 tests: **4/4 PASS in 89.6s** — characterized as environmental flake, not a code regression. All T07 assertions passed in BOTH runs.
+  - `testRawOCRSuccessFixtureShowsPreservedRawText`: root + raw text present; label contains 张伟 / +86 138 0013 8000 / wei.zhang@zhiyuntech.com verbatim; no 保存; 重拍 returns to `scan-camera-preview`.
+  - `testRawOCREmptyFixtureShowsEmptyState`: `scan-recognition-empty` + "未识别到文字"; no raw-text block; not the failed id; no 保存; 重拍 returns.
+  - `testCropConfirmFlowsIntoRawRecognitionWithoutHandles` (adapted Increment 5 test): confirm now lands on the recognition screen; all four handles and the editing boundary absent; 重拍 recovers.
+- Validation screenshots (fixture-driven; manually opened and visually verified by AI — NOT human visual comparison): `ai/validation/2026-10-01-increment6-raw-ocr-fixture.png` (corrected synthetic card + 4 preserved lines), `ai/validation/2026-10-01-increment6-empty-ocr-fixture.png` (empty state). Fixture UI ≠ real Vision; real recognition is covered by the processor/dataset tests above.
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep matches are explanatory comments only).
+- No Vision types in ViewModel/View: `RecognizedTextObservation`/`RecognizeTextRequest` confined to `SimCamCard/OCR/` (the only other `import Vision` files are the pre-existing Detection services). `UIImage(data:)` in RawRecognitionView is a display adapter only.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / CardCropProcessor / CardRegionGeometry / AspectFitCoordinateMapper / project.pbxproj: unchanged. `BusinessCard.rawOCRText` (Week 2 optional, default nil) is NOT written by this increment — raw text lives only in `CardOCRResult`; the only `rawOCRText:` references remain pre-existing nil mocks.
+- New files auto-included via filesystem-synchronized groups; no pbxproj edits. `git status` shows no `ai/prompts/_local/` path.
+
+### Traceability
+
+- T04 capture mechanics: PASS automated; capture → Crop: PASS; capture → OCR processing: PASS automated (auto-chain after confirm); structured capture → Recognition/Edit: NOT IMPLEMENTED (Week 4); T04 overall: PARTIAL.
+- T05 import mechanics: PASS; import → Crop: PASS; import → OCR: same shared auto-chain; structured Recognition/Edit: NOT IMPLEMENTED; T05 overall: PARTIAL.
+- T07 Swift-native Vision text request on the upright PNG: PASS automated (real Vision, processor tests).
+- T07 cropped image → OCR: PASS automated (dataset smoke, real chain).
+- T07 raw observation lines preserved verbatim (top-1, order kept, correction off): PASS automated; real-data caveats (邮稍 / 张 伟) recorded above.
+- T07 raw text presented for copy (selection, not editing): PASS fixture-driven UI; Reference raw-text page NOT OBSERVED → Reference fidelity NOT APPLICABLE / NOT ESTABLISHED; this is explicitly a transitional implementation surface.
+- T07 overall: **PASS (functional, automated)** on manually verified image↔GT-consistent cards (card-001, card-004, card-016); card-013's OCR smoke is BLOCKED by a broader pre-existing frozen dataset image/GT integrity issue (card-005, card-013, card-014 confirmed mismatched); dataset NOT modified; physical-device camera→EXIF→crop→OCR chain still PENDING real hardware; native PhotosPicker real-asset path still NOT INDEPENDENTLY VERIFIED.
+- S05: processing state IMPLEMENTED; raw OCR transport (`processing` / raw / empty / failed foundation) IMPLEMENTED. Frozen structured states `structuredResultAvailable` / `missingFields` / `multiplePhoneFields` / `manualEditing`: NOT IMPLEMENTED (Week 4). `nonCardEmptyResult`: only the empty-RAW foundation exists — NOT the frozen structured behavior; must not be claimed as S05 acceptance. Cancelled/error path: IMPLEMENTED per actual behavior (`.failed` + 重拍).
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).
+
+AI did not commit, merge or tag. Increment 7 not entered. Recommended commit message when accepted: `feat(ocr): 实现名片原始文本识别`.
+
+## 2026-10-02 — Increment 6 Pre-Accept Correction (dataset integrity + actor reentrancy)
+
+Baseline: 68d242c. This section amends Increment 6 before Accept; no commit made.
+
+### Broader frozen dataset image/GT integrity issue
+
+A broader pre-existing frozen dataset image/GT integrity issue was discovered during Increment 6. Confirmed mismatches include card-005, card-013 and card-014. Increment 6 did not modify dataset or ground truth.
+
+**Manual re-verification of the primary four sources** (dataset/cards/card-013-english-bio-photographed.png, dataset/cards/card-014-missing-email-security.png, dataset/ground-truth/card-013.json, dataset/ground-truth/card-014.json):
+
+| Source | Identity observed |
+|---|---|
+| card-013 PNG | Kevin Park / Morningside Secure Systems / +1 (646) 555-0113 |
+| card-014 PNG | 何嘉怡 Jiayi He / 广州澜图文旅发展有限公司 (Chinese card) |
+| card-013 GT | Daniel Wu / Stonepine BioSystems / +44 7700 900245 |
+| card-014 GT | Kevin Park / Morningside Secure Systems / +1 (646) 555-0113 |
+
+Additionally verified during replacement-candidate screening: **card-005 PNG shows 王敏 Min Wang / 星澜智能制造有限公司 (the card-010 GT identity), not the card-005 GT (Olivia Chen / North Harbor Analytics).** card-013's PNG contains the identity card-014's GT describes. This is a PRE-EXISTING FROZEN DATASET INTEGRITY ISSUE, not an OCR defect. The dataset was NOT modified; Kevin Park is NOT adopted as new card-013 ground truth.
+
+**OCR functional smoke accounting** (only manually verified image↔GT-consistent cards count as real functional validation):
+
+- card-001 standard bilingual: PASS
+- card-004 minimal name+mobile: PASS
+- card-016 English software engineer: PASS (replacement; PNG ↔ GT manually confirmed consistent)
+- card-013 English bio: **DISABLED / BLOCKED BY FROZEN DATASET INTEGRITY ISSUE** (frozen image and GT do not correspond)
+
+card-013's disabled placeholder documents the mismatch in `OCRPipelineDatasetSmokeTests`; card-001 and card-004 smokes remain unchanged. The dataset was NOT modified; spec/* untouched.
+
+### Swift actor reentrancy correction
+
+**CardOCRProcessor actor comment fixed:** Removed the false claim that "actor serializes access to at most one active recognition." The actor isolates processor state and keeps Vision types behind the boundary, but Swift actors are reentrant across await points — actor isolation alone does NOT prevent two `perform` calls from overlapping.
+
+### Recognition Task ownership (calibrated wording)
+
+**ScanViewModel owns at most one current recognition Task** (never Task.detached):
+
+- Starting a new recognition cancels and supersedes the previously owned Task (`beginRecognition`: `recognitionTask?.cancel(); recognitionTask = nil`, increments generation, spawns new `recognitionTask = Task { ... }`).
+- `retake`: increments generation, cancels task, nils it, sets `recognition = .inactive`.
+- `scannerDidDisappear`: increments generation, cancels task, nils it (does NOT clear a settled result).
+- The Task body captures its generation; all state writes are guarded by `generation == self.recognitionGeneration`.
+
+**Responsibilities (calibrated):**
+- recognitionGeneration guarantees that stale completion from an older recognition cannot mutate the current workflow state.
+- Task cancellation does not establish that an already-running Vision request aborts immediately; underlying early-abort behavior remains framework-dependent.
+- No semaphore / blocking queue added; existing retake / scannerDidDisappear cancellation and new-recognition-supersedes-old semantics unchanged.
+
+### Stale A → new B deterministic test
+
+Added `staleACannotOverwriteNewerB` to ScanViewModelTests:
+
+1. OCR A starts (gated) → `.processing`, enteredCount=1.
+2. Retake → cancels A, invalidates generation, recognition = .inactive.
+3. Release A's gate → A completes but is discarded (state stays .inactive).
+4. New capture → crop → confirm → OCR B starts on the SAME view model (same FakeOCRProcessor instance, enteredCount now 2).
+5. Release B's gate → B completes → `.rawTextAvailable` with B's rawText.
+
+Assertions: A cannot resurrect recognition; B owns final state; A entered once, B entered once. No sleep; deterministic via gates + bounded Task.yield.
+
+### Updated test totals
+
+Swift Testing actual runner output: **162 discovered; 161 executed; 161 PASS; 1 disabled/skipped**.
+
+- **Baseline unit:** 147/147 PASS (unchanged from pre-Increment-6).
+- **OCR processor unit:** 5/5 PASS (config contract / rawText verbatim / real Vision on rendered PNG / empty non-throwing / invalid bytes).
+- **OCR dataset functional smoke:** 3/3 PASS (card-001 / card-004 / card-016); 1 disabled / BLOCKED (card-013 frozen dataset image/GT mismatch).
+- **ScanViewModel T07 workflow:** 6/6 PASS (auto-start processing→rawText / empty→.emptyRawResult / failure→.failed / retake stale discard / disappear stale discard / stale A→B supersede).
+- **Total accounting:** 147 + 5 + 3 + 6 = **161 executed and passing**; 1 disabled card-013 placeholder = **162 discovered**.
+
+**UI tests:** 23 total scheme tests; T07 3-test regression (success/empty/confirm-flow) PASS (94.971s).
+
+**Release build:** PASS; binary strings zero matches for SimCamCardOCR / DebugOCRProcessor / SimCamCardCrop / DebugCropProcessor / SimCamCardCamera / DebugCameraSessionController.
+
+**Concurrency audit:** zero @unchecked Sendable / nonisolated(unsafe) / Task.detached; Vision types confined to SimCamCard/OCR/ (Detection files are pre-existing).
+
+**Scope audit:** dataset/*, spec/*, Model/*, Repository/*, MockBusinessCards.swift, CardCropProcessor, CardRegionGeometry, AspectFitCoordinateMapper, project.pbxproj unchanged; no ai/prompts/_local/.
+
+### card-016 real Vision output (new smoke card)
+
+card-016-en-software-engineer.png → full chain (detect → perspectiveCorrect → OCR) → 7 lines:
+`Michael Chen / Senior Software Engineer / CloudMatrix Inc. / +1 415 555 0199 / mchen@cloudmatrix.com / www.cloudmatrix.com / 500 Terry A Francois Blvd, San Francisco, CA 94158, USA`
+
+Anchors verified: michael, chen, cloudmatrix, 14155550199 (digit-only).
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).
+
+AI did not commit, merge or tag. Increment 7 not entered.

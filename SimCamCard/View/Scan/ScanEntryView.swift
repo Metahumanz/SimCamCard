@@ -136,11 +136,15 @@ struct ScanEntryView: View {
                 }
             }
 
-            // P04 Crop / Boundary Adjust owns the full screen whenever
-            // the still pipeline is active (prepare / adjust / confirm
-            // / failed); retakeRequested transiently renders the
-            // Scanner while preview restarts.
-            if viewModel.cardRegion.isCropScreenActive {
+            // T07 raw recognition owns the full screen once a crop is
+            // confirmed (processing / raw text / empty / failure) and
+            // covers the lingering .confirmed crop image beneath it.
+            // P04 Crop / Boundary Adjust owns the full screen otherwise
+            // (prepare / adjust / failed); retakeRequested transiently
+            // renders the Scanner while preview restarts.
+            if viewModel.recognition.isActive {
+                RawRecognitionView(viewModel: viewModel)
+            } else if viewModel.cardRegion.isCropScreenActive {
                 CardCropView(viewModel: viewModel)
             }
         }
