@@ -2645,3 +2645,165 @@ week3-camera-ocr-baseline
 ### Human Decision
 
 Accepted — 2026-10-02 (human review).
+
+---
+
+## Week 4 Increment 1 — Structured Extraction Core (2026-10-02)
+
+### Baseline / scope
+
+```text
+baseline: e68f7c1 (tag: dataset-integrity-baseline), branch week4/structured-recognition
+scope: CardOCRResult → deterministic local structured extraction → StructuredRecognitionResult
+T08/T09/T10 parser core; T11 manual editing NOT implemented; no UI integration
+```
+
+### Architecture
+
+New pipeline intermediate layer `SimCamCard/Recognition/` (NOT a Domain Model — no id,
+no image references, no tags/notes, no persistence):
+
+- `StructuredCardFields` — `name/company/jobTitle: String?`, `phones: [PhoneNumber]`
+  (reuses the frozen domain `PhoneNumber.Kind` = mobile/office/fax/other; single phone
+  source of truth, kind-filtered accessor only), `emails: [String]`, `website: String?`,
+  `address: String?`, `unclassifiedText: [String]`. No nameLatin/companyLatin/department/
+  languageProfile — frozen Domain unchanged; latin counterparts stay unclassified evidence.
+- `StructuredRecognitionResult` — carries the unchanged `CardOCRResult` + fields; full
+  traceability StructuredRecognitionResult → CardOCRResult → CardCropResult → CapturedPhoto.
+- `CardFieldExtractor` / `CardFieldExtracting` — synchronous, pure, deterministic value-type
+  parser (no suspension points, so the protocol is intentionally not async). Same input
+  always yields the same output, including deterministic positional phone UUIDs.
+
+### Parser strategy
+
+Two phases over preserved raw lines:
+
+1. **Phase A high-confidence typed fields**: email token regex (label-independent, so an OCR
+   mis-read label like 邮稍 does not block a legal email token); website only via
+   `www.`/`http://`/`https://` tokens with email ranges masked (bare domains never accepted);
+   phone lines via bilingual label families (手机/移动/Mobile/Cell, 电话/座机/Tel/Phone/Office,
+   传真/Fax; one-letter labels M:/T:/F: require a colon) plus an unlabelled pass; labelled
+   address with deterministic continuation-line joining.
+2. **Phase B semantic fields from remaining lines only**: company via frozen §18 suffix/
+   keyword sets (native form preferred; `Solutions` deliberately excluded — it collides with
+   the real title "Solutions Architect"), job title via §19 keyword sets (bilingual
+   `中文 | English` line preserved), name from the last remaining candidates (2–4 CJK chars
+   preferred, latin "Given Family" fallback; inline "何嘉怡 Jiayi He" → canonical CJK prefix,
+   full line kept as evidence).
+
+Value contract: internal normalized copies are used only for classification; returned values
+preserve OCR case/punctuation/phone formatting; labels and surrounding whitespace removed.
+Email exact-duplicates removed case-insensitively (first spelling kept); phones dedupe on
+(kind, digit string); encounter order preserved; no first/last-wins collapse.
+
+**Unlabeled phone classification:**
+
+```text
+- A phone with a reliable Mobile / Tel / Fax label is classified by
+  that label.
+
+- A generic unlabeled phone falls back to `.other`.
+
+- A narrowly recognized explicit +86 Chinese mobile-number format is
+  classified as `.mobile`.
+
+This exception exists because the frozen card-004 reference contains an
+unlabelled +86 mobile number while its Ground Truth semantics are
+mobile.
+
+This is a deterministic numbering-format heuristic, not dataset-ID
+lookup and not inference from previously seen cards.
+```
+
+Test coverage retained for both branches: a generic unlabeled phone → `.other`, and
+card-004's `+86 138 0013 8000` format → `.mobile`.
+
+### Real Vision → structured smoke evidence (PNG → crop → OCR → extract)
+
+- **card-001 (T08):** name `张伟`, company `上海智云科技有限公司`, title
+  `产品总监 |Product Director`, mobile `+86 138 0013 8000`, office `+86 21 5555 1234`,
+  email `wei.zhang@zhiyuntech.com`, website `www.zhiyuntech.com`, address
+  `上海市浦东新区世纪大道100号 200120`; unclassified = EN company + `Wei Zhang`.
+- **card-002 (T09):** website **nil** (email `lina.li@zhiyuntech.com` present, no URL token —
+  never derived from email domain); name `李娜`, company `上海智云科技有限公司`,
+  mobile `+86 139 1234 5678`, office `+86 21 6888 2468`, address extracted.
+- **card-003 (T10):** three phones classified independently — mobile `+86 136 8888 1024`,
+  office `+86 21 5666 7788`, fax `+86 21 5666 7799`; name `陈晨`; website/email/address ok.
+  Note Vision split the bilingual title (`商务拓展经理丨` + separate `Business Development
+  Manager`); parser honestly keeps the CN line as title and EN line unclassified.
+- **card-004 (minimal):** name `张 伟` (Vision-inserted space preserved verbatim), exactly one
+  phone `.mobile` `+86 138 0013 8000` (format rule), company/jobTitle/website/address nil,
+  emails empty.
+
+### T-status
+
+```text
+T08 structured extraction parser core: PASS (fixture + real card-001 smoke)
+T09 missing-field parser core: PASS (real card-002 website nil; no email→website fabrication)
+T10 multi-phone/fax parser core: PASS (real card-003 mobile/office/fax all correct)
+T08/T09/T10 full reference workflow: PARTIAL (P05 structured Recognition UI, RecognitionState
+    structuredResultAvailable, T11 manual correction, save/repository still not implemented)
+T11 manual correction: NOT IMPLEMENTED (Week 4 later increment)
+S05: processing + raw OCR transport already implemented; structuredResultAvailable /
+    nonCardEmptyResult UI / missingFields / multiplePhoneFields UI / manualEditing still NOT
+    IMPLEMENTED — this increment builds their data foundation (empty OCR → empty fields proven)
+```
+
+### Verification
+
+```text
+Debug build: PASS
+Release build: PASS (generic iOS Simulator destination, /tmp/w4i1-dd-release)
+Unit: 187 discovered / 187 executed / 187 PASS / 0 disabled
+  (baseline 162 + 21 CardFieldExtractor fixture tests incl. 17b card-004 format rule
+   + 4 real-pipeline StructuredExtractionDatasetSmokeTests card-001..004)
+UI: 26/26 PASS, one sequential run, iPhone 18 Pro id 5B32D815-5F37-4EE0-825C-85DE864E0B02,
+    parallel testing disabled (no UI/DEBUG fixture added this increment)
+```
+
+### Audits
+
+```text
+dataset/* diff: empty (read-only in tests)
+spec/* diff: empty
+SimCamCard/Model (incl. BusinessCard) diff: empty
+SimCamCard/Repository diff: empty
+ScanViewModel diff: empty
+RawRecognitionView diff: empty
+project.pbxproj diff: empty (filesystem-synchronized groups)
+scope: only new SimCamCard/Recognition/ (3 files) + SimCamCardTests/Recognition/ (2 files)
+       + this changes.md
+concurrency: no @unchecked Sendable, no nonisolated(unsafe), no Task.detached;
+             parser is a nonisolated pure value type, no Vision type leaks past OCR boundary;
+             no network/LLM/cloud/randomness, no dataset-ID knowledge in production
+raw OCR preservation: StructuredRecognitionResult.ocrResult == input asserted; rawText never
+                      mutated/regenerated; Vision mis-reads never corrected by parser
+```
+
+### Known limitations
+
+1. Structured parser is deterministic heuristic extraction, not semantic AI; it can fail on
+   layouts/labels outside the keyword sets.
+2. Real OCR errors propagate into extraction (e.g. `邮稍`, split bilingual titles, inserted
+   spaces) — parser classifies, it does not correct OCR.
+3. nameLatin / companyLatin are not frozen Domain fields; they survive only as
+   `unclassifiedText` evidence.
+4. P05 structured Recognition/Edit UI is not implemented (Increment 2 target).
+5. T11 manual correction is not implemented (Increment 3 target).
+6. No BusinessCard creation / save / repository integration yet; RecognitionState is
+   unchanged (raw-only family).
+7. Unlabelled Chinese mobile auto-classification is a deliberately narrow
+   numbering-format heuristic (documented under Parser strategy), not a general
+   number-type guesser; it has been reviewed and accepted as-is for this increment.
+8. Structured extraction currently assigns deterministic synthetic `PhoneNumber`
+   IDs so repeated extraction results remain semantically stable and `Equatable`.
+   These IDs belong only to the structured intermediate result. A later
+   final-record / `BusinessCard` creation step must not treat these positional
+   synthetic IDs as persisted domain identity; persisted `PhoneNumber` values
+   must receive final domain-appropriate identifiers when the corrected record is
+   materialized. This increment performs no `BusinessCard` creation and no
+   Repository save, so this is not a current blocker.
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review)
