@@ -2345,3 +2345,303 @@ Anchors verified: michael, chen, cloudmatrix, 14155550199 (digit-only).
 Accepted — 2026-10-02 (human review).
 
 AI did not commit, merge or tag. Increment 7 not entered.
+
+## 2026-10-02 — Week 3 Increment 7 Integration / Regression + Week 3 Freeze
+
+Baseline: b0404e2 (`feat(ocr): 实现名片原始文本识别`). Scope = integration/regression only; production freeze maintained.
+
+### Integration matrix
+
+| # | Scenario | Result |
+|---|----------|--------|
+| A | Camera authorized | PASS (fixture-driven automated) |
+| B | Camera denied | PASS (fixture-driven automated) |
+| C | Camera request → allowed | PASS (fixture-driven automated) |
+| D | Camera request → denied | PASS (fixture-driven automated) |
+| E | Photo import success | PASS (fixture-driven automated) |
+| F | Photo import cancel | PASS (fixture-driven automated) |
+| G | Photo import load failure | PASS (unit tested) |
+| H | live cardDetected | PASS (fixture-driven automated) |
+| I | live cardNotDetected | PASS (fixture-driven automated) |
+| J | camera capture → Crop | PASS (fixture-driven automated) |
+| K | photo import → Crop | PASS (fixture-driven automated) |
+| L | autoDetected Crop | PASS (fixture-driven automated) |
+| M | manualAdjusting Crop | PASS (fixture-driven automated) |
+| N | Crop confirm | PASS (fixture-driven automated) |
+| O | Crop retake | PASS (fixture-driven automated) |
+| P | Crop → raw OCR success | PASS (fixture-driven automated) |
+| Q | Crop → raw OCR empty | PASS (fixture-driven automated) |
+| R | Crop → raw OCR failure | PASS (fixture-driven automated) |
+| S | recognition retake → Scanner | PASS (fixture-driven automated) |
+| T | scanner exit while active | PASS (unit tested: disappearInvalidatesInFlightRecognition) |
+
+**Explicit non-claims:** All UI integration results are fixture-driven. Real AVFoundation camera capture, native PhotosPicker runtime, and physical-device verification are NOT INDEPENDENTLY VERIFIED.
+
+### New integration tests added
+
+1. **testCameraWorkflowRunsThroughCropAndRawOCRThenRetakes** — full camera pipeline: authorized → preview → capture → Crop → confirm → Raw OCR → retake → preview → close. Fixture-driven.
+2. **testPhotoImportWorkflowRunsThroughCropAndRawOCR** — photo import pipeline: authorized → 相册 → imported image → Crop → confirm → Raw OCR → retake → scanner. Fixture-driven.
+3. **testOCRFailureShowsStableRecoveryAndRetake** — OCR failure recovery: Crop confirm → recognition failed → no raw text → no Save → 重拍 → scanner. Fixture-driven.
+
+### Debug build
+
+**PASS** — 0 compile errors, 0 Swift concurrency diagnostics. Xcode 27 / iOS 27.0 SDK / Swift 6.4 language mode 6.
+
+### Release build
+
+**PASS** — SWIFT_ACTIVE_COMPILATION_CONDITIONS empty for Release.
+
+### Unit accounting
+
+Swift Testing actual runner output: **162 discovered; 161 executed; 161 PASS; 1 disabled/skipped**.
+
+- Baseline unit: 147/147 PASS (unchanged).
+- OCR processor unit: 5/5 PASS.
+- OCR dataset functional smoke: 3/3 PASS (card-001 / card-004 / card-016); 1 disabled / BLOCKED (card-013 frozen dataset image/GT mismatch).
+- ScanViewModel T07 workflow: 6/6 PASS (auto-start processing→rawText / empty→.emptyRawResult / failure→.failed / retake stale discard / disappear stale discard / stale A→B supersede).
+
+### UI accounting
+
+**26 UI tests total; 26/26 PASS in one full run** (418.948s, fixed UDID 5B32D815-5F37-4EE0-825C-85DE864E0B02, sequential).
+
+- Increment 6 baseline: 23 tests.
+- Increment 7 added: 3 integration tests (camera E2E / photo-import E2E / OCR failure recovery).
+- Previously flaky `testDeniedShowsStableFallbackWithoutSessionUI`: PASS in this clean run.
+
+### Dataset smoke
+
+- card-001 standard bilingual: PASS (real Vision).
+- card-004 minimal name+mobile: PASS (real Vision).
+- card-016 English software engineer: PASS (real Vision; PNG ↔ GT manually verified consistent).
+- card-013 English bio: **DISABLED / BLOCKED BY FROZEN DATASET INTEGRITY ISSUE** (frozen image and GT do not correspond; dataset NOT modified).
+
+### Fixture isolation audit
+
+Release binary strings: **0 matches** for SimCamCardCamera / DebugCameraSessionController / SimCamCardPhotoImport / SimCamCardDetection / DebugVideoFrameProcessor / SimCamCardCrop / DebugCropProcessor / SimCamCardOCR / DebugOCRProcessor.
+
+Production symbols present as expected: CameraSessionController (3), CardCropProcessor (2), CardOCRProcessor (2), OCRConfiguration (1).
+
+### Architecture audit
+
+- View → presentation + user intent only.
+- ScanViewModel → workflow ownership (@MainActor).
+- CameraSessionController → AVFoundation session (custom serial executor).
+- VideoFrameProcessor / CardRegionDetector → live Vision rectangle (dedicated detection queue).
+- CardCropProcessor → still decode/orientation/perspective correction (dedicated isolation).
+- CardOCRProcessor → raw text Vision (actor).
+- **No Vision types in SwiftUI View.** Detection files (VideoFrameProcessor, CardRegionDetector) legitimately use Vision for rectangle detection; OCR confined to SimCamCard/OCR/.
+- **No AVCaptureSession logic in View.**
+- **No UIImage source-of-truth in processor** (Data-based).
+- **No Repository save from ScanViewModel.**
+- **No BusinessCard creation in OCR/Crop.**
+
+### Concurrency audit
+
+- **Zero** `@unchecked Sendable` / `nonisolated(unsafe)` / `Task.detached` in production code.
+- `recognitionGeneration` stale guard: ACTIVE.
+- `recognitionTask` ownership: IMPLEMENTED (ScanViewModel owns at most one current recognition Task).
+- Task cancellation does not claim guaranteed immediate termination of an already-running Vision request; underlying Vision early-abort behavior remains framework-dependent.
+
+### State-family ownership audit
+
+Four state families remain independent:
+- S02 camera state (permissionUnknown/permissionDenied/preview/cardNotDetected/cardDetected/captured/cancelled)
+- S03 photoImport state (idle/pickerPresented/imageSelected/cancelled)
+- S04 cardRegion state (inactive/autoDetected/manualAdjusting/confirmed/retakeRequested)
+- raw RecognitionState (inactive/processing/rawTextAvailable/emptyRawResult/failed)
+
+No cross-contamination observed. Full path: preview → captured/imageSelected → crop → confirmed → recognition processing → raw/empty/failed. Retake path: recognition/crop → retakeRequested → preview.
+
+### Shared still pipeline audit
+
+Camera capture and Photo Import both enter the same pipeline:
+`CapturedPhoto → CardCropProcessor.prepare → CropDraft → perspectiveCorrect → CardCropResult → CardOCRProcessor`
+
+No duplicate camera/import OCR pipelines exist.
+
+### Original / processed image audit
+
+- `CapturedPhoto.data` = original source bytes (never overwritten).
+- `CardCropResult.processedImageData` = upright perspective-corrected PNG.
+- OCR **ONLY consumes processedImageData**; original image is never OCR'd.
+
+### Raw OCR audit
+
+Raw observations → top-1 candidate → surrounding trim only → OCRLine[] → newline-joined rawText.
+
+**Forbidden and confirmed absent:** phone normalization, email correction, field classification, semantic reorder, structured extraction.
+
+### Scope diff audit
+
+Production code changes: 0.
+
+Increment 7 working-tree artifacts:
+- SimCamCardUITests/ScanCameraUITests.swift
+- ai/changes.md
+- ai/validation/2026-10-02-increment7-camera-to-raw-ocr.png
+- ai/validation/2026-10-02-increment7-import-to-raw-ocr.png
+
+dataset/*, spec/*, Model/*, Repository/*, MockBusinessCards.swift, CardCropProcessor, CardRegionGeometry, AspectFitCoordinateMapper, project.pbxproj unchanged. No ai/prompts/_local/.
+
+### Frozen spec/data audit
+
+- spec/*: UNCHANGED
+- dataset/*: UNCHANGED
+- Model/*: UNCHANGED
+- Repository/*: UNCHANGED
+- MockBusinessCards.swift: UNCHANGED
+
+### Reference traceability
+
+#### T03 Camera Permission
+- allowed: PASS fixture-driven automated
+- denied: PASS fixture-driven automated
+- notDetermined → granted: PASS fixture-driven automated
+- notDetermined → denied: PASS fixture-driven automated
+- real iOS system camera permission dialog: NOT INDEPENDENTLY VERIFIED / no physical device
+- **T03 overall: PARTIAL**
+
+#### T04 Capture
+- capture mechanics: PASS fixture/automated
+- capture → still image → Crop: PASS
+- Crop → perspective correction: PASS
+- Crop → Raw OCR: PASS
+- structured Recognition/Edit: NOT IMPLEMENTED
+- physical camera: NOT INDEPENDENTLY VERIFIED
+- **T04 overall: PARTIAL**
+
+#### T05 Photo Import
+- photo import presentation/state: PASS automated
+- fixture selected image → Crop: PASS
+- Crop → Raw OCR: PASS
+- cancel: PASS
+- load failure: PASS
+- native PhotosPicker real selection: NOT INDEPENDENTLY VERIFIED
+- structured Recognition/Edit: NOT IMPLEMENTED
+- **T05 overall: PARTIAL**
+
+#### T06 Boundary Detection
+- live detection orchestration: PASS automated
+- fixture overlay: PASS
+- real dataset still rectangle detection: PASS
+- Crop autoDetected: PASS
+- manual adjustment: PASS
+- confirm: PASS
+- perspective correction: PASS
+- physical live camera detection: NOT INDEPENDENTLY VERIFIED
+- **T06 overall: PARTIAL**
+
+#### T07 Raw OCR
+- Swift-native Vision request: PASS real automated
+- processed crop → OCR: PASS
+- raw lines preserved: PASS
+- rawText preserved: PASS
+- empty result: PASS
+- failure separated from empty: PASS
+- verified dataset OCR: card-001 PASS, card-004 PASS, card-016 PASS
+- card-013: BLOCKED / disabled for OCR identity validation
+- raw-text Reference UI: NOT OBSERVED
+- physical camera → crop → OCR: NOT INDEPENDENTLY VERIFIED
+- **T07 functional requirement: PASS**
+
+### S02 Camera/Scanner state coverage
+
+- permissionUnknown: IMPLEMENTED
+- permissionDenied: IMPLEMENTED
+- preview: IMPLEMENTED
+- cardNotDetected: IMPLEMENTED
+- cardDetected: IMPLEMENTED
+- captured: IMPLEMENTED
+- cancelled: implementation/navigation coverage
+
+### S03 Photo Import state coverage
+
+- pickerPresented: IMPLEMENTED
+- imageSelected: IMPLEMENTED
+- cancelled: IMPLEMENTED
+- photoPermissionRequired / photoPermissionDenied: NOT EXPLICITLY IMPLEMENTED (system PhotosPicker owns access semantics)
+
+### S04 Card Region state coverage
+
+- autoDetected: IMPLEMENTED
+- manualAdjusting: IMPLEMENTED
+- confirmed: IMPLEMENTED
+- retakeRequested: IMPLEMENTED
+
+### S05 Recognition state coverage
+
+- processing: IMPLEMENTED
+- raw OCR transport: IMPLEMENTED
+- structuredResultAvailable: NOT IMPLEMENTED
+- nonCardEmptyResult: NOT FULLY IMPLEMENTED (only raw-OCR foundation exists)
+- missingFields: NOT IMPLEMENTED
+- multiplePhoneFields: NOT IMPLEMENTED
+- manualEditing: NOT IMPLEMENTED
+- cancelled: 按当前 raw OCR recovery 行为记录
+
+### Known limitations (Week 3 freeze)
+
+1. No physical iPhone verification.
+2. Real AVFoundation camera capture pending physical device.
+3. Real live-camera rectangle alignment pending physical device.
+4. Native PhotosPicker real-asset runtime not independently verified.
+5. RawRecognitionView is transitional, not reference P05.
+6. Structured extraction T08+ not implemented.
+7. Confirmed pre-existing frozen dataset image/GT mismatches:
+   - card-005
+   - card-013
+   - card-014
+
+   card-013 OCR identity validation: DISABLED / BLOCKED.
+
+   Dataset was not modified during Week 3.
+
+   A complete 34-card image ↔ GT integrity audit is required
+   after Week 3 freeze and before Week 4 T08–T11 structured-extraction
+   validation.
+
+### Week 3 freeze readiness criteria
+
+| Criterion | Status |
+|-----------|--------|
+| Debug PASS | ✅ |
+| Release PASS | ✅ |
+| all executed unit tests PASS | ✅ (161/161) |
+| exact skipped count documented | ✅ (1 disabled) |
+| full UI suite clean PASS in one stable run | ✅ (26/26) |
+| camera fixture E2E PASS | ✅ |
+| photo-import fixture E2E PASS | ✅ |
+| OCR failure recovery PASS | ✅ |
+| real Crop/OCR dataset smoke PASS on valid cases | ✅ (card-001/004/016) |
+| Release fixture isolation PASS | ✅ |
+| concurrency audit PASS | ✅ |
+| architecture audit PASS | ✅ |
+| scope audit PASS | ✅ |
+| no unintended production changes | ✅ |
+| no frozen spec/data changes | ✅ |
+
+**READY FOR WEEK 3 FREEZE**
+
+### Recommended commit/merge/tag (for human decision)
+
+**Increment 7 commit:**
+```text
+test(week3): 完成扫描与OCR集成回归
+```
+
+**Merge to main (after Accept):**
+```bash
+git switch main
+git pull --ff-only
+git merge --no-ff week3/camera-ocr -m "merge: 完成Week 3相机裁剪与OCR链路"
+git push
+```
+
+**Tag (after merge + human verification):**
+```text
+week3-camera-ocr-baseline
+```
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).

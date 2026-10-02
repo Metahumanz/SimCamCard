@@ -625,4 +625,182 @@ final class ScanCameraUITests: XCTestCase {
         )
         closeScanner(app)
     }
+
+    // MARK: - Week 3 Increment 7: full integration tests
+
+    /// Fixture-driven full camera pipeline: authorized → preview →
+    /// capture → Crop → confirm → Raw OCR → retake → preview → close.
+    ///
+    /// This is a FIXTURE-DRIVEN integration test. It exercises the full
+    /// Week 3 pipeline using DEBUG-only fake camera/crop/OCR dependencies.
+    /// It does NOT verify real AVFoundation capture, real PhotosPicker,
+    /// or real Vision OCR. Real OCR is covered by CardOCRProcessorTests
+    /// and OCRPipelineDatasetSmokeTests.
+    @MainActor
+    func testCameraWorkflowRunsThroughCropAndRawOCRThenRetakes() throws {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized",
+            cropMode: "auto",
+            ocrMode: "success"
+        )
+
+        // 1. Preview present.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Camera preview must be present after authorized launch."
+        )
+
+        // 2. Capture → Crop.
+        app.buttons["scan-capture"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-view"].waitForExistence(timeout: 5),
+            "Capture must enter the Crop page."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
+            "Crop boundary must be present."
+        )
+
+        // 3. Confirm → Raw OCR.
+        app.buttons["scan-crop-confirm"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
+            "Confirm must auto-flow into raw recognition."
+        )
+
+        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
+        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
+                      "Raw text must be presented.")
+        XCTAssertTrue(rawText.label.contains("张伟"),
+                      "Name anchor must be present: \(rawText.label)")
+        XCTAssertTrue(rawText.label.contains("+86 138 0013 8000"),
+                      "Phone anchor must be present: \(rawText.label)")
+        XCTAssertTrue(rawText.label.contains("wei.zhang@zhiyuntech.com"),
+                      "Email anchor must be present: \(rawText.label)")
+
+        // 4. Retake → scanner preview returns.
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i7-camera-to-raw-ocr-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake must return to the scanner preview."
+        )
+
+        // 5. Close Scanner → Card Holder returns.
+        closeScanner(app)
+    }
+
+    /// Fixture-driven photo import integration: authorized → 相册 →
+    /// imported image → shared still pipeline → Crop → confirm → Raw
+    /// OCR → retake → scanner preview.
+    ///
+    /// This is a FIXTURE-DRIVEN integration test. It uses the DEBUG-only
+    /// photoImport imported mode. Native PhotosPicker runtime is NOT
+    /// INDEPENDENTLY VERIFIED.
+    @MainActor
+    func testPhotoImportWorkflowRunsThroughCropAndRawOCR() throws {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized",
+            photoImportMode: "imported",
+            cropMode: "auto",
+            ocrMode: "success"
+        )
+
+        // 1. Preview present.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Preview must be running before import."
+        )
+
+        // 2. 相册 → imported image → Crop.
+        app.buttons["scan-photo-import"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-view"].waitForExistence(timeout: 5),
+            "Import must enter the Crop page."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-boundary"].waitForExistence(timeout: 5),
+            "Crop boundary must be present after import."
+        )
+
+        // 3. Confirm → Raw OCR.
+        app.buttons["scan-crop-confirm"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
+            "Confirm after import must auto-flow into raw recognition."
+        )
+
+        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
+        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
+                      "Raw text must be presented after import.")
+        XCTAssertTrue(rawText.label.contains("张伟"),
+                      "Name anchor must be present: \(rawText.label)")
+
+        // 4. Retake → scanner preview returns.
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w3i7-import-to-raw-ocr-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake after import must return to the scanner preview."
+        )
+
+        closeScanner(app)
+    }
+
+    /// Fixture-driven OCR failure recovery: Crop confirm → recognition
+    /// failed → scan-recognition-failed exists → no raw text → no Save
+    /// → 重拍 → scanner preview returns.
+    ///
+    /// This is a FIXTURE-DRIVEN regression test. The DEBUG fixture
+    /// throws OCRError.recognitionFailed. It verifies that Vision/request
+    /// failure is separated from empty raw OCR (S05 distinction).
+    @MainActor
+    func testOCRFailureShowsStableRecoveryAndRetake() throws {
+        let app = launchAndEnterScanner(
+            cameraMode: "authorized",
+            cropMode: "auto",
+            ocrMode: "failure"
+        )
+
+        // 1. Capture → Crop.
+        app.buttons["scan-capture"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-crop-view"].waitForExistence(timeout: 5),
+            "Capture must enter the Crop page."
+        )
+
+        // 2. Confirm → OCR failure.
+        app.buttons["scan-crop-confirm"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-failed"].waitForExistence(timeout: 10),
+            "OCR failure must present the failed state."
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
+            "Failure must not present raw text."
+        )
+        XCTAssertFalse(
+            app.buttons["保存"].exists,
+            "No Save action exists on OCR failure."
+        )
+
+        // 3. Retake → scanner preview returns.
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake after failure must return to the scanner preview."
+        )
+
+        closeScanner(app)
+    }
 }
