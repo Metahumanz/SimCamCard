@@ -49,3 +49,15 @@ For every card, preserve separately:
 ## Immutability
 
 After the Week 1 baseline is frozen, card images, Ground Truth business fields, and exception fixtures must not be silently modified. Any real correction must be recorded as an explicit dataset revision.
+
+## Dataset revisions
+
+### 2026-10-02 — image-ID permutation correction
+
+Phase A integrity audit found eight card images assigned to incorrect card IDs (005–014 range).
+
+The eight existing PNG byte streams were reassigned to their intended canonical card paths.
+
+Ground Truth fields were unchanged.
+
+See: revisions/2026-10-02-image-id-permutation.md
