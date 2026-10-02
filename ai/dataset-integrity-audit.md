@@ -270,4 +270,134 @@ No dataset/*, spec/*, SimCamCard/*, SimCamCardTests/*, SimCamCardUITests/*, or p
 
 ---
 
+## Phase B Dataset Revision Validation
+
+**Date:** 2026-10-02
+**Action:** Corrected 8-card image-ID permutation (dataset/revisions/2026-10-02-image-id-permutation.md)
+
+### Permutation Applied
+
+| Old PNG | New Canonical Path | Identity |
+|---------|-------------------|----------|
+| card-006 | card-005 | Olivia Chen / North Harbor Analytics |
+| card-009 | card-006 | Emma Xu / Green Aurora Studio |
+| card-014 | card-009 | 何嘉怡 / 广州澜图文旅 |
+| card-005 | card-010 | 王敏 / 星澜智能制造 |
+| card-012 | card-011 | 孙悦 / 宁波启辰精工 |
+| card-010 | card-012 | 周婷 / 成都云桥教育 |
+| card-011 | card-013 | Daniel Wu / Stonepine BioSystems |
+| card-013 | card-014 | Kevin Park / Morningside Secure Systems |
+
+### Post-Revision Audit Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total cards | 34 | 34 |
+| MATCH | 26 | **34** |
+| MISMATCH | 8 | **0** |
+| AMBIGUOUS | 0 | **0** |
+
+### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Structural audit (counts/IDs/bijection/consistency/hash) | PASS |
+| Hash multiset conservation | PASS (34→34, 0 duplicates) |
+| card-005 (Olivia Chen) | MATCH ✓ |
+| card-006 (Emma Xu) | MATCH ✓ |
+| card-009 （何嘉怡） | MATCH ✓ |
+| card-010 （王敏） | MATCH ✓ |
+| card-011 （孙悦） | MATCH ✓ |
+| card-012 （周婷） | MATCH ✓ |
+| card-013 (Daniel Wu) | MATCH ✓ |
+| card-014 (Kevin Park) | MATCH ✓ |
+| card-001 standard bilingual | MATCH ✓ |
+| card-002 missing website | MATCH ✓ |
+| card-003 multiple phones/fax | MATCH ✓ |
+| card-004 minimal name/mobile | MATCH ✓ |
+| card-016 software engineer | MATCH ✓ |
+
+### Test Results
+
+| Suite | Result |
+|-------|--------|
+| Unit tests | 162/162 PASS (0 disabled) |
+| card-013 OCR smoke | PASS (0.840s) |
+| card-013 Crop pipeline | PASS |
+| card-016 OCR smoke | PASS |
+| UI tests | 26/26 PASS |
+| Debug build | PASS |
+| Release build | PASS |
+| Release DEBUG fixture isolation | PASS (0 symbols) |
+
+### Metadata
+
+- Ground Truth JSON: unchanged
+- CSV: unchanged
+- JSONL: unchanged
+- Only PNG path-to-content assignment corrected
+
+### Final Evidence Verification (2026-10-02, baseline df334f5)
+
+Byte-level conservation vs the Phase A commit:
+
+```text
+BEFORE_COUNT = 34
+AFTER_COUNT = 34
+
+BEFORE_UNIQUE_HASHES = 34
+AFTER_UNIQUE_HASHES = 34
+
+HASH_MULTISET_EQUAL = True
+
+8/8 mapping verification = PASS
+
+Individual GT changes = 0
+CSV changes = 0
+JSONL changes = 0
+
+Production diff = 0
+Spec diff = 0
+pbxproj diff = 0
+
+Unit = 162/162 PASS
+UI = 26/26 PASS
+Debug = PASS
+Release = PASS
+```
+
+Contact sheet evidence:
+
+```text
+cards-001-009.png:
+updated after Phase B
+visual verification PASS (005 Olivia Chen, 006 Emma Xu, 009 何嘉怡)
+
+cards-010-018.png:
+updated after Phase B
+visual verification PASS (010 王敏, 011 孙悦, 012 周婷, 013 Daniel Wu, 014 Kevin Park)
+
+cards-019-027.png:
+byte-identical, no affected IDs
+
+cards-028-034.png:
+byte-identical, no affected IDs
+```
+
+Final working-tree scope:
+
+```text
+13 modified tracked paths
+1 untracked revision-record path
+14 total paths
+```
+
+---
+
+**WEEK 4 DATASET READINESS: READY**
+
+All 34 cards confirmed image↔GT MATCH. Representative cards (001-004) trustworthy. Week 3 smoke cards (001/004/007/016) all functional. card-013 OCR restored and passing.
+
+---
+
 **Human Decision:** Accepted — 2026-10-02 (human review).

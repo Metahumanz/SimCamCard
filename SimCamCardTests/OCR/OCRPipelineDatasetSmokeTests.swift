@@ -100,25 +100,29 @@ struct OCRPipelineDatasetSmokeTests {
                 "mobile anchor (raw: \(result.rawText))")
     }
 
-    /// card-013's dataset PNG does not match its frozen ground truth
-    /// (image shows Kevin Park / Morningside Secure Systems; frozen
-    /// card-013 GT is Daniel Wu / Stonepine BioSystems, and card-014
-    /// GT matches the card-013 image — a frozen dataset image/GT
-    /// mismatch, not an OCR defect). This smoke is intentionally
-    /// BLOCKED until the frozen dataset is resolved; the dataset is
-    /// NOT modified here.
-    @Test(
-        "card-013 frozen dataset image/GT mismatch — blocked",
-        .disabled("card-013 PNG shows Kevin Park but frozen GT is Daniel Wu; dataset integrity issue, dataset not modified")
-    )
+    /// card-013 English bio-photographed card (Daniel Wu / Stonepine
+    /// BioSystems). Re-enabled after the 2026-10-02 dataset revision
+    /// corrected the pre-existing image-ID permutation; the intended
+    /// image now matches the frozen GT.
+    @Test("card-013 English bio-photographed (Daniel Wu): raw anchors")
     func card013EnglishBioPhotographed() async throws {
-        _ = try await recognizeCard("card-013-english-bio-photographed.png")
+        let result = try await recognizeCard("card-013-english-bio-photographed.png")
+
+        #expect(!result.rawText.isEmpty, "raw text must not be empty for card-013")
+
+        let compact = Self.compact(result.rawText)
+        #expect(compact.contains("daniel"), "given-name anchor (raw: \(result.rawText))")
+        #expect(compact.contains("wu"), "family-name anchor (raw: \(result.rawText))")
+        #expect(compact.contains("stonepinebio"),
+                "domain anchor (raw: \(result.rawText))")
+        #expect(Self.digits(result.rawText).contains("447700900245"),
+                "mobile anchor (raw: \(result.rawText))")
     }
 
-    /// Third OCR functional smoke uses card-016: its PNG ↔ frozen GT
+    /// Fourth OCR functional smoke uses card-016: its PNG ↔ frozen GT
     /// are manually confirmed consistent (Michael Chen / CloudMatrix
     /// Inc., English, clean synthetic card with visible white boundary).
-    /// Replaces the blocked card-013 entry.
+    /// Complements card-013 for broader English coverage.
     @Test("card-016 English software engineer (synthetic): raw anchors")
     func card016EnglishSoftwareEngineer() async throws {
         let result = try await recognizeCard("card-016-en-software-engineer.png")
