@@ -498,7 +498,7 @@ final class ScanCameraUITests: XCTestCase {
     /// substrate of the T07 raw recognition screen that automatically
     /// follows; the editing boundary/handles are gone.
     @MainActor
-    func testCropConfirmFlowsIntoRawRecognitionWithoutHandles() throws {
+    func testCropConfirmFlowsIntoStructuredRecognitionWithoutHandles() throws {
         let app = enterCropPage(cropMode: "auto", ocrMode: "success")
 
         XCTAssertTrue(
@@ -509,8 +509,8 @@ final class ScanCameraUITests: XCTestCase {
         app.buttons["scan-crop-confirm"].tap()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
-            "Confirm must auto-flow into the raw recognition screen."
+            app.descendants(matching: .any)["scan-recognition-form"].waitForExistence(timeout: 10),
+            "Confirm must auto-flow into the P05 structured recognition form."
         )
 
         for handleId in [
@@ -531,21 +531,18 @@ final class ScanCameraUITests: XCTestCase {
         closeScanner(app)
     }
 
-    // MARK: - T07 raw OCR: success fixture
+    // MARK: - P05 structured recognition: success fixture
 
-    /// Fixture-driven T07 success regression: crop 完成 → the raw
-    /// recognition screen presents the preserved raw text
-    /// (verbatim name / phone / email), offers no structured fields or
-    /// save action, and 重拍 returns to the scanner.
+    /// Fixture-driven T08 success regression: crop 完成 → the P05
+    /// structured form presents the extracted fields (name / company /
+    /// job title / mobile / office / email / website / address) in a
+    /// read-only layout. No Save action exists.
     ///
     /// NON-CLAIM: this is NOT real Vision OCR. The DEBUG fixture
     /// returns fixed lines; real recognition is covered by
-    /// CardOCRProcessorTests and the OCR dataset smoke tests. The
-    /// raw-text screen is an implementation transitional surface — the
-    /// CamCard raw-text page was not externally observed, so no
-    /// Reference fidelity is claimed.
+    /// CardOCRProcessorTests and the OCR dataset smoke tests.
     @MainActor
-    func testRawOCRSuccessFixtureShowsPreservedRawText() throws {
+    func testStructuredRecognitionSuccessShowsP05Fields() throws {
         let app = enterCropPage(cropMode: "auto", ocrMode: "success")
 
         XCTAssertTrue(
@@ -554,26 +551,61 @@ final class ScanCameraUITests: XCTestCase {
         )
         app.buttons["scan-crop-confirm"].tap()
 
-        let root = app.descendants(matching: .any)["scan-recognition-view"]
-        XCTAssertTrue(root.waitForExistence(timeout: 5),
-                      "Confirm must enter the raw recognition screen.")
-        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
-        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
-                      "The preserved raw text must be presented.")
-        XCTAssertTrue(rawText.label.contains("张伟"),
-                      "Chinese name must be preserved verbatim: \(rawText.label)")
-        XCTAssertTrue(rawText.label.contains("+86 138 0013 8000"),
-                      "Phone spacing/prefix must be preserved verbatim: \(rawText.label)")
-        XCTAssertTrue(rawText.label.contains("wei.zhang@zhiyuntech.com"),
-                      "Email case/punctuation must be preserved verbatim: \(rawText.label)")
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Confirm must enter the P05 structured recognition form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-structured"].exists,
+                      "State marker must be structuredResultAvailable.")
 
-        // T07 carries no structured fields and no Save.
+        // Field values must be present and correct.
+        let name = app.descendants(matching: .any)["scan-field-name"]
+        XCTAssertTrue(name.exists, "Name field must exist.")
+        XCTAssertTrue(name.staticTexts["张伟"].exists, "Name must be 张伟.")
+
+        let company = app.descendants(matching: .any)["scan-field-company"]
+        XCTAssertTrue(company.exists, "Company field must exist.")
+        XCTAssertTrue(company.staticTexts["上海智云科技有限公司"].exists,
+                      "Company must contain 智云.")
+
+        let title = app.descendants(matching: .any)["scan-field-job-title"]
+        XCTAssertTrue(title.exists, "Job title field must exist.")
+        XCTAssertTrue(title.staticTexts["产品总监 | Product Director"].exists,
+                      "Job title must contain 产品总监.")
+
+        let mobile = app.descendants(matching: .any)["scan-field-mobile-0"]
+        XCTAssertTrue(mobile.exists, "Mobile field must exist.")
+        XCTAssertTrue(mobile.staticTexts["+86 138 0013 8000"].exists,
+                      "Mobile must contain 13800138000.")
+
+        let office = app.descendants(matching: .any)["scan-field-office-0"]
+        XCTAssertTrue(office.exists, "Office field must exist.")
+        XCTAssertTrue(office.staticTexts["+86 21 5555 1234"].exists,
+                      "Office must contain 2155551234.")
+
+        let email = app.descendants(matching: .any)["scan-field-email-0"]
+        XCTAssertTrue(email.exists, "Email field must exist.")
+        XCTAssertTrue(email.staticTexts["wei.zhang@zhiyuntech.com"].exists,
+                      "Email must contain wei.zhang.")
+
+        let website = app.descendants(matching: .any)["scan-field-website"]
+        XCTAssertTrue(website.exists, "Website field must exist.")
+        XCTAssertTrue(website.staticTexts["www.zhiyuntech.com"].exists,
+                      "Website must contain zhiyuntech.")
+
+        let address = app.descendants(matching: .any)["scan-field-address"]
+        XCTAssertTrue(address.exists, "Address field must exist.")
+        XCTAssertTrue(address.staticTexts["上海市浦东新区世纪大道100号 200120"].exists,
+                      "Address must be present.")
+
+        // No raw-text block, no Save.
+        XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
+                       "P05 must not present the old raw-text block.")
         XCTAssertFalse(app.buttons["保存"].exists,
-                       "No Save action exists in the raw-text increment.")
+                       "No Save action exists in the P05 read-only increment.")
 
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "w3i6-raw-ocr-fixture"
+        attachment.name = "w4i2-structured-success-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
 
@@ -585,36 +617,66 @@ final class ScanCameraUITests: XCTestCase {
         closeScanner(app)
     }
 
-    // MARK: - T07 raw OCR: empty fixture
+    // MARK: - P05 structured recognition: empty fixture
 
-    /// Fixture-driven T07 empty-result regression: zero recognized
-    /// lines land on a distinct EMPTY state — not a failure, with no
-    /// fabricated contact fields and a 重拍 recovery path. This is NOT
-    /// the frozen S05 nonCardEmptyResult (which belongs to structured
-    /// extraction in Week 4); only its raw foundation exists now.
+    /// Fixture-driven S05 empty-result regression: zero recognized
+    /// lines land on a distinct nonCardEmptyResult P05 form — not a
+    /// failure, with no fabricated contact fields and a 重拍 recovery
+    /// path. This is the frozen S05 nonCardEmptyResult state.
+    ///
+    /// Structural scope: the fixed scalar rows (姓名/公司/职位/公司地址)
+    /// remain present with empty values; data-driven rows are absent
+    /// (website per card-b evidence; phones/emails per actual elements).
+    /// This does NOT claim T20 full reference fidelity — the empty-card
+    /// visual behavior beyond this conservative structure has no
+    /// dedicated Reference evidence yet.
     @MainActor
-    func testRawOCREmptyFixtureShowsEmptyState() throws {
+    func testStructuredEmptyFixtureShowsEmptyP05WithoutFailure() throws {
         let app = enterCropPage(cropMode: "auto", ocrMode: "empty")
 
         app.buttons["scan-crop-confirm"].tap()
 
-        let empty = app.descendants(matching: .any)["scan-recognition-empty"]
-        XCTAssertTrue(empty.waitForExistence(timeout: 5),
-                      "Zero-text OCR must present the empty state.")
-        XCTAssertTrue(app.staticTexts["未识别到文字"].exists,
-                      "Empty state must explain that no text was recognized.")
-        XCTAssertFalse(
-            app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
-            "Empty state must not present a raw-text block."
-        )
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Zero-text OCR must present the P05 form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-empty"].exists,
+                      "State marker must be nonCardEmptyResult.")
         XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-failed"].exists,
                        "Empty is a valid result, not a failure.")
+        XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
+                       "P05 must not present the old raw-text block.")
         XCTAssertFalse(app.buttons["保存"].exists,
                        "No fabricated contact fields / save on empty result.")
 
+        // Fixed structural scalar rows stay present with empty values.
+        let name = app.descendants(matching: .any)["scan-field-name"]
+        XCTAssertTrue(name.exists, "Name structural row must exist.")
+        XCTAssertTrue(name.staticTexts["姓名"].exists, "Name row shows its label.")
+        // The only text inside the empty row is its label (an empty value
+        // Text carries no non-empty content).
+        let unexpectedNameValues = name.staticTexts.matching(
+            NSPredicate(format: "label != '姓名' AND label != ''")
+        )
+        XCTAssertEqual(unexpectedNameValues.count, 0,
+                       "Empty name row must not carry a fabricated value.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-company"].exists,
+                      "Company structural row must exist.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-job-title"].exists,
+                      "Job-title structural row must exist.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-address"].exists,
+                      "Address structural row must exist.")
+
+        // Data-driven rows: nothing recognized → absent.
+        XCTAssertFalse(app.descendants(matching: .any)["scan-field-website"].exists,
+                       "No website row may exist for a zero-text result.")
+        XCTAssertFalse(app.descendants(matching: .any)["scan-field-mobile-0"].exists,
+                       "No phone rows may exist for a zero-text result.")
+        XCTAssertFalse(app.descendants(matching: .any)["scan-field-email-0"].exists,
+                       "No email rows may exist for a zero-text result.")
+
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "w3i6-empty-ocr-fixture"
+        attachment.name = "w4i2-structured-empty-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
 
@@ -623,21 +685,102 @@ final class ScanCameraUITests: XCTestCase {
             app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
             "Retake must return to the scanner preview."
         )
+        closeScanner(app)
+    }
+
+    // MARK: - P05 structured recognition: missing field fixture
+
+    /// Fixture-driven T09 missing-field regression: card-002 style
+    /// (no website) lands on missingFields; the missing 首页 row is
+    /// OMITTED ENTIRELY (Reference REF-recognition-03/04 card-b) —
+    /// no empty row, no "N/A"/"未识别", no website fabricated from
+    /// the email domain.
+    @MainActor
+    func testStructuredMissingFieldFixtureOmitsWebsiteRow() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "missing")
+
+        app.buttons["scan-crop-confirm"].tap()
+
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Missing-field fixture must present the P05 form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-missing"].exists,
+                      "State marker must be missingFields.")
+
+        // The missing website row must not exist at all — neither an
+        // empty labeled row nor a fabricated value.
+        XCTAssertFalse(app.descendants(matching: .any)["scan-field-website"].exists,
+                       "Missing website must omit the 首页 row entirely.")
+        XCTAssertFalse(app.staticTexts["www.zhiyuntech.com"].exists,
+                       "Website must not be fabricated from the email domain.")
+        XCTAssertFalse(app.staticTexts["N/A"].exists)
+        XCTAssertFalse(app.staticTexts["未识别"].exists)
+
+        // Recognized fields are still displayed.
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-name"].exists,
+                      "Name field must exist.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-company"].exists,
+                      "Company field must exist.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-email-0"].exists,
+                      "Email field must exist.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-address"].exists,
+                      "Address field must exist.")
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w4i2-structured-missing-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
+        closeScanner(app)
+    }
+
+    // MARK: - P05 structured recognition: multiple phone fixture
+
+    /// Fixture-driven T10 multiple-phone regression: card-003 style
+    /// (mobile + office + fax) lands on multiplePhoneFields; all three
+    /// phone kinds are displayed separately.
+    @MainActor
+    func testStructuredMultiplePhoneFixtureShowsMobileOfficeFax() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "multiple")
+
+        app.buttons["scan-crop-confirm"].tap()
+
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Multiple-phone fixture must present the P05 form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-multiple"].exists,
+                      "State marker must be multiplePhoneFields.")
+
+        let mobile = app.descendants(matching: .any)["scan-field-mobile-0"]
+        XCTAssertTrue(mobile.exists, "Mobile field must exist.")
+        XCTAssertTrue(mobile.staticTexts["+86 136 8888 1024"].exists)
+
+        let office = app.descendants(matching: .any)["scan-field-office-0"]
+        XCTAssertTrue(office.exists, "Office field must exist.")
+        XCTAssertTrue(office.staticTexts["+86 21 5666 7788"].exists)
+
+        let fax = app.descendants(matching: .any)["scan-field-fax-0"]
+        XCTAssertTrue(fax.exists, "Fax field must exist.")
+        XCTAssertTrue(fax.staticTexts["+86 21 5666 7799"].exists)
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "w4i2-structured-multiple-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["scan-recognition-retake"].tap()
         closeScanner(app)
     }
 
     // MARK: - Week 3 Increment 7: full integration tests
 
     /// Fixture-driven full camera pipeline: authorized → preview →
-    /// capture → Crop → confirm → Raw OCR → retake → preview → close.
-    ///
-    /// This is a FIXTURE-DRIVEN integration test. It exercises the full
-    /// Week 3 pipeline using DEBUG-only fake camera/crop/OCR dependencies.
-    /// It does NOT verify real AVFoundation capture, real PhotosPicker,
-    /// or real Vision OCR. Real OCR is covered by CardOCRProcessorTests
-    /// and OCRPipelineDatasetSmokeTests.
+    /// capture → Crop → confirm → Structured P05 → retake → preview → close.
     @MainActor
-    func testCameraWorkflowRunsThroughCropAndRawOCRThenRetakes() throws {
+    func testCameraWorkflowRunsThroughCropAndStructuredRecognitionThenRetakes() throws {
         let app = launchAndEnterScanner(
             cameraMode: "authorized",
             cropMode: "auto",
@@ -661,27 +804,19 @@ final class ScanCameraUITests: XCTestCase {
             "Crop boundary must be present."
         )
 
-        // 3. Confirm → Raw OCR.
+        // 3. Confirm → Structured P05.
         app.buttons["scan-crop-confirm"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
-            "Confirm must auto-flow into raw recognition."
+            app.descendants(matching: .any)["scan-recognition-form"].waitForExistence(timeout: 10),
+            "Confirm must auto-flow into structured recognition."
         )
-
-        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
-        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
-                      "Raw text must be presented.")
-        XCTAssertTrue(rawText.label.contains("张伟"),
-                      "Name anchor must be present: \(rawText.label)")
-        XCTAssertTrue(rawText.label.contains("+86 138 0013 8000"),
-                      "Phone anchor must be present: \(rawText.label)")
-        XCTAssertTrue(rawText.label.contains("wei.zhang@zhiyuntech.com"),
-                      "Email anchor must be present: \(rawText.label)")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-name"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-mobile-0"].exists)
 
         // 4. Retake → scanner preview returns.
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "w3i7-camera-to-raw-ocr-fixture"
+        attachment.name = "w4i2-camera-to-structured-recognition-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
 
@@ -696,14 +831,14 @@ final class ScanCameraUITests: XCTestCase {
     }
 
     /// Fixture-driven photo import integration: authorized → 相册 →
-    /// imported image → shared still pipeline → Crop → confirm → Raw
-    /// OCR → retake → scanner preview.
+    /// imported image → shared still pipeline → Crop → confirm →
+    /// Structured P05 → retake → scanner preview.
     ///
     /// This is a FIXTURE-DRIVEN integration test. It uses the DEBUG-only
     /// photoImport imported mode. Native PhotosPicker runtime is NOT
     /// INDEPENDENTLY VERIFIED.
     @MainActor
-    func testPhotoImportWorkflowRunsThroughCropAndRawOCR() throws {
+    func testPhotoImportWorkflowRunsThroughCropAndStructuredRecognition() throws {
         let app = launchAndEnterScanner(
             cameraMode: "authorized",
             photoImportMode: "imported",
@@ -728,23 +863,18 @@ final class ScanCameraUITests: XCTestCase {
             "Crop boundary must be present after import."
         )
 
-        // 3. Confirm → Raw OCR.
+        // 3. Confirm → Structured P05.
         app.buttons["scan-crop-confirm"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["scan-recognition-view"].waitForExistence(timeout: 10),
-            "Confirm after import must auto-flow into raw recognition."
+            app.descendants(matching: .any)["scan-recognition-form"].waitForExistence(timeout: 10),
+            "Confirm after import must auto-flow into structured recognition."
         )
-
-        let rawText = app.descendants(matching: .any)["scan-recognition-raw-text"]
-        XCTAssertTrue(rawText.waitForExistence(timeout: 3),
-                      "Raw text must be presented after import.")
-        XCTAssertTrue(rawText.label.contains("张伟"),
-                      "Name anchor must be present: \(rawText.label)")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-field-name"].exists)
 
         // 4. Retake → scanner preview returns.
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "w3i7-import-to-raw-ocr-fixture"
+        attachment.name = "w4i2-import-to-structured-recognition-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
 
@@ -763,7 +893,7 @@ final class ScanCameraUITests: XCTestCase {
     ///
     /// This is a FIXTURE-DRIVEN regression test. The DEBUG fixture
     /// throws OCRError.recognitionFailed. It verifies that Vision/request
-    /// failure is separated from empty raw OCR (S05 distinction).
+    /// failure is separated from nonCardEmptyResult (S05 distinction).
     @MainActor
     func testOCRFailureShowsStableRecoveryAndRetake() throws {
         let app = launchAndEnterScanner(

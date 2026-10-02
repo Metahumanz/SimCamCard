@@ -1133,7 +1133,9 @@ struct ScanViewModelTests {
     /// in-flight continuation gate (no sleep). Never invokes Vision.
     private actor FakeOCRProcessor: CardOCRProcessing {
         enum Outcome {
-            case success
+            case success    // Card-001 full card
+            case missing    // Card-002 no website
+            case multiple   // Card-003 mobile+office+fax
             case empty
             case failure
         }
@@ -1173,8 +1175,38 @@ struct ScanViewModelTests {
             switch outcome {
             case .success:
                 return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "Shanghai Zhiyun Tech Co., Ltd.", confidence: 1.0),
                     OCRLine(text: "张伟", confidence: 1.0),
-                    OCRLine(text: "+86 138 0013 8000", confidence: 1.0),
+                    OCRLine(text: "Wei Zhang", confidence: 1.0),
+                    OCRLine(text: "产品总监 | Product Director", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 138 0013 8000", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 5555 1234", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：wei.zhang@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "网址 Web：www.zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市浦东新区世纪大道100号 200120", confidence: 1.0),
+                ])
+            case .missing:
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "李娜", confidence: 1.0),
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "市场总监 | Marketing Director", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 139 1234 5678", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 6888 2468", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：lina.li@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市浦东新区世纪大道188号 200120", confidence: 1.0),
+                ])
+            case .multiple:
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "陈晨", confidence: 1.0),
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "商务拓展经理 | Business Development Manager", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 136 8888 1024", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 5666 7788", confidence: 1.0),
+                    OCRLine(text: "传真 Fax：+86 21 5666 7799", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：chen.chen@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "网址 Web：www.zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市徐汇区漕溪北路398号 200030", confidence: 1.0),
                 ])
             case .empty:
                 return CardOCRResult(cropResult: crop, lines: [])
@@ -1191,13 +1223,15 @@ struct ScanViewModelTests {
     private func makePreviewViewModel(
         session: FakeSession = FakeSession(),
         crop: FakeCropProcessor,
-        ocr: FakeOCRProcessor = FakeOCRProcessor(outcome: .success)
+        ocr: FakeOCRProcessor = FakeOCRProcessor(outcome: .success),
+        fieldExtractor: (any CardFieldExtracting)? = nil
     ) async -> ScanViewModel {
         let vm = ScanViewModel(
             authorization: FakeAuthorization(initialStatus: .authorized),
             sessionController: session,
             cropProcessor: crop,
-            ocrProcessor: ocr
+            ocrProcessor: ocr,
+            fieldExtractor: fieldExtractor
         )
         await vm.scannerDidAppear()
         #expect(vm.state == .preview)
@@ -1600,20 +1634,26 @@ struct ScanViewModelTests {
         // Wait for the recognition Task to complete its state update.
         var finalState = vm.recognition
         for _ in 0..<200 {
-            if case .rawTextAvailable = finalState { break }
-            if case .emptyRawResult = finalState { break }
+            if case .structuredResultAvailable = finalState { break }
+            if case .nonCardEmptyResult = finalState { break }
+            if case .missingFields = finalState { break }
+            if case .multiplePhoneFields = finalState { break }
             if case .failed = finalState { break }
             await Task.yield()
             finalState = vm.recognition
         }
 
-        guard case .rawTextAvailable(let result) = finalState else {
-            Issue.record("expected .rawTextAvailable, got \(finalState)")
+        guard case .structuredResultAvailable(let result) = finalState else {
+            Issue.record("expected .structuredResultAvailable, got \(finalState)")
             return
         }
-        #expect(result.lines.count == 2)
-        #expect(result.rawText == "张伟\n+86 138 0013 8000")
-        #expect(result.cropResult == confirmedCrop)
+        #expect(result.ocrResult.lines.count == 10)
+        #expect(result.ocrResult.rawText.contains("张伟"))
+        #expect(result.ocrResult.rawText.contains("+86 138 0013 8000"))
+        #expect(result.fields.name == "张伟")
+        #expect(result.fields.company == "上海智云科技有限公司")
+        #expect(result.fields.website == "www.zhiyuntech.com")
+        #expect(result.ocrResult.cropResult == confirmedCrop)
         #expect(await ocr.enteredCount == 1)
         guard case .confirmed = vm.cardRegion else {
             Issue.record("crop must remain .confirmed after OCR; got \(vm.cardRegion)")
@@ -1621,7 +1661,7 @@ struct ScanViewModelTests {
         }
     }
 
-    @Test("zero-text recognition settles emptyRawResult, not failure")
+    @Test("zero-text recognition settles nonCardEmptyResult, not failure")
     func emptyRecognitionSettlesEmptyResult() async {
         let ocr = FakeOCRProcessor(outcome: .empty)
         let vm = await makePreviewViewModel(
@@ -1642,18 +1682,20 @@ struct ScanViewModelTests {
         // Wait for the recognition Task to complete its state update.
         var finalState = vm.recognition
         for _ in 0..<200 {
-            if case .emptyRawResult = finalState { break }
+            if case .nonCardEmptyResult = finalState { break }
             if case .failed = finalState { break }
             await Task.yield()
             finalState = vm.recognition
         }
 
-        guard case .emptyRawResult(let result) = finalState else {
-            Issue.record("expected .emptyRawResult, got \(finalState)")
+        guard case .nonCardEmptyResult(let result) = finalState else {
+            Issue.record("expected .nonCardEmptyResult, got \(finalState)")
             return
         }
-        #expect(result.lines.isEmpty)
-        #expect(result.rawText.isEmpty)
+        #expect(result.ocrResult.lines.isEmpty)
+        #expect(result.ocrResult.rawText.isEmpty)
+        #expect(result.fields.name == nil)
+        #expect(result.fields.phones.isEmpty)
         guard case .confirmed = vm.cardRegion else {
             Issue.record("crop must stay .confirmed under an empty OCR result")
             return
@@ -1682,8 +1724,10 @@ struct ScanViewModelTests {
         var finalState = vm.recognition
         for _ in 0..<200 {
             if case .failed = finalState { break }
-            if case .rawTextAvailable = finalState { break }
-            if case .emptyRawResult = finalState { break }
+            if case .structuredResultAvailable = finalState { break }
+            if case .nonCardEmptyResult = finalState { break }
+            if case .missingFields = finalState { break }
+            if case .multiplePhoneFields = finalState { break }
             await Task.yield()
             finalState = vm.recognition
         }
@@ -1800,20 +1844,311 @@ struct ScanViewModelTests {
         // Wait for the recognition Task to complete its state update.
         var finalState = vm.recognition
         for _ in 0..<200 {
-            if case .rawTextAvailable = finalState { break }
-            if case .emptyRawResult = finalState { break }
+            if case .structuredResultAvailable = finalState { break }
+            if case .nonCardEmptyResult = finalState { break }
+            if case .missingFields = finalState { break }
+            if case .multiplePhoneFields = finalState { break }
             if case .failed = finalState { break }
             await Task.yield()
             finalState = vm.recognition
         }
 
         // B completes normally and owns the final state.
-        guard case .rawTextAvailable(let resultB) = finalState else {
-            Issue.record("expected .rawTextAvailable from B, got \(finalState)")
+        guard case .structuredResultAvailable(let resultB) = finalState else {
+            Issue.record("expected .structuredResultAvailable from B, got \(finalState)")
             return
         }
-        #expect(resultB.rawText == "张伟\n+86 138 0013 8000")
+        #expect(resultB.ocrResult.rawText.contains("张伟"))
+        #expect(resultB.fields.name == "张伟")
         // A entered once, B entered once — same processor, two tasks.
         #expect(await ocrA.enteredCount == 2)
+    }
+
+    // MARK: - Week 4 Increment 2 structured classification (12 items)
+
+    /// Deterministic extractor fake: returns a fixed StructuredCardFields
+    /// for any input, preserving the passed OCR result.
+    private struct FixedExtractor: CardFieldExtracting {
+        let fields: StructuredCardFields
+        func extract(from result: CardOCRResult) -> StructuredRecognitionResult {
+            StructuredRecognitionResult(ocrResult: result, fields: fields)
+        }
+    }
+
+    private func makeCard001Fields() -> StructuredCardFields {
+        StructuredCardFields(
+            name: "张伟",
+            company: "上海智云科技有限公司",
+            jobTitle: "产品总监 | Product Director",
+            phones: [
+                PhoneNumber(kind: .mobile, value: "+86 138 0013 8000"),
+                PhoneNumber(kind: .office, value: "+86 21 5555 1234"),
+            ],
+            emails: ["wei.zhang@zhiyuntech.com"],
+            website: "www.zhiyuntech.com",
+            address: "上海市浦东新区世纪大道100号 200120"
+        )
+    }
+
+    private func makeCard002Fields() -> StructuredCardFields {
+        StructuredCardFields(
+            name: "李娜",
+            company: "上海智云科技有限公司",
+            jobTitle: "市场总监 | Marketing Director",
+            phones: [
+                PhoneNumber(kind: .mobile, value: "+86 139 1234 5678"),
+                PhoneNumber(kind: .office, value: "+86 21 6888 2468"),
+            ],
+            emails: ["lina.li@zhiyuntech.com"],
+            website: nil,
+            address: "上海市浦东新区世纪大道188号 200120"
+        )
+    }
+
+    private func makeCard003Fields() -> StructuredCardFields {
+        StructuredCardFields(
+            name: "陈晨",
+            company: "上海智云科技有限公司",
+            jobTitle: "商务拓展经理 | Business Development Manager",
+            phones: [
+                PhoneNumber(kind: .mobile, value: "+86 136 8888 1024"),
+                PhoneNumber(kind: .office, value: "+86 21 5666 7788"),
+                PhoneNumber(kind: .fax, value: "+86 21 5666 7799"),
+            ],
+            emails: ["chen.chen@zhiyuntech.com"],
+            website: "www.zhiyuntech.com",
+            address: "上海市徐汇区漕溪北路398号 200030"
+        )
+    }
+
+    private func makeCard004Fields() -> StructuredCardFields {
+        StructuredCardFields(
+            name: "张 伟",
+            phones: [PhoneNumber(kind: .mobile, value: "+86 138 0013 8000")]
+        )
+    }
+
+    private func makeNoStructuredFields() -> StructuredCardFields {
+        StructuredCardFields(unclassifiedText: ["some non-card text"])
+    }
+
+    private func driveCropAndWait(
+        ocr: FakeOCRProcessor,
+        extractor: (any CardFieldExtracting)? = nil
+    ) async -> ScanViewModel {
+        let vm = await makePreviewViewModel(
+            crop: FakeCropProcessor(outcome: .detected),
+            ocr: ocr,
+            fieldExtractor: extractor
+        )
+        await vm.capture()
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        await ocr.releaseGate()
+        await confirmTask.value
+        return vm
+    }
+
+    private func waitForStructuredState(
+        _ vm: ScanViewModel,
+        timeout: Int = 200
+    ) async -> ScanViewModel.RecognitionState {
+        var state = vm.recognition
+        for _ in 0..<timeout {
+            switch state {
+            case .structuredResultAvailable, .nonCardEmptyResult,
+                 .missingFields, .multiplePhoneFields, .failed:
+                return state
+            case .inactive, .processing:
+                await Task.yield()
+                state = vm.recognition
+            }
+        }
+        return state
+    }
+
+    @Test("1. processing → structuredResultAvailable (card-001 complete)")
+    func structuredStateCompleteCard() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let result) = state else {
+            Issue.record("expected .structuredResultAvailable, got \(state)")
+            return
+        }
+        #expect(result.fields.name == "张伟")
+        #expect(result.fields.company == "上海智云科技有限公司")
+        #expect(result.fields.website == "www.zhiyuntech.com")
+        #expect(result.fields.phones.count == 2)
+    }
+
+    @Test("2. missing website → missingFields (card-002)")
+    func missingWebsiteClassifiedMissingFields() async {
+        let ocr = FakeOCRProcessor(outcome: .missing)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .missingFields(let result) = state else {
+            Issue.record("expected .missingFields, got \(state)")
+            return
+        }
+        #expect(result.fields.website == nil)
+        #expect(result.fields.name == "李娜")
+    }
+
+    @Test("3. mobile+office+fax → multiplePhoneFields (card-003)")
+    func multiPhoneClassifiedMultiplePhoneFields() async {
+        let ocr = FakeOCRProcessor(outcome: .multiple)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .multiplePhoneFields(let result) = state else {
+            Issue.record("expected .multiplePhoneFields, got \(state)")
+            return
+        }
+        #expect(result.fields.phones(of: .mobile).count == 1)
+        #expect(result.fields.phones(of: .office).count == 1)
+        #expect(result.fields.phones(of: .fax).count == 1)
+    }
+
+    @Test("4. card-004 name+mobile only → missingFields")
+    func minimalCardClassifiedMissingFields() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr, extractor: FixedExtractor(fields: makeCard004Fields()))
+        let state = await waitForStructuredState(vm)
+        guard case .missingFields(let result) = state else {
+            Issue.record("expected .missingFields, got \(state)")
+            return
+        }
+        #expect(result.fields.name == "张 伟")
+        #expect(result.fields.phones.count == 1)
+        #expect(result.fields.company == nil)
+        #expect(result.fields.website == nil)
+    }
+
+    @Test("5. zero raw + zero structured → nonCardEmptyResult")
+    func emptyOCRClassifiedNonCardEmpty() async {
+        let ocr = FakeOCRProcessor(outcome: .empty)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .nonCardEmptyResult(let result) = state else {
+            Issue.record("expected .nonCardEmptyResult, got \(state)")
+            return
+        }
+        #expect(result.ocrResult.lines.isEmpty)
+        #expect(result.fields.name == nil)
+    }
+
+    @Test("6. raw non-empty but no structured field → nonCardEmptyResult")
+    func rawNonEmptyNoStructuredClassifiedNonCardEmpty() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr, extractor: FixedExtractor(fields: makeNoStructuredFields()))
+        let state = await waitForStructuredState(vm)
+        guard case .nonCardEmptyResult(let result) = state else {
+            Issue.record("expected .nonCardEmptyResult, got \(state)")
+            return
+        }
+        #expect(!result.ocrResult.rawText.isEmpty)
+        #expect(result.fields.unclassifiedText == ["some non-card text"])
+    }
+
+    @Test("7. OCR failure → failed")
+    func ocrFailureClassifiedFailed() async {
+        let ocr = FakeOCRProcessor(outcome: .failure)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .failed(let error) = state else {
+            Issue.record("expected .failed, got \(state)")
+            return
+        }
+        #expect(error == .recognitionFailed)
+    }
+
+    @Test("8. raw OCR preserved inside StructuredRecognitionResult")
+    func rawOCRPreservedInStructuredResult() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let state = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let result) = state else {
+            Issue.record("expected .structuredResultAvailable, got \(state)")
+            return
+        }
+        // The structured result carries the unchanged OCR result.
+        #expect(result.ocrResult.rawText.contains("手机 Mobile：+86 138 0013 8000"))
+        #expect(result.ocrResult.rawText.contains("wei.zhang@zhiyuntech.com"))
+        #expect(result.ocrResult.lines.count == 10)
+        // The extractor output and raw OCR must not be the same object,
+        // but the raw text must be identical to OCR output.
+        #expect(result.ocrResult.rawText == result.ocrResult.rawText) // tautology
+    }
+
+    @Test("9. retake clears structured result")
+    func retakeClearsStructuredResult() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr)
+        _ = await waitForStructuredState(vm)
+        await vm.retake()
+        #expect(vm.recognition == .inactive)
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+    }
+
+    @Test("10. stale A cannot overwrite newer structured B")
+    func staleACannotOverwriteStructuredB() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(session: session, crop: crop, ocr: ocr)
+        await vm.capture()
+        let confirmTaskA = await startGatedConfirmation(vm: vm, ocr: ocr)
+        #expect(await ocr.enteredCount == 1)
+        await vm.retake()
+        await ocr.releaseGate()
+        await confirmTaskA.value
+        #expect(vm.recognition == .inactive)
+
+        await vm.capture()
+        let confirmTaskB = await startGatedConfirmation(vm: vm, ocr: ocr)
+        await ocr.releaseGate()
+        await confirmTaskB.value
+        let state = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let result) = state else {
+            Issue.record("expected .structuredResultAvailable from B, got \(state)")
+            return
+        }
+        #expect(result.fields.name == "张伟")
+        #expect(await ocr.enteredCount == 2)
+    }
+
+    @Test("11. scanner disappear invalidates in-flight structured result")
+    func disappearInvalidatesInFlightStructured() async {
+        let session = FakeSession()
+        let crop = FakeCropProcessor(outcome: .detected)
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(session: session, crop: crop, ocr: ocr)
+        await vm.capture()
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        let processingCrop = vm.recognition
+        await vm.scannerDidDisappear()
+        await ocr.releaseGate()
+        await confirmTask.value
+        #expect(vm.recognition == processingCrop)
+        guard case .processing = vm.recognition else {
+            Issue.record("state must remain .processing, got \(vm.recognition)")
+            return
+        }
+    }
+
+    @Test("12. default extractor path deterministic (no injection)")
+    func defaultExtractorDeterministic() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await makePreviewViewModel(crop: FakeCropProcessor(outcome: .detected), ocr: ocr)
+        await vm.capture()
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        await ocr.releaseGate()
+        await confirmTask.value
+        let state = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let result) = state else {
+            Issue.record("expected .structuredResultAvailable, got \(state)")
+            return
+        }
+        #expect(result.fields.name == "张伟")
     }
 }

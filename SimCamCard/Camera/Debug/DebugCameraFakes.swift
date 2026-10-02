@@ -414,37 +414,66 @@ actor DebugCropProcessor: CardCropProcessing {
 // MARK: - Fake OCR processor (T07 fixtures)
 
 /// Deterministic T07 raw-OCR fixture processor. Returns fixed
-/// preserved lines WITHOUT invoking Vision — real recognition is
-/// covered by CardOCRProcessorTests and the OCR dataset smoke tests.
-/// Being an actor mirrors the real service's isolation contract.
-/// DEBUG-only; never instantiated in Release.
-actor DebugOCRProcessor: CardOCRProcessing {
+    /// preserved lines WITHOUT invoking Vision — real recognition is
+    /// covered by CardOCRProcessorTests and the OCR dataset smoke tests.
+    /// Being an actor mirrors the real service's isolation contract.
+    /// DEBUG-only; never instantiated in Release.
+    actor DebugOCRProcessor: CardOCRProcessing {
 
-    private let mode: OCRFixtureMode
+        private let mode: OCRFixtureMode
 
-    init(mode: OCRFixtureMode) {
-        self.mode = mode
-    }
+        init(mode: OCRFixtureMode) {
+            self.mode = mode
+        }
 
-    func recognize(_ crop: CardCropResult) async throws -> CardOCRResult {
-        switch mode {
-        case .success:
-            // Fixed bilingual lines; punctuation, spacing, case and
-            // digits preserved verbatim (T07 raw contract).
-            return CardOCRResult(cropResult: crop, lines: [
-                OCRLine(text: "张伟", confidence: 1.0),
-                OCRLine(text: "产品总监 | Product Director", confidence: 1.0),
-                OCRLine(text: "+86 138 0013 8000", confidence: 1.0),
-                OCRLine(text: "wei.zhang@zhiyuntech.com", confidence: 1.0),
-            ])
-        case .empty:
-            // A legitimate zero-text result (not a failure).
-            return CardOCRResult(cropResult: crop, lines: [])
-        case .failure:
-            throw OCRError.recognitionFailed
+        func recognize(_ crop: CardCropResult) async throws -> CardOCRResult {
+            switch mode {
+            case .success:
+                // Card-001 style: full bilingual card.
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "Shanghai Zhiyun Tech Co., Ltd.", confidence: 1.0),
+                    OCRLine(text: "张伟", confidence: 1.0),
+                    OCRLine(text: "Wei Zhang", confidence: 1.0),
+                    OCRLine(text: "产品总监 | Product Director", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 138 0013 8000", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 5555 1234", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：wei.zhang@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "网址 Web：www.zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市浦东新区世纪大道100号 200120", confidence: 1.0),
+                ])
+            case .missing:
+                // Card-002 style: missing website (T09).
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "李娜", confidence: 1.0),
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "市场总监 | Marketing Director", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 139 1234 5678", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 6888 2468", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：lina.li@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市浦东新区世纪大道188号 200120", confidence: 1.0),
+                ])
+            case .multiple:
+                // Card-003 style: mobile + office + fax (T10).
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "陈晨", confidence: 1.0),
+                    OCRLine(text: "上海智云科技有限公司", confidence: 1.0),
+                    OCRLine(text: "商务拓展经理 | Business Development Manager", confidence: 1.0),
+                    OCRLine(text: "手机 Mobile：+86 136 8888 1024", confidence: 1.0),
+                    OCRLine(text: "电话 Tel：+86 21 5666 7788", confidence: 1.0),
+                    OCRLine(text: "传真 Fax：+86 21 5666 7799", confidence: 1.0),
+                    OCRLine(text: "邮箱 Email：chen.chen@zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "网址 Web：www.zhiyuntech.com", confidence: 1.0),
+                    OCRLine(text: "地址 Address：上海市徐汇区漕溪北路398号 200030", confidence: 1.0),
+                ])
+            case .empty:
+                // A legitimate zero-text result (not a failure).
+                return CardOCRResult(cropResult: crop, lines: [])
+            case .failure:
+                throw OCRError.recognitionFailed
+            }
         }
     }
-}
 
 extension ScanViewModel {
 

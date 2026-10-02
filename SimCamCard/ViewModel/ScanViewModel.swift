@@ -59,16 +59,20 @@ enum CropFixtureMode: String {
 }
 typealias CropFixtureParam = CropFixtureMode?
 /// DEBUG-only T07 raw OCR fixture mode: drives recognition AFTER a
-/// confirmed crop without invoking real Vision.
-enum OCRFixtureMode: String {
-    /// Deterministic bilingual raw lines (name / title / phone / email
-    /// preserved verbatim).
-    case success
-    /// A legitimate zero-text result (not a failure).
-    case empty
-    /// The recognition request fails.
-    case failure
-}
+    /// confirmed crop without invoking real Vision.
+    enum OCRFixtureMode: String {
+        /// Deterministic bilingual raw lines (name / title / phone / email
+        /// preserved verbatim).
+        case success
+        /// Card-002 style: missing website.
+        case missing
+        /// Card-003 style: mobile + office + fax.
+        case multiple
+        /// A legitimate zero-text result (not a failure).
+        case empty
+        /// The recognition request fails.
+        case failure
+    }
 typealias OCRFixtureParam = OCRFixtureMode?
 #else
 /// In Release no photo-import fixture exists; the parameter type is an
@@ -214,38 +218,39 @@ final class ScanViewModel {
     /// Core Image correction.
     private(set) var isCropInFlight = false
 
-    // MARK: - T07 Raw Recognition (S05 raw transport)
+    // MARK: - T07/T08 Structured Recognition (S05 structured state)
 
-    /// Separate raw-recognition state family (Week 3 Increment 6).
-    /// Deliberately NOT merged with the S02/S03/S04 families: raw OCR
-    /// begins only AFTER P04 has confirmed an upright crop, and retake
-    /// returns to the scanner. These are T07 RAW TRANSPORT states —
-    /// they must not be misreported as the frozen S05 structured
-    /// states: `structuredResultAvailable` / `missingFields` /
-    /// `multiplePhoneFields` / `manualEditing` arrive with Week 4
-    /// structured extraction.
+    /// Week 4 Increment 2 structured recognition state family.
+    /// Replaces the Week 3 transitional raw transport (`rawTextAvailable`
+    /// / `emptyRawResult`). Raw OCR is NOT lost: every settled structured
+    /// state carries the full `StructuredRecognitionResult` →
+    /// `CardOCRResult` → `rawText` / `OCRLine[]` chain.
     enum RecognitionState: Equatable {
         /// No recognition active (Scanner / Crop owns the screen).
         case inactive
         /// Vision recognition is running for the confirmed crop.
         case processing(CardCropResult)
-        /// Raw text recognized (one or more preserved lines).
-        case rawTextAvailable(CardOCRResult)
-        /// The request completed legitimately with zero text. A valid
-        /// outcome, NOT a failure — the foundation for Week 4
-        /// nonCardEmptyResult.
-        case emptyRawResult(CardOCRResult)
+        /// Complete structured result (T08 full card).
+        case structuredResultAvailable(StructuredRecognitionResult)
+        /// T20 non-card: OCR produced no structured contact field even
+        /// if rawText is non-empty (a valid empty form, not a failure).
+        case nonCardEmptyResult(StructuredRecognitionResult)
+        /// At least one canonical structured field is missing (T09).
+        case missingFields(StructuredRecognitionResult)
+        /// Mobile + office + fax all present (T10).
+        case multiplePhoneFields(StructuredRecognitionResult)
         /// The recognition request failed (stable fallback).
         case failed(OCRError)
 
-        /// True while raw recognition must own the screen content:
-        /// processing plus every settled raw result/failure until
+        /// True while structured recognition must own the screen content:
+        /// processing plus every settled result/failure until
         /// retake/reset returns to the Scanner.
         var isActive: Bool {
             switch self {
             case .inactive:
                 return false
-            case .processing, .rawTextAvailable, .emptyRawResult, .failed:
+            case .processing, .structuredResultAvailable, .nonCardEmptyResult,
+                 .missingFields, .multiplePhoneFields, .failed:
                 return true
             }
         }
@@ -292,6 +297,11 @@ final class ScanViewModel {
     /// on the MainActor.
     private let ocrProcessor: any CardOCRProcessing
 
+    /// Week 4 Increment 2 structured field extractor. Synchronous pure
+    /// deterministic parser; dependency-injected so tests/UI fixtures
+    /// can substitute a canned extractor without touching Vision.
+    private let fieldExtractor: any CardFieldExtracting
+
     /// The single Task consuming the live detection stream while in
     /// `.preview`. Cancelled on scanner disappear, on capture, on photo
     /// import, and on any transition out of preview. Never more than
@@ -324,7 +334,8 @@ final class ScanViewModel {
         photoImportFixture: PhotoImportFixtureParam = nil,
         cropProcessor: (any CardCropProcessing)? = nil,
         ocrProcessor: (any CardOCRProcessing)? = nil,
-        cropFixture: CropFixtureParam = nil
+        cropFixture: CropFixtureParam = nil,
+        fieldExtractor: (any CardFieldExtracting)? = nil
     ) {
         self.authorization = authorization
         let controller = sessionController ?? CameraSessionController()
@@ -334,6 +345,7 @@ final class ScanViewModel {
         self.cropProcessor = cropProcessor ?? CardCropProcessor()
         self.ocrProcessor = ocrProcessor ?? CardOCRProcessor()
         self.cropFixture = cropFixture
+        self.fieldExtractor = fieldExtractor ?? CardFieldExtractor()
     }
 
     // MARK: - Lifecycle
@@ -697,15 +709,17 @@ final class ScanViewModel {
         }
     }
 
-    // MARK: - T07 Raw Recognition
+    // MARK: - T07/T08 Structured Recognition
 
-    /// Starts raw OCR for a just-confirmed crop (Crop Done →
-    /// Recognition is automatic). The captured generation makes a late
+    /// Starts structured recognition for a just-confirmed crop (Crop Done →
+    /// Recognition is automatic). OCR runs first, then the deterministic
+    /// extractor classifies the structured fields, then the settled
+    /// RecognitionState is chosen. The captured generation makes a late
     /// result harmless: retake / scanner disappear / a newer
     /// recognition invalidate an in-flight request, whose result is
     /// then discarded without mutating UI state.
     ///
-    /// Zero recognized text is a valid `.emptyRawResult`, never a
+    /// Zero structured fields is a valid `.nonCardEmptyResult`, never a
     /// failure; only a thrown request error becomes `.failed`.
     private func beginRecognition(_ crop: CardCropResult) {
         // Cancel any previous recognition: the new one supersedes it.
@@ -718,11 +732,11 @@ final class ScanViewModel {
 
         recognitionTask = Task {
             do {
-                let result = try await ocrProcessor.recognize(crop)
+                let ocr = try await ocrProcessor.recognize(crop)
                 guard generation == self.recognitionGeneration else { return }
-                self.recognition = result.rawText.isEmpty
-                    ? .emptyRawResult(result)
-                    : .rawTextAvailable(result)
+                let structured = self.fieldExtractor.extract(from: ocr)
+                guard generation == self.recognitionGeneration else { return }
+                self.recognition = self.settledRecognitionState(for: structured)
             } catch let error as OCRError {
                 guard generation == self.recognitionGeneration else { return }
                 self.recognition = .failed(error)
@@ -731,6 +745,38 @@ final class ScanViewModel {
                 self.recognition = .failed(.recognitionFailed)
             }
         }
+    }
+
+    /// Fixed deterministic priority for the settled structured state.
+    /// 1. nonCardEmptyResult — no canonical contact field at all.
+    /// 2. missingFields — at least one canonical field present, but one or
+    ///    more canonical categories are missing.
+    /// 3. multiplePhoneFields — no canonical missing, and mobile+office+fax
+    ///    are all present.
+    /// 4. structuredResultAvailable — otherwise complete.
+    private func settledRecognitionState(
+        for result: StructuredRecognitionResult
+    ) -> RecognitionState {
+        let f = result.fields
+        let hasAny = f.name != nil || f.company != nil || f.jobTitle != nil
+            || !f.phones.isEmpty || !f.emails.isEmpty
+            || f.website != nil || f.address != nil
+        guard hasAny else {
+            return .nonCardEmptyResult(result)
+        }
+        let missing = f.name == nil || f.company == nil || f.jobTitle == nil
+            || f.phones.isEmpty || f.emails.isEmpty
+            || f.website == nil || f.address == nil
+        if missing {
+            return .missingFields(result)
+        }
+        let hasMobile = !f.phones(of: .mobile).isEmpty
+        let hasOffice = !f.phones(of: .office).isEmpty
+        let hasFax = !f.phones(of: .fax).isEmpty
+        if hasMobile && hasOffice && hasFax {
+            return .multiplePhoneFields(result)
+        }
+        return .structuredResultAvailable(result)
     }
 
     /// User tapped 取消 (P04 retake): discard the draft/result, clear

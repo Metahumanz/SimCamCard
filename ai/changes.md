@@ -2807,3 +2807,218 @@ raw OCR preservation: StructuredRecognitionResult.ocrResult == input asserted; r
 ### Human Decision
 
 Accepted — 2026-10-02 (human review)
+
+## Week 4 Increment 2 — Structured State Integration + P05 (2026-10-02)
+
+### Baseline / scope
+
+```text
+baseline: fc64e3d, branch week4/structured-recognition
+scope: OCR → Structured Extraction → S05 structured state → P05 structured
+       recognition form (read-only)
+NO manual editing / NO T11 / NO Save / NO BusinessCard creation /
+NO Repository write / NO P06
+```
+
+### State transition design
+
+`RecognitionState` (S05) replaced the raw-only family:
+
+```text
+before: inactive / processing / rawTextAvailable / emptyRawResult / failed
+after:  inactive / processing / structuredResultAvailable /
+        nonCardEmptyResult / missingFields / multiplePhoneFields / failed
+```
+
+- `rawTextAvailable` / `emptyRawResult` deleted. Raw OCR is NOT dropped:
+  every settled state carries `StructuredRecognitionResult`, which embeds the
+  unchanged `CardOCRResult` (full chain result → OCR → crop → capture).
+- The transitional raw-text page is removed: `RawRecognitionView.swift` →
+  `git mv` → `RecognitionView.swift`; no `scan-recognition-raw-text` block.
+- Retake/reset from any settled state returns to the Scanner preview;
+  `recognitionGeneration` still discards stale async completions; OCR failure
+  maps to `failed(OCRError)` with stable recovery (unchanged contract).
+
+### Structured classification priority (fixed, deterministic)
+
+```text
+1. nonCardEmptyResult      — no canonical contact field at all
+2. missingFields           — some present, but ≥1 canonical category missing
+3. multiplePhoneFields     — none missing, and mobile+office+fax all present
+4. structuredResultAvailable — otherwise complete
+```
+
+nonCardEmptyResult behavior: a textless/non-card image yields a legitimate
+empty structured result rendered as an empty P05 form — NOT an OCR failure
+and NOT the `failed` state.
+
+### CardFieldExtractor injection
+
+`ScanViewModel` composes `CardFieldExtracting` (protocol) alongside the
+existing `CardOCRProcessing`; production wires `CardFieldExtractor()`, tests
+and DEBUG fixtures inject fakes. After OCR succeeds, extraction runs on the
+preserved raw lines and the settled state is classified by the fixed priority
+above. One in-flight recognition per ScanViewModel; new recognition cancels
+and supersedes the previous one (generation-guarded).
+
+### P05 structured recognition form (read-only)
+
+- `RecognitionView` (ZStack black, `scan-recognition-form`): one shared
+  `formContent` for all four settled structured states; fixed-order rows
+  姓名/手机/工作电话/工作传真/其他电话/工作邮箱/公司/职位/首页/公司地址.
+  Row-existence policy is deliberately narrow:
+  * **website** — the ONLY scalar row whose existence is data-driven:
+    the row exists only when website != nil (Reference card-b evidence).
+  * **phones / emails** — one row per actual array element (unchanged).
+  * **name / company / jobTitle / address** — fixed structural rows always
+    present; a nil value renders an empty-but-present row. Their
+    missing-row behavior is NOT claimed until dedicated Reference
+    evidence exists.
+- **Reference recheck (2026-10-03, post tech-review):** re-opening only
+  `REF-recognition-03-card-b-top.png` / `REF-recognition-04-card-b-bottom.png`
+  resolved the earlier contradictory notes. card-b's form rows are
+  姓名/手机/工作电话/工作邮箱/公司/职位(+latin pair)/公司地址 — the 首页 row is
+  **entirely absent (ROW ABSENT, answer A)**, not present-empty.
+  card-002 `website == nil` → no 首页 row. No fabrication is possible:
+  no inferred URL, no "N/A", no "未识别". The earlier note
+  "card-b missing website: 首页 row remains visible with an empty value" was
+  wrong; the authoritative Reference behavior is **row omitted entirely**.
+  **Narrowing correction (2026-10-03):** the omission rule is scoped to
+  website only — card-b evidence must NOT be generalized to name/company/
+  jobTitle/address. Those scalar rows are fixed structural rows whose
+  nil values render empty rows; their missing-row presentation remains
+  deliberately unclaimed until corresponding Reference evidence exists.
+  nonCardEmptyResult retains the conservative structure (fixed scalar rows
+  present-empty; website/phone/email rows absent); T20 full empty-card
+  visual fidelity remains PARTIAL / pending dedicated evidence.
+- Read-only boundary: no editing controls, no 保存 button, no navigation to
+  any edit page; only 重拍 (`scan-recognition-retake`).
+- Accessibility IDs: `scan-field-mobile-N` / `scan-field-office-N` /
+  `scan-field-fax-N` / `scan-field-other-phone-N` / `scan-field-email-N`.
+  N is a **per-kind index** (each kind counts from 0 in stored order).
+  Verification caught and fixed a real defect where the global phones-array
+  index was used (card-001 office would surface as `scan-field-office-1`),
+  breaking the per-kind contract the UI tests assert; parser output was
+  independently triple-verified correct and was not the cause.
+- P05 reference evidence used: the six Week-3 reference recognition shots
+  plus the edit reference reviewed at increment start; layout follows the
+  reference label→value column form.
+- Raw OCR preservation: asserted by tests — the settled state's embedded
+  `ocrResult` is identical to the OCR output; nothing mutates/regenerates
+  rawText.
+
+### Verification
+
+```text
+Debug build: PASS
+Release build: PASS (generic/platform=iOS, /tmp/w4i2-dd-release, CODE_SIGNING_ALLOWED=NO)
+Unit: 199 discovered / 199 executed / 199 PASS / 0 disabled
+      (baseline 187 + 12 ScanViewModel structured-state tests)
+UI: 28/28 PASS, one sequential run,
+    iPhone 18 Pro id 5B32D815-5F37-4EE0-825C-85DE864E0B02,
+    -parallel-testing-enabled NO
+    (baseline 26 + new missing + multiple structured UI tests)
+Dataset smoke (real Vision): Crop 0.371s / OCR 2.429s /
+    Structured extraction 3.057s — all PASS (card-001..004)
+
+Post-Review Reference recheck (2026-10-03):
+- targeted T09 test (renamed testStructuredMissingFieldFixtureOmitsWebsiteRow)
+  + nonCardEmptyResult test: PASS (2/2)
+- full UI suite rerun after the row-omission narrowing correction:
+  28/28 PASS / 0 failed (ScanCameraUITests 19/19)
+- Debug build: PASS, Release build: PASS
+- Release DEBUG fixture isolation rechecked: 8/8 ABSENT
+- unit tests / dataset smoke NOT rerun: no parser / state-machine / dataset
+  / ViewModel logic changed (presentation-only fix in RecognitionView).
+- missing-field PNG unchanged (card-b UI unaffected by the narrowing).
+```
+
+### Release fixture isolation
+
+Release binary strings check — all ABSENT (re-verified after the rebuild):
+
+```text
+SimCamCardOCR, DebugOCRProcessor, DebugCameraEnvironment,
+SimCamCardCamera, SimCamCardDetection, SimCamCardCrop,
+SimCamCardPhotoImport, DebugCameraFakes
+```
+
+### Audits
+
+```text
+dataset/* diff: empty
+spec/* diff: empty
+SimCamCard/Model/BusinessCard.swift diff: empty
+SimCamCard/Repository diff: empty
+SimCamCard/Recognition (core) diff: empty (frozen Increment 1 files untouched)
+project.pbxproj diff: empty
+
+logical scope:
+  production/test logical changes:
+    - DebugCameraFakes.swift
+    - RecognitionView.swift (rename from RawRecognitionView.swift)
+    - ScanEntryView.swift
+    - ScanViewModel.swift
+    - ScanViewModelTests.swift
+    - ScanCameraUITests.swift
+  documentation:
+    - ai/changes.md
+  evidence:
+    - 3 PNGs under ai/validation/
+
+concurrency: no @unchecked Sendable, no nonisolated(unsafe), no Task.detached;
+             extractor is a nonisolated pure value type injected by protocol;
+             recognition stays generation-guarded on @MainActor ScanViewModel
+```
+
+### Screenshots produced (fixture-driven; NOT real camera, NOT real Vision)
+
+```text
+ai/validation/2026-10-02-w4i2-structured-recognition.png (card-001 full form)
+ai/validation/2026-10-02-w4i2-missing-field.png          (card-002 首页 row omitted)
+ai/validation/2026-10-02-w4i2-multiple-phones.png        (card-003 手机/工作电话/工作传真)
+```
+
+### T-status
+
+```text
+T08 structured state + read-only field presentation: PASS
+T09 missing-field state + demonstrated website omission: PASS
+    (website == nil → 首页 row omitted entirely, per Reference card-b;
+     no fabricated website / no N/A / no 未识别)
+T10 multi-phone state + read-only field presentation: PASS
+
+P05 full Reference fidelity: PARTIAL
+Reason: manual editing and Save are intentionally deferred.
+The Reference surface (名片全能王) includes 重新拍摄 + 编辑名片 + 保存;
+Increment 2 delivers read-only recognition presentation + 重拍 only.
+
+Only behavior directly supported by current missing-field Reference
+evidence is asserted for fidelity. Website omission is confirmed by
+card-b. Other scalar-field missing-row behavior remains deliberately
+unclaimed until corresponding Reference evidence exists.
+
+T08/T09/T10 full workflow: PARTIAL (T11 manual correction, Save, final record
+    not implemented)
+T11: NOT IMPLEMENTED
+Save: NOT IMPLEMENTED
+T20 empty-result visual fidelity: PARTIAL
+    (nonCardEmptyResult retains conservative fixed structural rows;
+     empty-card full fidelity pending dedicated Reference evidence)
+```
+
+### Known limitations
+
+1. P05 fields are read-only in Increment 2.
+2. No manual correction yet.
+3. No Save / BusinessCard / Repository write.
+4. Raw OCR remains preserved in state but is no longer exposed through the
+   old transitional raw-text page.
+5. UI tests use DEBUG fixtures; real camera/native picker claims remain
+   unchanged (still NOT INDEPENDENTLY VERIFIED).
+6. Parser remains deterministic heuristic extraction (Increment 1 limits
+   unchanged); OCR errors propagate, no correction.
+
+### Human Decision
+
+Accepted — 2026-10-03 (human review)

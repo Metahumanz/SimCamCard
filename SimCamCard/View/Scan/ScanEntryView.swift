@@ -143,7 +143,7 @@ struct ScanEntryView: View {
             // (prepare / adjust / failed); retakeRequested transiently
             // renders the Scanner while preview restarts.
             if viewModel.recognition.isActive {
-                RawRecognitionView(viewModel: viewModel)
+                RecognitionView(viewModel: viewModel)
             } else if viewModel.cardRegion.isCropScreenActive {
                 CardCropView(viewModel: viewModel)
             }
