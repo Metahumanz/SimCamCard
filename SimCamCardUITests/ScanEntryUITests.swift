@@ -18,16 +18,21 @@
 //   verify evidence-supported static controls → close back to Holder.
 //
 //  Scope:
-//   - PASS claimed for scan-entry navigation + static scanner-shell
-//     presentation + close/back navigation only.
-//   - NOT verified / NOT implemented: live camera preview, camera
+//   - PASS claimed for scan-entry navigation + scanner chrome
+//     presentation (now over the fixture-driven preview state) +
+//     close/back navigation.
+//   - NOT verified / NOT implemented: real camera hardware, the native
 //     permission dialog, shutter capture workflow (T04), photo import /
 //     picker (T05), mode switching, more menu, batch review.
 //   - The visual shutter / 相册 controls are tapped in Test 1 only to
 //     prove they have NO out-of-scope side effects (remain on Scanner).
 //
-//  No simulator permission dependency: the shell never queries camera
-//  authorization, so these tests run without granting any permission.
+//  Week 3 Increment 1: these UI tests launch with the DEBUG-only
+//  `-SimCamCardCamera authorized` fixture so the Scanner enters its
+//  preview UI state deterministically WITHOUT triggering the native
+//  camera permission dialog (which cannot be automated in the
+//  simulator). This is fixture-driven UI state verification, NOT native
+//  permission or real live-frame verification.
 //
 
 import XCTest
@@ -38,11 +43,13 @@ final class ScanEntryUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Launches the app with its default empty repository and opens the
-    /// Scanner shell via the holder scan entry.
+    /// Launches the app with its default empty repository and the
+    /// DEBUG authorized-camera fixture, then opens the Scanner via the
+    /// holder scan entry.
     @discardableResult
     private func launchAndEnterScanner() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchArguments = ["-SimCamCardCamera", "authorized"]
         app.launch()
 
         XCTAssertTrue(
@@ -67,6 +74,14 @@ final class ScanEntryUITests: XCTestCase {
     @MainActor
     func testEnterScannerShowsStaticShell() throws {
         let app = launchAndEnterScanner()
+
+        // Authorized fixture drives the preview UI state (fixture-driven
+        // UI verification — the preview layer hosts an empty fake
+        // session, NOT a real camera feed).
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "The camera preview container should exist in the authorized fixture state."
+        )
 
         // Evidence-supported static elements from REF-scanner-01:
         // guidance tip, static recognition-mode selector, static capture
@@ -100,18 +115,15 @@ final class ScanEntryUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Coming soon"].exists)
         XCTAssertFalse(app.staticTexts["Not implemented"].exists)
 
-        // Visual controls have no out-of-scope behavior: tapping them
-        // must keep the user on the Scanner shell (no navigation, no
-        // system picker, no crash).
+        // Shutter is a real T04 capture action (Week 3 Increment 2):
+        // tapping it in preview captures and reaches the captured state.
+        // (Full capture-flow coverage lives in ScanCameraUITests.
+        // T05 photo-import coverage lives in ScanCameraUITests with the
+        // `-SimCamCardPhotoImport` fixture.)
         app.buttons["scan-capture"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["scan-entry-view"].exists,
-            "Tapping the shell shutter must not leave the Scanner page."
-        )
-        app.buttons["scan-photo-import"].tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["scan-entry-view"].exists,
-            "Tapping the shell photo entry must not present a picker or leave the page."
+            app.descendants(matching: .any)["scan-captured-photo"].waitForExistence(timeout: 5),
+            "Tapping the shutter in preview should reach the captured state."
         )
 
         // Validation evidence (separate from frozen REF-* screenshots).

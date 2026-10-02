@@ -37,7 +37,14 @@ final class Week2IntegrationUITests: XCTestCase {
     @MainActor
     func testWeek2NavigationSkeletonPreservesHolderState() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardFixture", "populated"]
+        // Populated holder fixture + DEBUG authorized-camera fixture so
+        // the Scanner leg of the round trip enters preview UI state
+        // without a native permission dialog (fixture-driven, not a real
+        // camera/native-permission verification).
+        app.launchArguments = [
+            "-SimCamCardFixture", "populated",
+            "-SimCamCardCamera", "authorized"
+        ]
         app.launch()
 
         // 1. Populated Card Holder is visible.

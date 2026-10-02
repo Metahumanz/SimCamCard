@@ -1147,3 +1147,1501 @@ Final conclusions (unchanged on acceptance):
 - T12→T13 real saved-card end-to-end workflow: NOT IMPLEMENTED
 - Reference UI fidelity: PARTIAL
 - Week 2 skeleton readiness: READY FOR HUMAN MERGE/TAG DECISION with documented deferred gaps
+
+## 2026-09-30 — Week 3 Increment 1: Camera Permission + Real Live Preview
+
+### Task
+
+T03 Camera Permission + S02 live preview state machine: Card Holder → Scanner → check/request camera permission → authorized shows the real `AVCaptureVideoPreviewLayer` live preview; denied/restricted stays on a stable minimal fallback (no crash, no session); Back stops the camera session. Shutter / 相册 remain visual-only (T04/T05 deferred).
+
+Frozen scope:
+- `spec/page-inventory.md` P02 Scanner (Camera preview and card detection; exits: Capture, Photo Import, Back)
+- `spec/state-inventory.md` S02: `permissionUnknown` / `permissionDenied` / `preview`
+- `spec/reference-tests.md` T02 Enter Scanner, T03 Camera Permission ("Allow/deny must produce defined states; denial path must not crash.")
+- Evidence: `REF-scanner-01-initial.png` (scanner chrome), `REF-permission-01-camera.png` (the NATIVE system permission dialog — owned/presented by iOS, never replicated), `REF-scanner-02-card-detected.png` (later-state boundary reference only — detection NOT built)
+
+Baseline: branch `week3/camera-ocr` @ `2cdcea9` (merge 完成Week 2软件骨架), tag `week2-skeleton-baseline`. Xcode 27 / Swift 6.0 language mode / iOS 27.0 target / `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` / `SWIFT_APPROACHABLE_CONCURRENCY = YES` / `GENERATE_INFOPLIST_FILE = YES`.
+
+### Constraints
+
+- No `AVCapturePhotoOutput`, metadata/rectangle/QR output, Vision/OCR, `PhotosPicker`/Photos, SwiftData, audio input — no microphone permission is ever requested.
+- Native system permission dialog only; the app never builds a custom pre-permission dialog.
+- No `@unchecked Sendable` / `nonisolated(unsafe)` suppression; single (MainActor) session execution context.
+- No Domain Model / Repository / frozen spec / MockBusinessCards changes.
+- Mock/fake camera dependencies are DEBUG-only; normal launch and Release builds always use real AVFoundation.
+- Accessibility IDs preserved: `scan-entry`, `scan-entry-view`, `scan-close`, `scan-capture`, `scan-photo-import`; new IDs: `scan-camera-preview`, `scan-permission-denied`, `scan-camera-unavailable`.
+- Verification split is explicit: state/orchestration = automated PASS; native permission dialog + real-device live frames = NOT INDEPENDENTLY VERIFIED (never claimed as PASS).
+- Plan file kept out of the repository working tree; no commit/merge/tag by AI.
+
+### AI Changes
+
+Build settings:
+- `SimCamCard.xcodeproj/project.pbxproj` — added `INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以扫描和识别名片。";` to the SimCamCard app target Debug and Release configurations only (exactly 2 added lines; verified in the built Release `Info.plist`). No manual Info.plist file is introduced (build-generated plist remains in use). Test targets untouched.
+
+New production source:
+- `SimCamCard/Camera/CameraAuthorizationProviding.swift` — `CameraAuthorizationStatus` (`notDetermined / authorized / denied / restricted`, `Sendable, Equatable`) and `@MainActor protocol CameraAuthorizationProviding` (`videoAuthorizationStatus()`, `requestVideoAccess() async -> Bool`).
+- `SimCamCard/Camera/AVCameraAuthorizationProvider.swift` — production adapter mapping `AVCaptureDevice.authorizationStatus(for: .video)` and requesting via `AVCaptureDevice.requestAccess(for: .video)`; `@unknown default` conservatively maps to `.denied`. Owns no UI state.
+- `SimCamCard/Camera/CameraSessionController.swift` — `CameraSessionError { noVideoDevice, cannotAddVideoInput }`, `@MainActor protocol CameraSessionControlling` and `CameraSessionController`: one rear wide-angle video input on one `AVCaptureSession`; configure-once / start-many / stop-many with idempotency guards; `canAddInput` checked; no photo/metadata/audio outputs.
+- `SimCamCard/View/Scan/CameraPreviewView.swift` — `UIViewRepresentable` presentation adapter over `AVCaptureVideoPreviewLayer` (`videoGravity = .resizeAspectFill`, black background). Presentation only: never owns/starts/stops the session and never requests permission.
+- `SimCamCard/ViewModel/ScanViewModel.swift` — `@MainActor @Observable final class`, `State { permissionUnknown, permissionDenied, preview, cameraUnavailable(CameraSessionError) }`; exposes the session for the preview layer; lifecycle `scannerDidAppear() async` / `scannerDidDisappear()`.
+
+Modified production source:
+- `SimCamCard/View/Scan/ScanEntryView.swift` — Week 2 static shell upgraded: body switches on `viewModel.state`. `permissionUnknown` and `preview` render the same Week 2 evidence-driven chrome (aiming frame + 「请将镜头靠近名片」 tip + mode tabs + control bar); `CameraPreviewView` (id `scan-camera-preview`) is inserted into the viewport only in `.preview`. `permissionDenied` → minimal functional fallback (id `scan-permission-denied`, camera.slash / 无法访问相机 / 系统设置指引, no shutter/album/capture-mode controls); `cameraUnavailable` → id `scan-camera-unavailable`. `.task { await viewModel.scannerDidAppear() }` / `.onDisappear { viewModel.scannerDidDisappear() }`. DEBUG `#Preview` blocks for authorized/denied. All Week 2 chrome and accessibility IDs preserved (root `scan-entry-view` remains on the childless background sibling to avoid SwiftUI identifier propagation onto child controls).
+
+DEBUG-only fixtures (compiled into the app target under `#if DEBUG`; absent from Release):
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — `DebugCameraAuthorizationProvider` (with `requestCount`), `DebugCameraSessionController` (counts, injectable `configureError`, never calls `startRunning()`), `DebugCameraEnvironment` parsing `-SimCamCardCamera <mode>` (`authorized / denied / restricted / notDeterminedGranted / notDeterminedDenied`), and `ScanViewModel.configuredForDebugLaunch()` (fixture VM when the argument is present, otherwise the real production VM — a bare DEBUG launch without the argument uses real AVFoundation).
+
+Tests:
+- `SimCamCardTests/ViewModel/ScanViewModelTests.swift` — Swift Testing, 9 tests with test-local fakes: fresh state = `permissionUnknown`; notDetermined+grant → preview with exactly 1 request + configure/start; notDetermined+deny → `permissionDenied`, zero session calls; authorized → preview with zero requests; denied → no re-prompt, no session; restricted → same; disappear → stop once; re-entry → configure once, start twice, stop once (no duplicate inputs); configure failure with granted permission → `.cameraUnavailable(.noVideoDevice)` and no start.
+- `SimCamCardUITests/ScanCameraUITests.swift` — 4 fixture-driven UI cases: authorized (preview container + Week 2 overlays + visual shutter remains non-navigating + close returns), denied (fallback exists, no preview/shutter/album, no crash, close returns), notDeterminedGranted (request path → preview), notDeterminedDenied (request path → fallback).
+- `SimCamCardUITests/ScanEntryUITests.swift` — Week 6 scanner regression helper now launches with `["-SimCamCardCamera", "authorized"]` so no native dialog is involved; existing chrome/back/no-side-effect assertions retained; adds a `scan-camera-preview` existence assertion.
+- `SimCamCardUITests/Week2IntegrationUITests.swift` — populated-holder integration launch arguments extended with `["-SimCamCardCamera", "authorized"]` for the Scanner leg; all existing assertions unchanged.
+
+Validation evidence (fixture-driven UI state, NOT frozen REF, NOT a real camera feed):
+- `ai/validation/2026-09-30-increment1-camera-preview-authorized-fixture.png`
+- `ai/validation/2026-09-30-increment1-camera-permission-denied-fixture.png`
+
+### Design decisions
+
+- **Permission state machine** (all transitions driven from `scannerDidAppear()`):
+
+  | AVAuthorizationStatus | Behavior | Resulting state |
+  |---|---|---|
+  | `.notDetermined` | set `permissionUnknown`, call `requestAccess(for: .video)` once (iOS presents the native dialog) | granted → `preview`; denied → `permissionDenied` |
+  | `.authorized` | start preview, NO request | `preview` |
+  | `.denied` | stable fallback, never re-prompt | `permissionDenied` |
+  | `.restricted` | same as denied (restricted ≠ authorized) | `permissionDenied` |
+  | `@unknown default` | conservative deny mapping | `permissionDenied` |
+
+- **Infrastructure failure is a distinct state.** Permission can be granted while the hardware cannot produce a preview (e.g. simulator, missing rear camera, input conflict). Such failures are `.cameraUnavailable(CameraSessionError)`, never disguised as `permissionDenied`.
+- **Denied UI = minimal functional fallback**, not a large "去设置" page and not a custom dialog: the frozen evidence (`REF-permission-01-camera.png`) documents only the native macOS/iOS permission dialog; Reference fidelity for an in-app denied page is not established. The fallback keeps the page stable, explains the path via system Settings, and the top-bar ✕ remains the real Back.
+- **Overlays are state-independent.** The aiming frame and guidance tip render identically over the pre-permission shell and the live feed; no fake camera image is ever shown.
+- **Session lifecycle**: configure once (reused across Scanner re-entry, so no duplicate inputs), start on entry, stop on disappear; all three operations are idempotent and guarded by configuration/running flags.
+- **Concurrency ownership**: `ScanViewModel`, both protocols, the production controller and all fakes are `@MainActor`; the `AVCaptureSession`, its input and the `AVCaptureVideoPreviewLayer` never leave the MainActor, so no non-Sendable reference crosses an isolation boundary and no suppression annotations exist. Accepted trade-off (documented): `startRunning()` / `stopRunning()` are synchronous AV calls and block the main executor briefly; if profiling later shows a meaningful hitch, a dedicated session queue can be introduced in a later increment.
+- **Testability seam**: production code depends on the two protocols; unit tests inject local fakes, UI tests inject DEBUG launch-argument fakes. No test-only hooks exist in Release.
+
+### Verification
+
+- Debug standalone build (iOS Simulator iPhone 18 Pro): **BUILD SUCCEEDED**, zero errors/warnings of isolation relevance.
+- Release standalone build: **BUILD SUCCEEDED** — verifies the `#if DEBUG` DI composition compiles out and Release uses the real `ScanViewModel()`; built `Info.plist` confirmed to contain `NSCameraUsageDescription = 需要访问相机以扫描和识别名片。`.
+- Unit tests (Swift Testing, simulator UDID `5B32D815-5F37-4EE0-825C-85DE864E0B02`, `-parallel-testing-enabled NO`): **48/48 PASS** (39 Week 2 + 9 new ScanViewModel tests; 0.066 s).
+- UI regression, one clean round: **13/13 PASS** (11 business cases + 2 template tests) — Holder empty/populated (2), Detail full/minimal (2), ScanEntry shell/close (2), Week2 integration (1), new camera states (4), template launch tests (2).
+- Boundary audit vs `2cdcea9`: changed tracked files limited to `project.pbxproj` (2 added NSCameraUsageDescription lines only), `ScanEntryView.swift`, and the two adapted UI test files; zero changes under `SimCamCard/Model/`, `SimCamCard/Repository/`, `spec/`, `dataset/`, MockBusinessCards. Grep for `PhotoOutput|Vision|VNImage|PhotosUI|PHPhotoLibrary|SwiftData|MovieFileOutput|AVAudioSession|metadataOutput|@unchecked Sendable|nonisolated(unsafe)` in app source: comment-only matches documenting exclusion, zero usages.
+
+Verification level (honest split):
+- T03 permission STATE/ORCHESTRATION (allow/deny/restricted/no-reprompt defined states, denial does not crash): **PASS** (9 unit + 4 fixture UI tests).
+- S02 `permissionUnknown` / `permissionDenied` / `preview` UI states: **PASS (fixture-driven UI)**.
+- Preview layer wiring (`AVCaptureVideoPreviewLayer` + real session configuration path): implementation complete, compiles Debug+Release; **real live camera frames on a physical device: NOT INDEPENDENTLY VERIFIED** (simulator has no camera; fixture sessions intentionally never start hardware).
+- Native iOS permission dialog presentation/result: implementation uses the standard `AVCaptureDevice.requestAccess` path with the usage string present; **native dialog interaction on device: NOT INDEPENDENTLY VERIFIED** (not automatable; fixtures deliberately bypass it).
+- `cameraUnavailable` state: unit-tested via injected error; no standalone UI test (the simulator real-hardware path is nondeterministic).
+
+### Regression
+
+- Week 2 suite fully green (unit 39 prior tests unchanged; all 7 Week 2 business UI cases pass under the authorized camera fixture).
+- Scanner visual shell is pixel-comparable to Week 2 in the fixture screenshot: same top bar/mode selector/aiming frame/tip/tabs/shutter/album; root and control accessibility IDs unchanged.
+- Card Holder / Detail flows and the populated-fixture repository remain untouched (boundary audit confirms zero Model/Repository changes).
+- T04 shutter / T05 相册 remain visual-only: tapping the shutter in the authorized fixture keeps the user on the Scanner; no output/picker is added.
+
+### S02 / T03 traceability update
+
+| Item | This increment status |
+|---|---|
+| T03 Camera Permission — state machine / no crash on denial | PASS (automated) |
+| T03 native system dialog (device) | NOT INDEPENDENTLY VERIFIED |
+| S02 `permissionUnknown` | IMPLEMENTED (shell shown while request is pending) |
+| S02 `permissionDenied` | IMPLEMENTED (minimal functional fallback; denied + restricted; Reference fidelity not established) |
+| S02 `preview` | IMPLEMENTED; real live frames on device PENDING verification |
+| S02 `cardNotDetected` visual | remains PARTIAL (static guidance only; dynamic detection NOT IMPLEMENTED — T06 scope) |
+| S02 `cardDetected` / `captured` | NOT IMPLEMENTED (T04/T06 scope) |
+| S02 `cancelled` | NOT MODELED in the frozen state inventory; Back stops the session and pops (behavior exists, no state value) |
+| T04 Capture / T05 Photo Import | NOT IMPLEMENTED (visual controls only) |
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review). Acceptance is recorded with final conclusions in the correction-2 entry below. Plan file was moved out of the repository working tree (`ai/Week 3 IncrementCamera Permission + Live Preview` → `/tmp/w3i1-plan.md`) and is not part of the change set.
+
+## 2026-09-30 — Week 3 Increment 1 correction: Camera session concurrency (SUPERSEDES MainActor-owned session design)
+
+### Task
+
+Architecture correction before Accept: the original Increment 1 implementation isolated the entire `AVCaptureSession` lifecycle (creation / configure / start / stop) on the MainActor. This is superseded because Apple AVFoundation guidance states configuration is expensive and `startRunning()` / `stopRunning()` are blocking calls that must not execute on the main thread. This is a production camera-foundation fix, not a profiling-deferred optimization.
+
+### What was superseded
+
+- Original: `@MainActor final class CameraSessionController` owning `AVCaptureSession`; synchronous `configure()` / `start()` / `stop()` executed on the main thread; documented as an "accepted trade-off".
+- Corrected: camera session lifecycle moved OFF the MainActor entirely.
+
+### Corrected architecture
+
+- **Ownership**: `CameraSessionController` is now an `actor` (in `SimCamCard/Camera/CameraSessionController.swift`). It owns the `AVCaptureSession`, the `isConfigured` flag and the full ordering contract.
+- **Executor/queue**: the actor runs on a dedicated serial executor — `DispatchSerialQueue(label: "com.metahumanz.SimCamCard.camera.session")` exposed via `nonisolated var unownedExecutor`. ALL of `beginConfiguration` / `commitConfiguration` / input mutation / `startRunning` / `stopRunning` execute strictly serialized on that one non-main serial context; `startRunning` can never run concurrently with configuration.
+- **Async API**: `configureIfNeeded() async throws`, `start() async throws`, `stop() async` (protocol `nonisolated protocol CameraSessionControlling: Sendable` — explicitly `nonisolated` because `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` would otherwise force the protocol onto the MainActor and block actor conformance). `ScanViewModel` (still `@MainActor @Observable`, still owns permissionUnknown/permissionDenied/preview/cameraUnavailable and the mapping to UI state) now `await`s these calls; `.onDisappear` hops to the service via `Task { await viewModel.scannerDidDisappear() }`.
+- **Ordering contract preserved**: configure once (a failed configure leaves the session unconfigured so a later entry may retry), start many, stop many; all idempotent.
+- **Preview isolation boundary**: `CameraPreviewView` remains a pure presentation adapter (no configure/start/stop in the UIViewRepresentable). Current SDK exposes AVCaptureSession as non-Sendable for this Swift 6 build, so `@preconcurrency import AVFoundation` is used as a narrow compatibility/interoperability bridge for the preview-session reference. Concurrency safety therefore relies on the explicit ownership contract: all AVCaptureSession mutation/configure/start/stop occurs on CameraSessionController's dedicated serial actor executor; MainActor/UI only attaches the session to AVCaptureVideoPreviewLayer for presentation; UI code does not mutate session topology/lifecycle. `@preconcurrency` only relaxes compile-time diagnostics — it does NOT itself guarantee thread safety. There is NO `@unchecked Sendable`, NO `nonisolated(unsafe)`, NO `Task.detached`. The session instance is created inline (`nonisolated let session = AVCaptureSession()` — instantiating an empty session is cheap; the expensive lifecycle runs on the serial queue), and only the actor ever mutates it.
+- **DEBUG fakes**: `DebugCameraSessionController` is now an actor mirroring the same serialized contract (configure-once / start-many / stop-many counters, error injection via init). The permission provider stays `@MainActor` (no blocking capture-session work).
+
+### Verification (all rerun — prior round's results NOT carried over)
+
+- Debug build (iOS Simulator iPhone 18 Pro): **BUILD SUCCEEDED** (three compile iterations fixed: protocol `nonisolated`, inline `nonisolated let session`, `@preconcurrency` bridge).
+- Release build: **BUILD SUCCEEDED** (DEBUG DI composition still compiles out; production path uses the actor service).
+- Unit tests: **50/50 PASS** (48 prior + 2 new serialization-contract tests). All 9 original behavior contracts still hold (notDetermined→grant / notDetermined→deny / authorized / denied / restricted / configure-failure→cameraUnavailable / disappear→stop / re-enter→configure-once+start-many). New tests prove the orchestration API serialization/idempotency via counters (16 concurrent `configureIfNeeded` calls → configureCount == 1; three appear/disappear cycles → configure 1 / start 3 / stop 3) — no wall-clock timing, no thread identity.
+- UI regression, one clean round: **13/13 PASS** (unchanged case set; the `-SimCamCardCamera` fixture path now drives the actor-based service).
+- Boundary audit: grep for `Task.detached` / `nonisolated(unsafe)` / `@unchecked` in app+test source: comment-only matches (documenting exclusion), zero usages. Zero changes under Model/Repository/spec/dataset/MockBusinessCards.
+
+### Traceability calibration (supersedes the coarser wording in the Increment 1 entry above)
+
+- T03 permission state-machine / deny-no-crash automated verification: **PASS**
+- T03 native system permission dialog allow/deny: **NOT INDEPENDENTLY VERIFIED**
+- S02 `permissionUnknown` orchestration/UI: **PASS**
+- S02 `permissionDenied` orchestration/UI: **PASS**
+- S02 `preview` state + preview-layer wiring: **PASS**
+- S02 real live-preview runtime verification: **PENDING physical-device verification**
+- S02 `preview` overall verification: **PARTIAL pending real-device frames**
+- S02 `cardNotDetected` visual: remains PARTIAL (static guidance only; dynamic NOT IMPLEMENTED — T06 scope)
+- S02 `cardDetected` / `captured`: NOT IMPLEMENTED (T04/T06 scope); `cancelled`: NOT MODELED (Back behavior exists, no state value)
+- T04 Capture / T05 Photo Import / T06 Detection / Crop / OCR / extraction: NOT IMPLEMENTED
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review). Final conclusions recorded in the correction-2 entry below.
+
+## 2026-10-01 — Week 3 Increment 1 correction 2: initial camera-session start failure contract + @preconcurrency wording calibration
+
+### Task
+
+1. Close the initial camera-session start failure gap: `AVCaptureSession.startRunning()` does NOT report an initial start failure via Swift `throw`. The prior implementation called `startRunning()` and unconditionally set state to `.preview` — a failed initial start would have been misreported as preview. Contract required: configure success → start requested → session actually starts → preview; configure success → initial start failure → cameraUnavailable, NOT preview.
+2. Calibrate `@preconcurrency` wording in code comments and this file (removes unverifiable "Apple-sanctioned / AVCam-sample" claims).
+
+### Changes
+
+- `SimCamCard/Camera/CameraSessionController.swift`
+  - New error case `CameraSessionError.startFailed`.
+  - Protocol + actor: `start() async` → `start() async throws`. Implemented contract (exact scope):
+    1. configuration succeeds (`configureIfNeeded()`);
+    2. `startRunning()` is invoked on the dedicated serial camera executor;
+    3. when the initial start attempt returns but `session.isRunning == false`, `start()` throws `CameraSessionError.startFailed`;
+    4. `ScanViewModel.beginPreview()` maps this to `.cameraUnavailable(.startFailed)`;
+    5. the state must not become `.preview`.
+  - Explicitly NOT IMPLEMENTED (deferred robustness, NOT part of this increment's completion scope): post-start `AVCaptureSessionRuntimeErrorNotification` handling, interruption handling, automatic recovery/retry, media-services-reset recovery. The contract above covers the INITIAL start attempt only.
+- `SimCamCard/ViewModel/ScanViewModel.swift` — `beginPreview()` now `try await sessionController.start()`; a thrown initial start failure maps to `.cameraUnavailable(.startFailed)`, never `.preview`.
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — fake `start()` signature updated to `async throws` (never throws in UI fixtures).
+- `SimCamCardTests/ViewModel/ScanViewModelTests.swift` — FakeSession gains deterministic `startError` injection; new test: authorized → configure succeeds → initial start fails (`.startFailed`) → state == `.cameraUnavailable(.startFailed)` AND state != `.preview`, with configureCount == 1 / startCount == 1. No real hardware involved.
+- Wording calibration (code comments in `CameraSessionController.swift` / `CameraPreviewView.swift` and the correction-1 entry above): `@preconcurrency import AVFoundation` is described accurately as a narrow compatibility/interoperability bridge for the display-only preview-session reference that relaxes COMPILE-TIME diagnostics only; safety derives from the explicit ownership contract (all mutation on the actor's serial executor; UI only attaches the session to the preview layer). No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`.
+
+### Verification (full rerun — production lifecycle was modified)
+
+- Debug build: **BUILD SUCCEEDED**
+- Release build: **BUILD SUCCEEDED**
+- Unit tests: **51/51 PASS** (50 prior + 1 new initial-start-failure contract test)
+- UI regression, one clean round: **13/13 PASS** (count unchanged per instruction; internal failure contract needs no new UI case)
+- Boundary audit unchanged: no banned constructs, no Model/Repository/spec/dataset changes, no PhotoOutput/Photos/Vision/OCR.
+
+### Traceability (unchanged + one addition)
+
+- T03 permission state-machine / denial no-crash automated verification: PASS
+- T03 native permission-dialog allow/deny: NOT INDEPENDENTLY VERIFIED
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- Initial camera-session start failure → cameraUnavailable: **PASS (automated)**
+- Post-start AVCaptureSession runtime-error notification handling / interruption handling / automatic recovery: **NOT IMPLEMENTED — deferred robustness work** (not part of this increment's completion scope)
+- Debug build: PASS; Release build: PASS; Unit tests: 51/51 PASS; UI regression: 13/13 PASS
+- No `@unchecked Sendable`; no `nonisolated(unsafe)`; no `Task.detached`
+- T04/T05/T06/OCR/extraction: NOT IMPLEMENTED
+
+### Human Decision
+
+**Accepted — 2026-10-01 (human review).** Week 3 Increment 1 (Camera Permission + Real Live Preview) final conclusions, unchanged at acceptance:
+
+- Camera permission abstraction: PASS
+- ScanViewModel state ownership (@MainActor): PASS
+- Dedicated serial CameraSessionController actor executor (DispatchSerialQueue custom executor): PASS
+- MainActor blocking lifecycle issue: FIXED (session lifecycle runs off the main thread on the actor's serial executor)
+- Initial camera-session start failure → cameraUnavailable (never preview): PASS (automated)
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- T03 automated permission state-machine / denial no-crash: PASS
+- Native system permission dialog allow/deny: NOT INDEPENDENTLY VERIFIED
+- Post-start runtime-error notification handling / interruption handling / automatic recovery: NOT IMPLEMENTED — deferred robustness work
+- Debug build: PASS; Release build: PASS
+- Unit tests: 51/51 PASS; UI regression: 13/13 PASS
+- T04/T05/T06/OCR/extraction: NOT IMPLEMENTED
+- No `@unchecked Sendable`; no `nonisolated(unsafe)`; no `Task.detached`
+
+AI did not commit, merge or tag. Increment 2 not entered.
+
+## 2026-10-01 — Week 3 Increment 2: Still Capture (T04 mechanics)
+
+### Task
+
+T04 still-photo capture mechanics: Scanner preview → tap shutter → AVCapturePhotoOutput captures one real still → stable captured-photo value → S02 `captured` state. Baseline: branch `week3/camera-ocr` @ `eeefbbe` (Increment 1 accepted). Explicitly out of scope: Card Detection, Crop, OCR, Recognition/Edit, BusinessCard creation, Repository save, PhotosPicker.
+
+### Files
+
+New (filesystem-synchronized groups; no pbxproj change):
+- `SimCamCard/Camera/CapturedPhoto.swift` — camera-pipeline transport value (`nonisolated struct`, `Sendable, Equatable`): raw `data: Data` (AVCapturePhoto.fileDataRepresentation bytes, EXIF orientation metadata preserved — never stripped) + `capturedAt: Date`. NOT a Domain Model; no OCR text/rectangle/structured fields/BusinessCard id/tags/notes.
+- `SimCamCard/Camera/PhotoCaptureProcessor.swift` — one-shot `AVCapturePhotoCaptureDelegate` bridge; `nonisolated final class` (only state is the immutable continuation let). Converts `AVCapturePhoto` → `Data` INSIDE the delegate callback; `AVCapturePhoto` never crosses any actor/Sendable boundary and is never claimed Sendable.
+- `ai/validation/2026-10-01-increment2-captured-photo-fixture.png` — fixture-driven captured-state presentation evidence. NOT physical camera capture proof.
+
+Modified:
+- `SimCamCard/Camera/CameraSessionController.swift` — `configureIfNeeded()` now also adds ONE `AVCapturePhotoOutput` inside the same begin/commitConfiguration transaction (input once + output once + configure once; re-entry never re-adds). `canAddOutput == false` → new `CameraSessionError.cannotAddPhotoOutput` (infrastructure, never disguised as permissionDenied). New `capturePhoto() async throws -> CapturedPhoto`: guards configured+running and single in-flight (atomic check-and-set on the serial executor), minimal `AVCapturePhotoSettings()` defaults (no flash UI/burst/bracket/RAW/Live Photo/depth/portrait/metadata output), processor strongly held in `inFlightCapture` for the whole capture and cleared via `defer` on both paths. New errors `captureFailed` (delegate error / not running) and `emptyPhotoData` (no usable bytes).
+- `SimCamCard/ViewModel/ScanViewModel.swift` — new frozen S02 state `case captured(CapturedPhoto)` (Equatable preserved); transient `isCaptureInFlight` Bool (NOT added to the frozen enum); `capture()` accepts only `.preview` and not-in-flight, otherwise ignored. Success: capture → stop session → `.captured(photo)`. Failure: no crash, never `.captured`, never permissionDenied — mapped to `.cameraUnavailable(...)` infrastructure fallback (no retry UI).
+- `SimCamCard/View/Scan/ScanEntryView.swift` — shutter `scan-capture` is now the real capture action, disabled (dimmed) while in flight; new `.captured` branch renders `capturedSection`: the ACTUAL captured bytes decoded to UIImage in the View layer only (Data remains source of truth; UIImage is a transient rendering adapter, never stored/persisted), root id `scan-captured-photo`; existing top-bar ✕ is the back path. No 识别中/完成/下一步/重拍 buttons, no crop handles, no recognition fields. Reference fidelity: functional transitional UI; reference fidelity not established. 相册 `scan-photo-import` remains visual-only (T05 NOT IMPLEMENTED).
+- `SimCamCard/Camera/Debug/DebugCameraFakes.swift` — DEBUG-only fake gains `capturePhoto()` returning a deterministic fixed VALID tiny PNG (4×4 green, 71 bytes) + `captureCount`. Release builds compile all fakes out (`#if DEBUG`); Release never touches the fake capture path.
+- Tests: `SimCamCardTests/ViewModel/ScanViewModelTests.swift` (fake gains `captureError` injection + `captureCount`; 7 new tests); `SimCamCardUITests/ScanCameraUITests.swift` (new fixture capture test; removed obsolete "shutter is visual-only" tap assertion); `SimCamCardUITests/ScanEntryUITests.swift` (shell test updated: photo-import still visual-only no-op; shutter now verified to reach captured).
+
+### Architecture preserved
+
+ScanViewModel stays @MainActor UI state owner; CameraSessionController stays an actor on its dedicated `DispatchSerialQueue` custom executor; CameraPreviewView stays presentation-only. ALL session configuration / input mutation / output mutation / startRunning / stopRunning / capture-request orchestration execute on the camera actor executor. No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`. The `@preconcurrency import AVFoundation` compatibility bridge is retained under the same ownership contract (it relaxes compile-time diagnostics only; it does not itself guarantee thread safety).
+
+### Orientation contract (prompt §14)
+
+What this increment actually guarantees:
+
+- Raw captured photo bytes/attachments preservation: **PASS** — `AVCapturePhoto.fileDataRepresentation()` returns the photo image data with AVFoundation attachments/metadata retained; `CapturedPhoto.data` preserves those returned bytes without stripping any metadata.
+
+What this increment does NOT establish:
+
+- Correct upright/canonical captured orientation: **NOT ESTABLISHED** in this increment.
+- Physical-device orientation verification (portrait / landscape / iPad rotation): **PENDING**.
+- RotationCoordinator / explicit preview+capture connection rotation (no `AVCaptureDevice.RotationCoordinator` use, no explicit rotation angle set on the AVCapturePhotoOutput video connection): **DEFERRED** — must be resolved before Detection/OCR consumes canonical image orientation.
+
+### Verification (all rerun — production camera lifecycle modified)
+
+- Debug standalone build: **BUILD SUCCEEDED** (one compile iteration: PhotoCaptureProcessor needed explicit `nonisolated` because SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor would otherwise pin the NSObject delegate subclass to MainActor, making it unusable from the camera actor).
+- Release build: **BUILD SUCCEEDED** (DEBUG fake capture path compiled out; production capture path uses real AVFoundation).
+- Unit tests: **58/58 PASS** (51 prior + 7 new): capture success (session stopped, captured(photo), in-flight cleared); capture failure → cameraUnavailable, never captured, in-flight cleared; capture ignored in permissionDenied / permissionUnknown / cameraUnavailable (captureCount == 0); double-tap single-in-flight (captureCount == 1, counter-based, no wall-clock timing); re-entry after capture (configure 1 / start 2 / stop 2). All Increment 1 contracts (configure once, start/stop many, serialization under concurrency, initial-start-failure) still pass.
+- UI regression, one clean round: **14/14 PASS** (13 prior + 1 new fixture capture test). `ScanEntryUITests.testEnterScannerShowsStaticShell` was updated for the now-real shutter (first UI run caught the stale visual-only assertion; corrected and rerun green).
+- Boundary audit: zero changes under SimCamCard/Model, SimCamCard/Repository, spec/, dataset/, MockBusinessCards.swift; project.pbxproj untouched; no PhotosPicker/Vision/OCR/AppRoute additions.
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` anywhere in app/tests.
+- Release fake-isolation audit: DebugCameraFakes.swift wrapped in `#if DEBUG`; Release build succeeds without any fake capture path.
+
+### Traceability
+
+- T04 still-photo capture mechanics: **PASS (automated / fixture supported)**
+- T04 physical-device still capture: **NOT INDEPENDENTLY VERIFIED**
+- T04 capture → recognition workflow: **NOT IMPLEMENTED**
+- T04 overall: **PARTIAL**
+- S02 `permissionUnknown` orchestration/UI: PASS
+- S02 `permissionDenied` orchestration/UI: PASS
+- S02 `preview` state + preview-layer wiring: PASS
+- S02 real live-preview runtime verification: PENDING physical-device verification
+- S02 `preview` overall verification: PARTIAL
+- S02 `captured` state/orchestration: **PASS**; captured fixture-driven presentation: **PASS**; physical-device captured photo: **PENDING**
+- S02 `cardNotDetected` dynamic state: NOT IMPLEMENTED; `cardDetected`: NOT IMPLEMENTED (REF-scanner-02-card-detected.png is NOT evidence of implemented detection); `cancelled`: NOT MODELED
+- T05 Photo Import / T06 Detection / T07 OCR / Crop / structured extraction: NOT IMPLEMENTED
+- Fixture-driven capture UI: PASS; physical-device photo capture: NOT INDEPENDENTLY VERIFIED
+
+### Correction before acceptance
+
+1. **Capture failure releases camera session** — [ScanViewModel.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/ViewModel/ScanViewModel.swift) `capture()`: both success and failure paths now `await sessionController.stop()` before updating state, so the camera session is never left running behind the error fallback. Updated unit test assertion: `captureCount == 1 && stopCount == 1 && state == .cameraUnavailable(...) && state != .captured`.
+2. **Orientation wording calibrated** — changes.md orientation section rewritten to distinguish "raw bytes/attachments preservation: PASS" from "correct upright/canonical orientation: NOT ESTABLISHED"; `RotationCoordinator` and explicit connection rotation explicitly deferred.
+3. **Git working tree cleaned** — `git restore ai/prompts/week2-skeleton.md`; untracked prompt file moved to `/tmp/w3inc2-plan.md`; final `git status --short` shows only Increment 2 files plus validation screenshot.
+
+### Human Decision
+
+**Accepted — 2026-10-01 (human review).** Week 3 Increment 2 (Still Capture) final conclusions, unchanged at acceptance:
+
+- T04 still-photo capture mechanics: PASS (automated / fixture)
+- Capture success → stop session → captured: PASS
+- Capture failure → stop session → cameraUnavailable (never captured): PASS
+- Delegate lifetime (PhotoCaptureProcessor strongly held until callback resumes): PASS
+- Double-capture prevention (single in-flight contract): PASS
+- S02 captured state/presentation: PASS (fixture-driven)
+- Physical-device still capture: NOT INDEPENDENTLY VERIFIED
+- Raw captured bytes/attachments preservation: PASS
+- Correct upright/canonical captured orientation: NOT ESTABLISHED
+- Physical-device orientation verification: PENDING
+- RotationCoordinator / explicit preview+capture connection rotation: DEFERRED — must be resolved before Detection/OCR consumes canonical image orientation
+- T04 capture → recognition workflow: NOT IMPLEMENTED
+- T04 overall: PARTIAL
+- T05 Photo Import / T06 Detection / T07 OCR / Crop / structured extraction: NOT IMPLEMENTED
+- Debug build: PASS; Release build: PASS
+- Unit tests: 58/58 PASS; UI regression: 14/14 PASS
+
+AI did not commit, merge or tag. Increment 3 not entered.
+
+## 2026-10-01 — Week 3 Increment 3: System Photo Import (T05)
+
+### Task
+Implement T05 system photo import mechanics: Scanner → tap 相册 → system `PhotosPicker` → choose one image → convert to stable `Data` → `imageSelected` state. Extends the existing T04 single-card capture path so both camera capture and photo-library import feed the same `CapturedPhoto` transport. **NOT** implemented in this increment: Card Detection (T06), Crop (T06), OCR (T07), Recognition/Edit, Structured Extraction, Save.
+
+### Context Provided
+- `ai/prompts/TRAE - Week 3 Increment 3: Photo Import.md` (plan; NOT committed)
+- Increment 2 accepted camera/capture code (`CapturedPhoto.swift`, `ScanViewModel.swift`, `ScanEntryView.swift`, `DebugCameraFakes.swift`)
+- Apple PhotosUI / PHPickerViewController documentation (out-of-process picker; no `NSPhotoLibraryUsageDescription` required for selected-photo flow)
+- `spec/reference-tests.md` T05 (相册 import), `spec/state-inventory.md` S03 scanner states
+
+### Constraints
+- Single-card contract: exactly one `CapturedPhoto` flows through the scanner at a time (camera capture OR photo import, never both).
+- Reuse the T04 captured-image presentation for the imported image; do NOT create a separate `ImportedPhoto` type.
+- Photo import must NOT require photo-library **write** or full-library **read** permission. `PhotosPicker` runs out-of-process and hands back the selected asset; the app only consumes the returned `Data`. No `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription` added; no `PHPhotoLibrary.requestAuthorization` call; `project.pbxproj` UNCHANGED.
+- `ScanViewModel` stays `@MainActor @Observable`; camera `State` (S02) and new photo-import state are composed, NOT merged into one enum.
+- `CameraSessionController` stays an actor on its `DispatchSerialQueue` custom executor.
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`.
+- Do NOT modify: Model, Repository, spec, dataset, MockBusinessCards.swift, frozen reference evidence.
+- Do NOT implement: Detection, Crop, OCR, Recognition/Edit, Structured Extraction, Save, `AppRoute.crop`, `AppRoute.recognition`.
+- Do NOT commit the Week 3 plan file; do NOT restore `week2-skeleton.md`.
+
+### AI Changes
+
+Modified files (5 production + 3 test):
+
+- **`SimCamCard/Camera/CapturedPhoto.swift`** — Added `nonisolated enum ImageSource: Sendable, Equatable { case camera, case photoLibrary }`. Added `source: ImageSource` property to `CapturedPhoto` with default `.camera`. Camera path uses the default; photo import sets `.photoLibrary`. Unified transport for both sources.
+
+- **`SimCamCard/ViewModel/ScanViewModel.swift`** — 
+  - Added `#if DEBUG enum PhotoImportFixtureMode: String { case imported, cancel, loadFailure = "loadfailure" }` and `typealias PhotoImportFixtureParam` (`PhotoImportFixtureMode?` in DEBUG, `Never?` in Release) at file scope.
+  - Added `enum PhotoImportState: Equatable { case idle, pickerPresented, imageSelected(CapturedPhoto), importFailed }`.
+  - Added `private(set) var photoImport: PhotoImportState = .idle` and `private(set) var isPickerPresented = false`.
+  - Added `private let photoImportFixture: PhotoImportFixtureParam` + init param (unconditional, default nil).
+  - Added `beginPhotoImport() async` — guard `state == .preview && !isPickerPresented && photoImport == .idle`; `await sessionController.stop()`; if DEBUG fixture mode → simulate result directly; else `isPickerPresented = true; photoImport = .pickerPresented`.
+  - Added `handleSelectedImage(_ data: Data)` — `isPickerPresented = false; photoImport = .imageSelected(CapturedPhoto(data: data, source: .photoLibrary))`.
+  - Added `handleImportCancel() async` — `isPickerPresented = false; photoImport = .idle; await restartPreview()`.
+  - Added `handleImportLoadFailure()` — `isPickerPresented = false; photoImport = .importFailed`.
+  - Added private `restartPreview() async` — `try await sessionController.start(); state = .preview`; failure → `.cameraUnavailable`.
+
+- **`SimCamCard/View/Scan/ScanEntryView.swift`** — 
+  - Added `import PhotosUI`.
+  - Added `@State private var selectedItem: PhotosPickerItem?` and `@State private var didSelectItem = false`.
+  - 相册 button now calls `Task { await viewModel.beginPhotoImport() }`.
+  - Body renders `viewModel.photoImport` with priority: `.imageSelected` → `imageSection(photo, identifier: "scan-imported-photo")`; `.importFailed` → fallback id `scan-import-failed`; else fall through to camera `state`.
+  - Renamed `capturedSection` → `imageSection(_:identifier:)` shared by both camera capture (`scan-captured-photo`) and import (`scan-imported-photo`).
+  - Added `.photosPicker(isPresented: ..., selection: $selectedItem, matching: .images)`.
+  - Added `.onChange(of: selectedItem)` → `didSelectItem = true`; async `loadTransferable(type: Data.self)` → success → `handleSelectedImage(data)`, failure/empty → `handleImportLoadFailure()`.
+
+- **`SimCamCard/Camera/Debug/DebugCameraFakes.swift`** — Added `static let photoImportArgument = "-SimCamCardPhotoImport"`. `makeViewModelIfRequested` parses optional `-SimCamCardPhotoImport <imported|cancel|loadfailure>` via `parsePhotoImportFixture`, passes `photoImportFixture` to `ScanViewModel`. Release compiles fakes out entirely (`#if DEBUG`).
+
+- **`SimCamCardTests/ViewModel/ScanViewModelTests.swift`** — Added 6 photo-import unit tests:
+  1. `photoImportSelectionStopsSessionAndEntersImageSelected` — preview → begin → stop → handleSelectedImage → imageSelected with `source == .photoLibrary`, camera stays stopped.
+  2. `photoImportCancelRestartsPreview` — cancel → idle, startCount == 2, state == .preview.
+  3. `photoImportLoadFailureEntersImportFailed` — importFailed, never imageSelected.
+  4. `photoImportIgnoredWhenNotPreview` — denied state ignores begin.
+  5. `photoImportDoesNotPresentTwice` — duplicate guard.
+  6. `photoImportSelectionKeepsCameraStopped` — select → no restart.
+
+- **`SimCamCardUITests/ScanCameraUITests.swift`** — Added 2 photo-import fixture UI tests:
+  - `testPhotoImportFixtureShowsImportedPhoto` — launch `authorized` + `imported` → tap 相册 → assert `scan-imported-photo` exists, `scan-capture` absent, no crash. Captures screenshot `w3i3-scan-imported-photo-fixture`.
+  - `testPhotoImportCancelReturnsToPreview` — launch `authorized` + `cancel` → tap 相册 → assert preview returns (`scan-camera-preview` + `scan-capture`), no imported photo.
+  - `launchAndEnterScanner` now accepts optional `photoImportMode` parameter.
+
+- **`SimCamCardUITests/ScanEntryUITests.swift`** — Removed stale "photo import remains visual-only" tap/assertions (T05 now implemented; tapping 相册 presents the system picker which would interfere with the subsequent capture test). The scan-entry shell test now goes straight to the shutter capture assertion.
+
+- **`ai/validation/2026-10-01-increment3-photo-import-fixture.png`** — NEW validation screenshot: fixture-driven imported state (NOT native picker proof).
+
+### Design decisions
+
+1. **Unified transport via `CapturedPhoto.ImageSource`**: Extended `CapturedPhoto` with `source: ImageSource` (default `.camera`) instead of creating a separate `ImportedPhoto` type. Camera capture and photo import both produce a `CapturedPhoto`; the `source` tag distinguishes them for Increment 4+'s Detection/Crop pipeline. The existing T04 captured-image presentation (`imageSection`) is reused for the imported image with a different accessibility identifier.
+
+2. **Composed state, not merged enum**: `photoImport: PhotoImportState` is a separate property from `state: State` (camera). The View renders `photoImport` first (`.imageSelected` / `.importFailed` take priority), falling through to camera `state` when `photoImport == .idle` or `.pickerPresented`. This keeps S02 camera states intact and avoids a combinatorial state explosion.
+
+3. **Camera lifecycle on import**: `beginPhotoImport()` → `sessionController.stop()` (release camera before presenting picker). Cancel → `restartPreview()` (restart camera). Selection → camera stays stopped (the imported image replaces the preview). This matches the reference behavior: picking a photo leaves the camera off.
+
+4. **DEBUG fixture for deterministic UI regression**: `beginPhotoImport()` checks `photoImportFixture` and simulates the result directly (bypassing the real `PhotosPicker`). This enables deterministic UI tests without driving the out-of-process system picker. The fixture uses `DebugCameraSessionController.fixtureImageData` (valid PNG bytes), so the imported image presentation is real (not a placeholder).
+
+5. **No photo-library permission**: `PhotosPicker`/`PHPickerViewController` runs out-of-process; Apple docs confirm "the user doesn't need to explicitly authorize your app to select photos." Therefore NO `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription` added, NO `PHPhotoLibrary.requestAuthorization` called, `project.pbxproj` UNCHANGED.
+
+6. **`handleImportCancel() async`**: Made cancel async (awaits `restartPreview()` directly) so unit-test assertions on `startCount` are deterministic. The View's `Binding.set` wraps it in `Task { await viewModel.handleImportCancel() }`.
+
+7. **`didSelectItem` guard**: The `PhotosPicker` `isPresented` binding's setter fires when the picker dismisses. A `didSelectItem` flag distinguishes "user selected an item" (don't call cancel — the `.onChange` handler already processed it) from "user cancelled" (call `handleImportCancel()`).
+
+### Verification
+
+- **Debug build**: BUILD SUCCEEDED.
+- **Release build**: BUILD SUCCEEDED (DEBUG fakes compiled out; production `PhotosPicker` path intact).
+- **Unit tests**: **64/64 PASS** (58 prior + 6 new photo-import tests; all Increment 1 & 2 contracts green).
+- **UI tests**: **16/16 PASS** (14 prior + 2 new import fixture tests). `ScanEntryUITests.testEnterScannerShowsStaticShell` updated (stale visual-only photo-import assertion removed; now goes straight to shutter capture).
+- **Boundary audit**: zero changes under `SimCamCard/Model`, `SimCamCard/Repository`, `spec/`, `dataset/`, `MockBusinessCards.swift`; `project.pbxproj` untouched.
+- **Forbidden-API audit**: no `PHPhotoLibrary`, `Vision`, `VNDetectRectanglesRequest`, `VNRecognizeTextRequest`, `AppRoute.crop`, `AppRoute.recognition` in production code. `PhotosPicker` is allowed.
+- **Concurrency audit**: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` anywhere in app/tests.
+- **Release fake-isolation audit**: `DebugCameraFakes.swift` wrapped in `#if DEBUG`; `PhotoImportFixtureMode` / fixture block in `ScanViewModel` guarded by `#if DEBUG`; Release build succeeds.
+- **Validation screenshot**: `ai/validation/2026-10-01-increment3-photo-import-fixture.png` captured (fixture-driven imported state).
+
+### Traceability
+
+- T05 Photo Import mechanics (system picker → selected image → stable Data → imported state): **PASS (automated / fixture supported)**
+- T05 Native system `PhotosPicker` runtime selection: **NOT INDEPENDENTLY VERIFIED** (fixture bypasses the out-of-process picker; selection→`Data` conversion uses real `loadTransferable`)
+- T05 imported image presentation (reuses captured-image section): **PASS**
+- T05 cancel → returns to preview: **PASS**
+- T05 load-failure → importFailed fallback: **PASS**
+- T05 overall: **PARTIAL** (mechanics + fixture UI pass; native picker runtime not independently verified)
+- T04 still capture: unchanged, **PASS (automated / fixture)**
+- T06 Detection / T07 OCR / Crop / Recognition / Structured Extraction / Save: **NOT IMPLEMENTED**
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 4 not entered.
+
+## 2026-10-01 — Week 3 Increment 3 presentation-binding correction (pre-Accept)
+
+### Task
+Fix the real-PhotosPicker presentation race: after a selection, the system dismisses the sheet while `loadTransferable` is still running; the custom `isPresented` Binding getter still returned `isPickerPresented == true`, risking picker re-presentation / stale presentation state. DEBUG fixtures bypass the native picker, so fixture UI tests cannot cover this — the presentation transition is moved into the ViewModel as a unit-testable contract.
+
+### 1. Selection dismissal ≠ cancel
+
+New minimal presentation-only method in [ScanViewModel.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/ViewModel/ScanViewModel.swift):
+
+- `photoPickerDidDismissAfterSelection()` — clears ONLY `isPickerPresented`. No camera restart, no `photoImport = .idle`, no selection-success marking, no image load.
+
+[ScanEntryView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Scan/ScanEntryView.swift) Binding setter now dispatches:
+
+```text
+dismissed && didSelectItem  → photoPickerDidDismissAfterSelection()  // NOT a cancel
+dismissed && !didSelectItem → handleImportCancel()                   // first-class cancel
+```
+
+### 2. Selection async loading contract
+
+```text
+selected → system dismiss → isPickerPresented = false (immediately)
+         → photoImport stays .pickerPresented while Data loads
+         → camera remains stopped
+load success → imageSelected
+load failure → importFailed
+```
+
+No camera restart on either terminal selection path.
+
+### 3. PhotosPicker selection state reset
+
+After a terminal selection result (success or load failure), the View sets `selectedItem = nil` so a later picker session never holds the previous `PhotosPickerItem`. The `onChange` handler returns immediately on nil; the nil reset is never treated as a cancel (cancel is only dispatched from the `isPresented` binding's dismissal path).
+
+### 4. New unit contract tests (+2)
+
+- `photoPickerDismissalAfterSelectionKeepsImportResolving` — begin import → `photoPickerDidDismissAfterSelection()` → `isPickerPresented == false`, `photoImport == .pickerPresented`, camera stopped (`startCount == 1`); then `handleSelectedImage` → `imageSelected` with `.photoLibrary` source, still no restart.
+- `photoPickerDismissalThenLoadFailureEntersImportFailed` — dismissal-after-selection → `handleImportLoadFailure` → `importFailed`, `isPickerPresented == false`, no restart.
+
+No UI automation drives the real system picker; native presentation/selection remains NOT INDEPENDENTLY VERIFIED.
+
+### 5. Verification (rerun — production presentation code modified)
+
+- Debug build: **BUILD SUCCEEDED**.
+- Release build: **BUILD SUCCEEDED** (DEBUG fakes compiled out).
+- Unit tests: **71/71 PASS** (69 prior + 2 new). All prior contracts green: capture blocked in `pickerPresented` / `imageSelected` / `importFailed`; cancel → restart → idle; restart failure → `cameraUnavailable` + idle.
+- UI regression: **16/16 PASS** (all 7 suites).
+- Boundary audit: Model / Repository / spec / dataset / MockBusinessCards.swift untouched; `project.pbxproj` unchanged; no PhotoKit permission request; `preferredItemEncoding: .current`; no app-side transcoding; bit-for-bit original asset NOT GUARANTEED; canonical orientation NOT ESTABLISHED.
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`.
+
+### Traceability (unchanged)
+
+- Photo-import orchestration: **PASS (automated)**
+- Fixture-driven selected-image UI: **PASS**
+- Native system PhotosPicker presentation/selection: **NOT INDEPENDENTLY VERIFIED**
+- Selected image → Recognition/Edit: **NOT IMPLEMENTED**
+- T05 overall: **PARTIAL**
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 4 not entered.
+
+## 2026-10-01 — Week 3 Increment 3 contract corrections (pre-Accept)
+
+### Task
+Two state/contract corrections after main-review approval, before Accept. No Increment 4 work.
+
+### 1. Photo Import active state gates camera-only actions
+
+**Problem**: after `beginPhotoImport()` stops the camera session, `state` remains `.preview`. Camera-only actions keyed on `state == .preview` alone were therefore reachable while the session was stopped behind the import flow.
+
+**Fix** ([ScanViewModel.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/ViewModel/ScanViewModel.swift)):
+- `capture()` now requires the REAL scanner-ready state:
+  `guard state == .preview, photoImport == .idle, !isPickerPresented, !isCaptureInFlight`.
+  Every active Photo Import state (`pickerPresented` / `imageSelected` / `importFailed`) blocks still capture. Business correctness does NOT rely on the system picker sheet visually covering the shutter.
+- `beginPreview()` (the other camera-start intent, reached via `scannerDidAppear`) is also gated: `guard photoImport == .idle, !isPickerPresented` — a re-fired appear must never restart the camera behind an imported image. `scannerDidDisappear` → `stop()` is idempotent and stays ungated.
+
+### 2. Cancel → restart → idle ordering contract
+
+**Problem**: `handleImportCancel()` set `photoImport = .idle` BEFORE awaiting the camera restart, so `.idle` was observable while the camera was still restarting.
+
+**Fix**: ordering is now
+```
+picker cancelled
+→ isPickerPresented = false
+→ await restartPreview()
+→ restart succeeded: state = .preview
+→ photoImport = .idle        // terminal marker, set LAST
+```
+On restart failure: `state = .cameraUnavailable(startFailed)` (never `.preview`), and `photoImport` still ends cleanly in `.idle` — the import lifecycle is over; the camera failure is surfaced through the camera state. `photoImport == .idle` is now a TERMINAL marker meaning the import lifecycle has FULLY ended; it never means "camera still restarting". No `restartingPreview` state was added — the existing enum plus ordering satisfies the contract.
+
+### 3. Photo encoding contract
+
+[ScanEntryView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Scan/ScanEntryView.swift) `.photosPicker` now passes `preferredItemEncoding: .current` (was default `.automatic`).
+
+Final accurate contract:
+- `PhotosPicker preferredItemEncoding: .current`
+- SimCamCard performs NO app-side image transcoding.
+- The system is asked to preserve the item's current encoding when possible.
+- The `Data` returned by `PhotosPicker` (`loadTransferable(type: Data.self)`) is preserved unchanged by SimCamCard after loading.
+- Bit-for-bit original photo-library asset identity: **NOT GUARANTEED**.
+- JPEG / PNG / HEIC etc. actual system representations enter the later pipeline as opaque image `Data`.
+- Canonical orientation: **NOT ESTABLISHED** — deferred to rotation normalization before Increment 4.
+
+### 4. Permission semantics (unchanged)
+
+PhotosPicker selected-item path does NOT require `PHPhotoLibrary` authorization. No `PHPhotoLibrary.requestAuthorization`. No `NSPhotoLibraryUsageDescription`. No `NSPhotoLibraryAddUsageDescription`. `project.pbxproj` unchanged. S03 `photoPermissionRequired` / `photoPermissionDenied`: not exercised by the current PhotosPicker path. No artificial permission prompt was manufactured to match the frozen reference.
+
+### 5. New unit contract tests (+5)
+
+- `photoImportPickerPresentedBlocksCapture` — preview → beginPhotoImport → capture() → `captureCount == 0`; state stays `.preview`, import stays `pickerPresented`.
+- `photoImportImageSelectedBlocksCapture` — imported image survives a blocked capture; `captureCount == 0`.
+- `photoImportFailedBlocksCapture` — `importFailed` blocks capture; `captureCount == 0`.
+- `photoImportCancelBecomesIdleOnlyAfterRestartCompletes` — uses a minimal gated-fake seam (`enableStartGate`/`releaseStartGate` suspends `start()` after incrementing the counter; deterministic, no wall-clock): mid-restart `photoImport` is still `pickerPresented` (NOT idle); after gate release, `idle` + `.preview`.
+- `photoImportCancelWithRestartFailureLeavesPickerFlowCleanly` — fake fails only the 2nd `start()` (`startErrorOnCall: 2`): cancel → `.cameraUnavailable(.startFailed)` + `photoImport == .idle`, never `.preview`.
+
+### 6. Verification (rerun — production state lifecycle modified)
+
+- Debug build: **BUILD SUCCEEDED**.
+- Release build: **BUILD SUCCEEDED** (DEBUG fakes compiled out).
+- Unit tests: **69/69 PASS** (64 prior + 5 new). All Increment 1/2 contracts green.
+- UI regression: **16/16 PASS** (all suites: CardDetail / CardHolderEmpty / CardHolderPopulated / ScanCamera / ScanEntry / SimCamCard / Week2Integration).
+- Boundary audit: Model / Repository / spec / dataset / MockBusinessCards.swift untouched; `project.pbxproj` unchanged; no `PHPhotoLibrary` / Vision / OCR / `AppRoute.crop` / `AppRoute.recognition`.
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`.
+
+### Traceability (unchanged, honest)
+
+- Photo-import orchestration: **PASS (automated)**
+- Fixture-driven selected-image UI: **PASS**
+- Native system PhotosPicker presentation/selection: **NOT INDEPENDENTLY VERIFIED**
+- Selected image → Recognition/Edit: **NOT IMPLEMENTED**
+- T05 overall: **PARTIAL**
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 4 not entered.
+
+## 2026-10-01 — Week 3 Increment 3 Accepted: final conclusions
+
+**Accepted — 2026-10-01 (human review).** Week 3 Increment 3 (System Photo Import, T05 mechanics) final conclusions, unchanged at acceptance:
+
+- System `PhotosPicker`: IMPLEMENTED
+- PhotoKit authorization request: NOT REQUIRED by current selected-item picker path
+- `NSPhotoLibraryUsageDescription`: NOT ADDED
+- `project.pbxproj`: unchanged
+- camera/photo-library unified image transport (`CapturedPhoto` + `ImageSource`): PASS
+- `preferredItemEncoding: .current`: PASS
+- app-side image transcoding: NONE
+- bit-for-bit original asset identity: NOT GUARANTEED
+- canonical image orientation: NOT ESTABLISHED
+
+- photo-import active states block still capture: PASS
+- `beginPreview` does not restart camera while photo import owns scanner content: PASS
+- cancel → camera restart → idle: PASS
+- idle is not exposed until restart resolves: PASS
+- restart failure → cameraUnavailable + clean import termination: PASS
+
+- selection dismissal ≠ cancel: PASS
+- system dismissal immediately clears picker presentation flag: PASS
+- selection-load transient (`isPickerPresented == false` + `photoImport == pickerPresented` + camera stopped) is a valid state
+- load success → imageSelected: PASS
+- load failure → importFailed: PASS
+- selected `PhotosPickerItem` reset after terminal handling: PASS
+
+- Unit tests: 71/71 PASS
+- UI regression: 16/16 PASS
+- Debug build: PASS
+- Release build: PASS
+
+S03:
+
+- pickerPresented: IMPLEMENTED / automated orchestration PASS
+- imageSelected: IMPLEMENTED / fixture verification PASS
+- cancelled: IMPLEMENTED / automated + fixture verification PASS
+- photoPermissionRequired: not exercised by current system-picker path
+- photoPermissionDenied: not exercised by current system-picker path
+
+T05:
+
+- photo-import orchestration: PASS
+- selected-image pipeline handoff: PASS
+- fixture-driven imported-image presentation: PASS
+- native system PhotosPicker runtime selection: NOT INDEPENDENTLY VERIFIED
+- selected image → Recognition/Edit workflow: NOT IMPLEMENTED
+- overall: PARTIAL
+
+Residual verification note: Apple's public `PhotosPicker` API documents the `isPresented` and `selection` bindings but does not define a callback-order guarantee between their mutations. Current selection-vs-cancel dispatch therefore remains subject to native system-picker runtime verification. This is a verification item, not a blocker for this Increment.
+
+AI did not commit, merge or tag. Increment 4 not entered.
+
+## 2026-10-01 — Week 3 Increment 4: Canonical Orientation + Live Card Detection (T06 first half)
+
+Baseline: 6ddefaa.
+
+### Orientation architecture
+
+Canonical orientation is now ESTABLISHED via a three-part contract:
+
+- capture side: `AVCaptureDevice.RotationCoordinator(device:previewLayer:nil)` owned by the `CameraSessionController` actor; its `videoRotationAngleForHorizonLevelCapture` is observed (KVO callback on main queue → `Task { await actor.applyCaptureRotation(angle) }`) and applied to the `.video` connections of BOTH the photo output and the video data output through the pure `VideoRotationDecision.supportedAngle` seam (unsupported angles are never written to a connection). The capture angle is applied immediately once at configuration and on every subsequent change.
+- preview side: a SECOND, independent RotationCoordinator owned by `CameraPreviewView.PreviewContainerView`, observing `videoRotationAngleForHorizonLevelPreview` and writing only `previewLayer.connection?.videoRotationAngle` (guarded by `isVideoRotationAngleSupported`). The View layer's responsibility stays limited to preview presentation + preview-connection rotation; it never touches capture outputs.
+- imported/still image side: `ImageOrientationResolver.orientation(of:)` reads EXIF orientation via ImageIO (`CGImageSourceCreateWithData` + `kCGImagePropertyOrientation`) without rewriting bytes; missing metadata or undecodable data → `.up`.
+
+RotationCoordinator live preview behavior on real device rotation: PENDING physical device.
+
+### ImageOrientationResolver contract
+
+Pure read-only metadata lookup: `static func orientation(of data: Data) -> CGImagePropertyOrientation`. No decode, no transcode, no byte mutation. Unit-verified for EXIF orientations 1/3/6/8 (`.up/.down/.right/.left`), no-metadata → `.up`, invalid data → `.up` (test fixtures built with CGImageDestination-injected EXIF).
+
+### AVCaptureVideoDataOutput configuration
+
+Added alongside the existing photo output in the SAME configuration transaction; `canAddOutput` failure throws the new `CameraSessionError.cannotAddVideoDataOutput` (→ `cameraUnavailable`, never misreported as preview). `alwaysDiscardsLateVideoFrames = true`.
+
+### Detection queue ownership / backpressure
+
+Sample-buffer delegate (`VideoFrameProcessor`, `nonisolated final class`, same pattern as `PhotoCaptureProcessor`) runs on a dedicated serial queue `com.metahumanz.SimCamCard.camera.detection` — never MainActor, never the session queue. Frame callback consumes the CMSampleBuffer synchronously (never stored, never crosses an isolation boundary) and publishes only the Sendable `CardRegion?` into an `AsyncStream` with `bufferingNewest(1)`: the ViewModel only ever needs the latest boundary; late frames are dropped by AVFoundation, not queued. `didDrop` is intentionally empty.
+
+### Vision API + detector configuration
+
+Stable `VNDetectRectanglesRequest` / `VNRectangleObservation` only — no beta/experimental Vision APIs, no OCR assistance. Fresh request per frame (no reused mutable request state across calls). `CardRegionDetector.Configuration.businessCardBaseline`: maximumObservations 1, minimumConfidence 0.6, minimumSize 0.1, aspect ratio 0.4…2.5 (covers horizontal ~1.6 and vertical ~0.6 cards with perspective slack), quadratureTolerance 30. Vision failure → `nil` for that frame, never an error state, never `cameraUnavailable`.
+
+### CardRegion coordinate convention
+
+Project-wide: origin top-left, x right, y down, all values clamped to [0,1] by `NormalizedPoint`. Conversion from Vision's lower-left origin: `appY = 1 − visionY` per corner, corner labels preserved. `sourcePixelWidth/Height` carry the ORIENTED source pixel size (axes swapped for 90°/270° still-image orientations) because the aspect-fill overlay mapping requires the source aspect ratio. Vision objects (`VNRectangleObservation`) never leave the detector; only the Sendable value type crosses to the MainActor.
+
+### Aspect-fill mapping
+
+Pure function `AspectFillCoordinateMapper.point`: `scale = max(dW/sW, dH/sH)`, `offset = (dest − source·scale)/2`, `screen = offset + normalized · (source·scale)`. Unit-verified for 1:1, 4:3-in-tall-viewport (width crop), portrait-source-in-landscape (side crop), and a 1920×1080→390×700 four-corner numeric case.
+
+### Dataset smoke-test results (real Vision, no fake)
+
+`CardRegionDetectorTests` run the real `VNDetectRectanglesRequest` on frozen-dataset images read in place via `#filePath` (never copied, never modified):
+
+- card-001-standard-bilingual.png → one valid quadrilateral: PASS
+- card-007-vertical-medical-bilingual.png → one valid quadrilateral: PASS
+- card-013-english-bio-photographed.png → one valid quadrilateral: PASS
+- uniform 64×64 gray image → nil (no throw): PASS
+
+Assertions are smoke-contract only (dataset has no corner ground truth): region non-nil, all corners in [0,1], shoelace area > 0.05, positive source pixel size.
+
+### ViewModel detection lifecycle
+
+`CardDetectionState { inactive, cardNotDetected, cardDetected(CardRegion) }` is a separate state family; it does not alter `.preview` semantics. Consumption starts after successful `beginPreview`/`restartPreview` (initial state `cardNotDetected`); `capture` (success and both failure paths), `beginPhotoImport`, and `scannerDidDisappear` all stop consumption and reset to `.inactive`; stale events after termination cannot reactivate the overlay (state/import guards in the consumer loop). At most one consumer task at a time (previous stream finished before a new one is created); no `Task.detached`.
+
+### Overlay Reference fidelity
+
+Human visual comparison (fixture screenshot vs `evidence/screenshots/REF-scanner-02-card-detected.png`): cyan thin-stroke quadrilateral, no corner handles, no fill, no glow, no animation — MATCH; detected capsule pill "发现名片，点击拍摄" top-center, static white aiming guide REPLACED (not overlaid) — MATCH. Fixture geometry is a deterministic centered region, not a real detected card shape; real-detection geometry fidelity is PENDING physical device. Validation screenshots: `ai/validation/2026-10-01-increment4-card-detected-fixture.png`, `ai/validation/2026-10-01-increment4-card-not-detected-fixture.png`.
+
+### Builds and tests
+
+- Debug build: PASS
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty; DEBUG fixture code compiled out)
+- Unit tests: 96/96 PASS (was 71; +25: orientation resolver, CardRegion convention/clamping, aspect-fill mapper, real-Vision dataset smoke ×4, ViewModel detection lifecycle ×9, rotation-decision seam)
+- UI regression: 18/18 PASS (was 16; +2 detection fixture tests)
+
+### Physical-device pending items
+
+- real camera frame delivery: PENDING physical device
+- RotationCoordinator live preview behavior: PENDING physical device
+- live Vision business-card detection: PENDING physical device
+- fixture overlay: PASS automated
+- dataset still-image Vision smoke: PASS automated
+
+### Traceability
+
+- T06 Vision rectangle detector: PASS on dataset smoke
+- T06 live detection state orchestration: PASS automated
+- T06 detected boundary overlay: PASS fixture-driven
+- T06 live physical-device overlay: NOT INDEPENDENTLY VERIFIED
+- T06 manual boundary adjustment / confirm: NOT IMPLEMENTED (later half)
+- T06 overall: PARTIAL
+- S02 cardNotDetected: IMPLEMENTED / PASS automated
+- S02 cardDetected: IMPLEMENTED / PASS automated + fixture
+- S04 (crop/edit): NOT IMPLEMENTED this increment
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep clean; matches only in explanatory comments).
+- No Vision/VNRectangle/CMSampleBuffer import or reference in ViewModel/View; Model layer free of SwiftUI/UIKit/Vision/AVFoundation.
+- Vision work confined to the dedicated detection queue; no Vision call on MainActor or the session queue.
+- CMSampleBuffer consumed synchronously in the callback; only `CardRegion?` crosses actors.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj: unchanged (new files picked up by filesystem-synchronized groups).
+- Release DEBUG-fixture isolation: PASS (Release `SWIFT_ACTIVE_COMPILATION_CONDITIONS` has no DEBUG; entire fixture file is `#if DEBUG`).
+- `git status` shows no `_local` prompt path (ignored via `.git/info/exclude`).
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 5 not entered.
+
+## 2026-10-01 — Week 3 Increment 4 pre-Accept corrections: Vision aspect-ratio semantics + configure rollback + orientation wording
+
+Human review approved the Increment 4 main architecture; this round fixes two production blockers and calibrates the orientation documentation wording before Accept. Existing history above is not rewritten.
+
+### Blocker 1 — VNDetectRectanglesRequest aspect-ratio semantic correction
+
+The previous `maximumAspectRatio = 2.5` used the wrong semantic. Vision defines BOTH `minimumAspectRatio` and `maximumAspectRatio` as shorter dimension / longer dimension, so every legal value is in 0.0...1.0; horizontal and vertical business cards share the SAME range (no reciprocal >1 value).
+
+Corrected `CardRegionDetector.Configuration.businessCardBaseline`:
+
+- maximumObservations = 1 (unchanged)
+- minimumConfidence = 0.6 (unchanged)
+- minimumSize = 0.1 (unchanged)
+- minimumAspectRatio = 0.4
+- maximumAspectRatio = 1.0 (was 2.5)
+- quadratureTolerance = 30 (unchanged)
+
+New configuration-contract unit test asserts the baseline stays inside documented legal ranges: minimumAspectRatio ≥ 0, maximumAspectRatio ≤ 1, minimumAspectRatio ≤ maximumAspectRatio, minimumSize ∈ 0...1, minimumConfidence ∈ 0...1, quadratureTolerance ∈ 0...45, maximumObservations == 1. It does NOT test Vision's undocumented internal clamping.
+
+Dataset smoke RERUN with the corrected configuration, real Vision (no fake): card-001 standard horizontal PASS, card-007 vertical PASS, card-013 photographed PASS, uniform featureless image → nil PASS. Detector PASS retained only because the corrected-configuration smoke passed.
+
+### Blocker 2 — configure failure partial-topology rollback
+
+Previously a late rejection (e.g. `canAddVideoDataOutput == false`) still committed the transaction after earlier add steps, leaving a partial topology with `isConfigured == false` for a later retry.
+
+Fix via a minimal seam (`SimCamCard/Camera/CameraTopologyTransaction.swift`), without a large refactor:
+
+- `CaptureSessionTopology` protocol (associated input/output types; witnessed directly by AVCaptureSession's existing begin/commit/canAdd/add/remove methods) exists only to make the ordering contract unit-testable without camera hardware. It is deliberately not Sendable — calls are synchronous on the camera actor's serial executor.
+- `CameraTopologyTransaction.apply(...)` runs one attempt: begin → add input → add photo output → add video-data output → commit, tracking exactly which objects THIS attempt added. On any rejection it removes in REVERSE order only the objects added by this attempt (a never-added rejected object is not removed), commits the clean topology, and rethrows the original CameraSessionError. Pre-existing topology is never removed.
+- `CameraSessionController.configureIfNeeded()` delegates to the helper; the dedicated actor executor, sessionQueue ownership, start/stop behavior, RotationCoordinator ownership and detectionQueue ownership are unchanged.
+
+Retry contract verification (deterministic fake topology, no AVCaptureSession/hardware): success installs exactly one input + two outputs with one begin/commit; rejected input → empty committed topology + `.cannotAddVideoInput`; rejected photo output → input removed + `.cannotAddPhotoOutput`; rejected video-data output → photo output then input removed (rejected object itself not removed) + `.cannotAddVideoDataOutput`; attempt 1 late failure (clean, configured == false) followed by attempt 2 allowed → exactly one input, two outputs, two begin/commit pairs, configured == true.
+
+### Orientation wording calibration
+
+The blanket phrase "canonical orientation: ESTABLISHED" is withdrawn in favor of per-path status:
+
+- Live camera frame orientation contract: ESTABLISHED at architecture/automated level — RotationCoordinator capture angle; AVCaptureVideoDataOutput connection rotation; Vision receives `.up`-oriented delivered buffers; physical-device verification still PENDING.
+- Captured-photo rotation metadata contract: ESTABLISHED at architecture level — capture rotation applied to the AVCapturePhotoOutput connection; physical-device EXIF verification still PENDING.
+- Imported/still image orientation-resolution contract: ESTABLISHED as resolver foundation — ImageOrientationResolver reads CGImagePropertyOrientation; EXIF mapping tests PASS; raw bytes unchanged.
+- End-to-end still-image Detection/Crop consumption of resolved orientation: NOT IMPLEMENTED YET.
+
+Stated overall: orientation foundation / semantics ESTABLISHED — NOT claimed as "all camera/import image pipelines are end-to-end canonically normalized".
+
+Unchanged (re-affirmed): preview RotationCoordinator mutates only the preview connection; capture RotationCoordinator mutates photo/video-data-output connections on the camera actor; KVO → actor hop; `isVideoRotationAngleSupported` guard; video-data frames analyzed as `.up`; CardRegion top-left normalized coordinates; resizeAspectFill mapper; detected fixture ≠ physical live detection. Overlay UI unchanged.
+
+### Verification totals (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS (Release SWIFT_ACTIVE_COMPILATION_CONDITIONS empty; DEBUG fixture compiled out)
+- Unit tests: 102/102 PASS (previous 96 + 1 detector configuration contract + 5 topology rollback/retry)
+- UI regression: 18/18 PASS
+- Real-Vision dataset smoke (corrected config): 4/4 PASS
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached`
+- Boundary audit: Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj unchanged; `git status` shows no `_local`
+
+### Traceability (unchanged conclusions)
+
+- T06 Vision rectangle detector: PASS (corrected-configuration dataset smoke)
+- T06 live detection orchestration: PASS automated
+- T06 detected overlay: PASS fixture-driven
+- T06 live physical-device detection: NOT INDEPENDENTLY VERIFIED
+- T06 manual boundary adjustment: NOT IMPLEMENTED
+- T06 confirm: NOT IMPLEMENTED
+- T06 overall: PARTIAL
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: NOT IMPLEMENTED (Scanner live cardDetected does not make S04 autoDetected PASS)
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 5 not entered.
+
+## 2026-10-01 — Week 3 Increment 5: Crop / Boundary Adjust + Perspective Correction (P04 / S04, T06 second half)
+
+Baseline: db0cc90.
+
+### P04 Reference evidence (actual observation of REF-crop-01-manual-adjust.png, 1224×1626@2x)
+
+- Top bar: plain white "取消" top-left (retake semantics — no "重拍" text, no chevron/icon), plain blue "完成" top-right.
+- Full-bleed black background; complete image centered aspect-fit with black letterbox.
+- Thin bright-blue quadrilateral stroke; NO dim/mask fill inside or outside.
+- Four bright-blue filled circular corner handles (~16pt), four-corner-only interaction.
+- Four dark slate-gray edge-midpoint dots centered on each edge ARE visible in the Reference (OBSERVED IN REFERENCE). They are rendered for black-box visual replication; PRESENTATION ONLY (`allowsHitTesting(false)`) because the Reference does not establish midpoint-drag semantics (edge-midpoint interaction: NOT ESTABLISHED). (Wording corrected in the pre-Accept correction section below — an earlier draft of this entry wrongly recorded them as NOT OBSERVED / not rendered.)
+- No guidance text, magnifier, or animation evidence.
+- Reference fidelity for the transient preparing/failed/confirmed pages: NOT ESTABLISHED (Reference shows only the editing page) — these are minimal IMPLEMENTATION BEHAVIOR.
+
+### Shared still pipeline (camera + photo import converge)
+
+`camera capture OR photo import → CapturedPhoto → CardImageDecoder.decode (ImageIO + orientation) → CardRegionDetector (still image, reused from Increment 4) → CropDraft → P04 manual corner adjustment → confirm → CIPerspectiveCorrection → CardCropResult (new upright PNG; original bytes untouched)`. Capture and import run the SAME `ScanViewModel.prepareCrop` path — no duplicated pipelines. Heavy work is confined to the `CardCropProcessor` actor on a dedicated `DispatchSerialQueue` (`com.metahumanz.SimCamCard.crop.processing`); the MainActor ViewModel only holds Sendable values (Data / Int / enums), never CGImage/CIImage/UIImage. No OCR (no VNRecognizeTextRequest), no Recognition/Edit, no structured fields, no BusinessCard creation, no Repository save, no auto enhancement, no multi-card.
+
+### CardImageDecoder + orientation consumption
+
+`CardImageDecoder.decode(_ data:) throws -> DecodedImage` uses ImageIO directly (never UIImage as processing source of truth): primary CGImage + resolved `CGImagePropertyOrientation` (via the existing `ImageOrientationResolver`) + ORIENTED pixel dimensions (axes swapped for `.left/.right` and mirrored variants). Unreadable bytes → `CropError.invalidImageData` (stable, no crash).
+
+### No-detection fallback (IMPLEMENTATION BEHAVIOR, not Reference-observed)
+
+When still detection returns nil, preparation produces an inset axis-aligned rectangle (`fallbackInset = 0.06`) and enters `manualAdjusting` — cropping stays possible instead of dead-ending. Clearly labeled implementation robustness; Reference fidelity not established.
+
+### Geometry validity gate (pure, no UIKit/Core Image)
+
+`CardRegionGeometry.isValid`: all four edges ≥ 1e-4, shoelace area/2 ≥ 0.01 of the normalized square, every consecutive cross product non-zero and same-sign (rejects self-intersecting bow-ties and collinear triples). `NormalizedPoint` clamps to 0...1 before validation. Drag policy: an invalid candidate is silently ignored — the draft can NEVER hold a degenerate region, and confirm is never the first validity gate. The first accepted drag permanently transitions autoDetected → manualAdjusting.
+
+### Aspect-fit coordinate mapping
+
+`AspectFitCoordinateMapper` (pure): `scale = min(cw/sw, ch/sh)` with centered letterbox offsets; forward normalized→view and inverse view→normalized (subtracts letterbox offset, clamps to 0...1, so a drag ending in the letterbox maps to the nearest edge). The Scanner's aspect-fill math is deliberately not reused.
+
+### Perspective correction + PNG contract
+
+`CIPerspectiveCorrection` (typed `CIFilter.perspectiveCorrection()`, crop = true) on the `CIImage.oriented(...)` upright image; extent normalized to (0,0) before corner mapping. Corner conversion `PerspectiveCoordinateMapping.coreImagePoint`: `ciX = x·w`, `ciY = (1−y)·h` on the ORIENTED dimensions (guards against double y-flip and double axis-swap). Output rendered via a shared `CIContext`, encoded PNG with NO properties dictionary → no EXIF orientation is written: the pixels are physically upright and the result's orientation semantics are `.up`. `CardCropResult` carries the untouched `original: CapturedPhoto`, `confirmedRegion`, processed PNG Data and processed pixel dimensions. Guarded errors: `.invalidImageData / .invalidRegion / .correctionFailed`.
+
+### S04 state machine
+
+Separate `CardRegionState` family (deliberately NOT merged into the camera `State` enum): `inactive / preparing / autoDetected(CropDraft) / manualAdjusting(CropDraft) / confirmed(CardCropResult) / retakeRequested / failed(CropError)`. Frozen S04 mapping: autoDetected, manualAdjusting, confirmed, retakeRequested all IMPLEMENTED; `preparing`/`failed` are implementation transients. `confirmCrop()` is guarded by `isCropInFlight` (double tap → exactly one correction; confirmed state has no draft so a later call is a no-op). `retake()` ("取消") discards the draft/result, clears import/picker state, restarts preview and resumes live detection; for a photo-library source it returns to the same Scanner without re-opening the system picker; restart failure maps to the existing `cameraUnavailable` contract. Retake outside an active crop screen is ignored.
+
+### DEBUG fixtures
+
+`-SimCamCardCrop {auto|manual|confirmed}` drives `DebugCropProcessor` (deterministic 600×380 synthetic card PNG + fixed region; prepare is faked, perspectiveCorrect delegates to the REAL processor). The 4×4 capture fixture bytes are replaced by the synthetic image for prepare. Entire fixture surface is `#if DEBUG`.
+
+### Dataset end-to-end smoke (real decode + real Vision + real Core Image, no fixture)
+
+`CropPipelineDatasetSmokeTests`, dataset files read in place via `#filePath`:
+
+- card-001-standard-bilingual.png → prepare detected → correct → decodable upright PNG: PASS
+- card-007-vertical-medical-bilingual.png → same: PASS
+- card-013-english-bio-photographed.png → same: PASS
+
+Assertions are smoke-contract only: `wasDetected == true`, valid region, positive processed dimensions, output decodes with orientation `.up`, original bytes retained equal.
+
+### Builds and tests (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty; DEBUG fixtures compiled out)
+- Unit tests: 146/146 PASS (was 102; +44 executed cases: geometry validity/clamp/fallback, aspect-fit mapper + round-trip + letterbox clamp, perspective coordinate mapping incl parameterized .up/.down/.left/.right oriented dims, CardImageDecoder, synthetic-image processor success/failure/EXIF-.right physical-upright, 3 real-card dataset smoke, 14 ScanViewModel S04 workflow tests)
+- UI regression: 21/21 PASS (was 18; +3 crop tests: auto-detected boundary+4 handles+controls, manual drag page stability, confirm corrected image with handles absent; the existing capture and import fixture tests were UPDATED because capture/import now intentionally flow into P04 — their mechanics assertions are preserved via the crop page + retake path)
+- Validation screenshots: `ai/validation/2026-10-01-increment5-crop-auto-detected.png`, `2026-10-01-increment5-crop-manual-adjust.png`, `2026-10-01-increment5-crop-confirmed.png`
+
+### Traceability
+
+- T04 capture mechanics: PASS automated (capture now hands off into P04)
+- T05 import mechanics: PASS automated (import shares the same pipeline)
+- T06 Vision rectangle detector (live + still): live PASS automated / physical PENDING; still-image Detection→Crop PASS automated incl dataset
+- T06 manual boundary adjustment: PASS automated (fixture UI + unit geometry; Reference-fidelity PENDING human)
+- T06 confirm + perspective correction: PASS automated (real Core Image on synthetic + dataset images)
+- T06 overall: PARTIAL (physical live camera verification outstanding)
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: IMPLEMENTED / PASS automated
+
+### Orientation status update
+
+End-to-end still-image Detection/Crop orientation consumption: PASS automated (parameterized .up/.down/.left/.right oriented dimensions; EXIF-.right portrait source corrects into landscape physically-upright PNG with no residual EXIF; dataset images pass the real chain). Physical-camera captured-photo EXIF on real hardware: still PENDING. Native `PhotosPicker` runtime selection: still NOT INDEPENDENTLY VERIFIED (DEBUG import fixture bypasses native picker UI as in Increment 3).
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep clean; matches only in explanatory comments).
+- No Vision/CMSampleBuffer/CIImage/CIFilter import or reference in ViewModel/View (`UIImage(data:)` in CardCropView is a display adapter only); Vision remains confined to Detection and the crop processor's off-main actor.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj: unchanged (new files picked up by filesystem-synchronized groups).
+- `git status` shows no `_local` prompt path.
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 6 not entered.
+
+## 2026-10-01 — Week 3 Increment 5 pre-Accept correction: confirmation interaction freeze + P04 edge-midpoint evidence/visual calibration
+
+Human review of the Increment 5 body: approved, subject to this one production concurrency/state blocker and the P04 reference-fidelity calibration. Scope was limited to ViewModel/View/tests; the approved Apple/Core Image path was NOT refactored.
+
+### 1. Confirmation interaction freeze contract (stale-result race prevention)
+
+Blocker: while `isCropInFlight == true` (between `confirmCrop()` entry and the awaited correction settling), Cancel/retake and corner drags could still execute, allowing `confirm A → move to B → confirmed A clobbers B` and `confirm → retake to scanner → old confirm returns → .confirmed reappears`.
+
+Fix (state ownership stays in the ViewModel):
+
+- `ScanViewModel.moveCorner` now starts with `guard !isCropInFlight, let draft = cardRegion.draft else { return }` — the CropDraft is immutable for the duration of a correction.
+- `ScanViewModel.retake` now requires `guard cardRegion.isCropScreenActive, !isCropInFlight else { return }` — no workflow reset, no camera restart, no live-detection restart while a correction is running.
+- `confirmCrop` retains its existing double-confirm guard (`!isCropInFlight` + editable draft).
+- CardCropView mirrors the freeze: `scan-crop-confirm` stays disabled (already), `scan-crop-retake` is now `.disabled(viewModel.isCropInFlight)`, and all four corner handles get `.allowsHitTesting(false)` while in flight. No new loading overlay was introduced; the Reference UI is preserved exactly.
+
+### 2. Deterministic gated correction test (no sleep)
+
+`FakeCropProcessor` gained a continuation gate: `enableCorrectionGate()` makes `perspectiveCorrect` suspend after recording entry (`enteredCorrectionCount` incremented synchronously before suspension); `releaseCorrectionGate()` resumes all waiters. New test `crop intents are frozen while a confirmation correction is in flight`:
+
+- capture → autoDetected(draft A); start `confirmCrop()` in a Task; bounded-yield until the fake reports correction entered; assert `isCropInFlight == true`, workflow still on the captured crop page;
+- move while confirming → draft/state unchanged (still autoDetected A);
+- retake while confirming → workflow state unchanged, camera start count unchanged, no new detection stream, live detection not restarted (`cardDetection` still `.inactive`);
+- release gate → exactly one correction completes, state settles `.confirmed(result)` with `confirmedRegion == A`, `isCropInFlight == false`.
+
+The sequential double-confirm test is retained.
+
+### 3. P04 midpoint evidence calibration (correction of an earlier wrong record)
+
+The earlier entry below stated the edge-midpoint dots were recorded "NOT OBSERVED / not rendered". That was wrong and is withdrawn:
+
+```text
+edge-midpoint controls: OBSERVED IN REFERENCE (REF-crop-01)
+edge-midpoint interaction semantics: NOT ESTABLISHED
+```
+
+Re-measurement on the actual reference PNG (1182×1632): one dark slate-gray filled circle centered on each of the four edges; sampled fill ~RGB(69,69,78), diameter ~15–16pt, no independent stroke (the blue edge passes through the center). The earlier "NOT OBSERVED" wording in the Increment 5 evidence bullet has been corrected in place.
+
+### 4. Midpoint visual fidelity (implemented; presentation only)
+
+CardCropView now renders all four edge-midpoint dots for black-box visual replication:
+
+- positions derived LIVE each layout pass as `midpoint(A,B)` of the current four corners in aspect-fit display coordinates (never fixed screen coordinates);
+- small filled circles, `Color(red:0.27,green:0.27,blue:0.31)` sampled from REF-crop-01, diameter 15pt, no animation, no change to quadrilateral geometry;
+- `allowsHitTesting(false)` + accessibilityHidden — PRESENTATION ONLY; no edge drag is implemented because the Reference does not establish midpoint interaction semantics.
+
+P04 visual fidelity status:
+
+```text
+corner handles:            MATCH
+edge midpoint visual:      MATCH / IMPLEMENTED
+edge midpoint interaction: NOT ESTABLISHED
+```
+
+### 5. Untouched production contracts
+
+Explicitly NOT modified in this correction round: CardCropProcessor orientation pipeline, `CIImage.oriented(...)`, PerspectiveCoordinateMapping, the CIFilter perspective-correction call, the processed PNG contract (no EXIF / physically upright), original CapturedPhoto preservation, no-detection fallback (inset 0.06), geometry validity thresholds, AspectFit mapper, T04/T05 routing, and the S04 state family. Model / Repository / spec / dataset / MockBusinessCards.swift / project.pbxproj remain unchanged.
+
+### 6. Re-verification (actual reruns)
+
+- Debug build: PASS
+- Release build: PASS; `SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty and the Release app binary contains neither the `SimCamCardCrop` launch argument nor the `DebugCropProcessor` symbol (DEBUG fixture isolation confirmed)
+- Unit tests: 147/147 PASS (was 146; +1 deterministic gated freeze test), including the 3 real-card dataset Detection→Crop smoke tests
+- UI regression: 21/21 PASS (unchanged count; all three crop screens re-verified after the view changes); the crop validation screenshots were regenerated and now show the four edge-midpoint dots:
+  - ai/validation/2026-10-01-increment5-crop-auto-detected.png
+  - ai/validation/2026-10-01-increment5-crop-manual-adjust.png
+  - ai/validation/2026-10-01-increment5-crop-confirmed.png
+- Concurrency audit: no `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (comment mentions only); boundary audit: no Vision/CIImage/CMSampleBuffer use in ViewModel/View; `git status` shows no `_local` path.
+
+### 7. Traceability (unchanged)
+
+- S04 autoDetected / manualAdjusting / confirmed / retakeRequested: IMPLEMENTED / PASS automated
+- T06 overall: PARTIAL — physical-device live camera path still NOT INDEPENDENTLY VERIFIED
+
+### Final accepted conclusions (2026-10-01 human review)
+
+Pipeline / contracts:
+
+- shared camera/photo-import still-image crop pipeline: PASS
+- original CapturedPhoto bytes preservation: PASS
+- orientation resolution + upright processing: PASS
+- still-image Vision detection: PASS
+- no-detection manual fallback: PASS / implementation behavior
+- four-corner manual boundary adjustment: PASS
+- quadrilateral validity gate: PASS
+- AspectFit forward/inverse coordinate mapping: PASS
+- Core Image perspective correction: PASS
+- processed upright PNG contract: PASS
+- end-to-end dataset Detection→Crop smoke: PASS
+
+Confirmation concurrency:
+
+- double-confirm guard: PASS
+- moveCorner blocked while correction is in flight: PASS
+- retake blocked while correction is in flight: PASS
+- stale correction cannot overwrite a newer manual draft: PASS
+- stale correction cannot re-open confirmed state after retake: PASS
+- deterministic continuation-gated race test: PASS
+
+P04 Reference:
+
+- black background: MATCH
+- aspectFit image presentation: MATCH
+- Cancel / 完成 toolbar: MATCH
+- blue quadrilateral boundary: MATCH
+- four bright-blue draggable corner handles: MATCH
+- four dark slate-gray edge-midpoint dots: MATCH / IMPLEMENTED (positions derived dynamically from current edge geometry)
+- edge-midpoint interaction semantics: NOT ESTABLISHED — no edge-drag behavior invented
+- no dim mask: MATCH
+- no unsupported animation/magnifier added
+
+Verification:
+
+- Debug build: PASS
+- Release build: PASS
+- Unit: 147/147 PASS
+- UI: 21/21 PASS
+- three Crop UI tests after visual correction: 3/3 PASS
+- real dataset Detection→Crop smoke: PASS
+- Release DEBUG fixture isolation: PASS
+- concurrency audit: PASS
+- Model / Repository / spec / dataset / pbxproj unchanged
+
+Traceability:
+
+- S04 autoDetected: IMPLEMENTED / PASS
+- S04 manualAdjusting: IMPLEMENTED / PASS
+- S04 confirmed: IMPLEMENTED / PASS
+- S04 retakeRequested: IMPLEMENTED / PASS
+- T04 capture mechanics: PASS; T04 capture → Crop: PASS; T04 capture → Recognition: NOT IMPLEMENTED; T04 overall: PARTIAL
+- T05 import mechanics: PASS; T05 import → Crop: PASS; T05 import → Recognition/Edit: NOT IMPLEMENTED; T05 overall: PARTIAL
+- T06 automatic detector: PASS automated/dataset; T06 Scanner detected overlay: PASS fixture-driven; T06 P04 auto-detected region: PASS; T06 manual adjustment: PASS; T06 confirm / perspective-corrected output: PASS; T06 physical-device live path: NOT INDEPENDENTLY VERIFIED; T06 overall: PARTIAL
+
+Orientation:
+
+- end-to-end still-image Detection/Crop orientation consumption: PASS automated
+- physical-camera captured-photo EXIF path: PENDING physical device
+- native PhotosPicker real-asset path: NOT INDEPENDENTLY VERIFIED
+
+### Human Decision
+
+Accepted — 2026-10-01 (human review).
+
+AI did not commit, merge or tag. Increment 6 not entered.
+
+## 2026-10-02 — Week 3 Increment 6: Raw OCR + Raw Text Preservation (T07 raw transport)
+
+Baseline: 68d242c (`feat(crop): 实现名片边界调整与透视校正`). Frozen scope: produce and preserve RAW recognized text only. Structured extraction (name/company/title/phone/email parser), missing-field, multiple-phone and manual correction (T08–T11, P05/P06/P07) remain Week 4 and are deliberately absent.
+
+### Engine choice — Swift-native Vision API
+
+The recognizer uses the iOS 26+ Swift-native `RecognizeTextRequest` (Vision's async `request.perform(on:orientation:)`), NOT the legacy `VNRecognizeTextRequest`/completion-handler API: the native async API eliminates hand-rolled continuation bridges, and the codebase builds with the iOS 27 SDK / Swift 6.4 language mode. Request configuration (`OCRConfiguration`, pure and Equatable): `.accurate`; `recognitionLanguages = [zh-Hans, en-US]` in that preference order; `automaticallyDetectsLanguage = true`; **`usesLanguageCorrection = false`**; **no `customWords`**. Rationale: in T07 nothing may rewrite Vision output before Week 4 extraction — correction/lexicon would silently alter the preserved raw string (the card-001 result below is direct evidence that raw Vision output is imperfect; preservation beats prettification at this stage). Revision stays at the system default. No reading-order reorder: Vision observation order is kept as returned.
+
+### Raw value contract (pipeline transport, NOT a domain model)
+
+- `OCRLine { text: String; confidence: Float }` — one observation's TOP-1 candidate; only surrounding whitespace/newlines trimmed; interior spaces, punctuation, digits, letter case and CJK characters preserved verbatim; no dedup/merge. Confidence is metadata only — never used to filter or reorder.
+- `CardOCRResult { cropResult: CardCropResult; lines: [OCRLine]; rawText: String }` — `rawText = lines.map(\.text).joined(separator: "\n")`, computed exactly once at initialization; empty when Vision returned no usable text. This is a transport value, not `BusinessCard`: no identity, no tags/notes, no Repository persistence.
+- `OCRError.recognitionFailed` — any request execution failure (invalid bytes / Vision error) maps to this stable case. A request that RUNS and returns ZERO observations is NOT an error: it yields an empty `CardOCRResult` and settles a distinct `.emptyRawResult` UI state.
+- `CardOCRProcessor` is a plain `actor` (the native async Vision API provides its own execution pipeline; unlike camera/crop, no DispatchSerialQueue is needed). `RecognizedTextObservation` never crosses the actor boundary — only Sendable project values leave it. NOT `@unchecked Sendable`, NOT `nonisolated(unsafe)`, NOT `Task.detached`.
+
+### ViewModel integration — separate state family + generation guard
+
+- New `ScanViewModel.RecognitionState` family: `inactive / processing(CardCropResult) / rawTextAvailable(CardOCRResult) / emptyRawResult(CardOCRResult) / failed(OCRError)` with `var isActive`. Deliberately NOT merged into the camera `State` or the S04 `CardRegionState` families: raw recognition starts only after P04 confirm, and retake returns to the scanner.
+- Crop → OCR auto-wiring: there is no separate "start recognition" action. `confirmCrop()` awaits perspective correction and chains `beginRecognition(result)`; the DEBUG `.confirmed` crop fixture chains identically. While recognition runs, `cardRegion` stays `.confirmed(crop)` UNDERNEATH — the two families are independent (so the confirmed crop is never rolled back by OCR success/empty/failure).
+- Stale-result guard: each `beginRecognition` captures a monotonic `recognitionGeneration`; `retake()` and `scannerDidDisappear()` increment it. A late result whose generation differs is discarded without touching UI state. Disappear invalidates an in-flight request but intentionally RETAINS an already-finished result.
+- **Pre-Accept fix made during this increment (found by the gated workflow test):** `confirmCrop()` previously held `isCropInFlight` across the OCR await (a single `defer`), which made the recognition screen's 重拍 permanently un-tappable — contradicting the frozen design (retake is available in every recognition state and OCR has its own generation guard). The freeze now wraps perspective CORRECTION ONLY: set before `performCropConfirmation`, reset immediately after; OCR runs outside it. Double-confirm protection is unchanged (second tap still rejected while a correction runs; afterwards `.confirmed` has no draft so the guard rejects). All Increment 5 confirm/retake freeze tests still pass.
+- Injection seam: `CardOCRProcessing` with a default `CardOCRProcessor()`; tests and DEBUG UI fixtures inject fakes.
+
+### Transitional raw recognition UI (IMPLEMENTATION surface — Reference fidelity NOT ESTABLISHED)
+
+The CamCard raw-text screen was NOT externally exposed/observed (spec/reference-tests.md T07). `RawRecognitionView` is therefore a minimal TRANSITIONAL IMPLEMENTATION surface, never a CamCard Reference page. Four states, full-screen overlay with priority over the lingering `.confirmed` crop screen (`ScanEntryView` ZStack): `.processing` (crop image + spinner "正在识别…"; no faked animation), `.rawTextAvailable` (image top ~36% + "原始识别文本" + ScrollView of `Text(rawText)` with system text SELECTION enabled — no TextField, never editable), `.emptyRawResult` ("未识别到文字" + explanation, no fabricated fields, no auto-return), `.failed` ("识别失败"). The ONLY action in every state is 重拍 (`scan-recognition-retake`) → existing P04 retake path (discards crop + recognition, restarts preview). No Save, no Repository, no P06/P07 navigation, no structured fields.
+
+### DEBUG fixtures
+
+`-SimCamCardOCR {success|empty|failure}` → DEBUG-only `DebugOCRProcessor` actor. Success returns 4 FIXED lines (`张伟` / `产品总监 | Product Director` / `+86 138 0013 8000` / `wei.zhang@zhiyuntech.com`, confidence 1.0) WITHOUT Vision; empty returns zero lines; failure throws `OCRError.recognitionFailed`. Entire surface `#if DEBUG`.
+
+### Real Vision results (actual run, no fixture) — dataset detect→crop→OCR smoke
+
+`OCRPipelineDatasetSmokeTests` runs the full REAL chain (`CardCropProcessor.prepare → perspectiveCorrect → CardOCRProcessor.recognize`) on in-repo dataset images (`#filePath`, no fixtures). Tests deliberately normalize for comparison (lowercase + strip whitespace) but the production contract does NOT normalize. Actual observed raw output:
+
+- **card-001-standard-bilingual** — 10 lines: `上海智云科技有限公司` / `Shanghai Zhiyun Tech Co., Ltd.` / `张伟` / `Wei Zhang` / `产品总监 |Product Director` / `手机 Mobile：+86 138 0013 8000` / `电话 Tel： +86 21 5555 1234` / `邮稍 Email: wei.zhang@zhiyuntech.com` / `网址 Web：www.zhiyuntech.com` / `地址 Address：上海市浦东新区世纪大道100号 200120`. Note Vision MISREAD 邮箱 as "邮稍" with language correction OFF — preserved as-is; concrete evidence for the correction-off decision. Test anchors: contains 张伟; digit-only stream contains 13800138000; compact stream contains zhiyuntech.
+- **card-004** — raw name line `张 伟` (Vision INSERTED a space — preserved; the test's whitespace normalization absorbs it) and `+86 138 0013 8000`. Anchors: 张伟 / 13800138000.
+- **card-013-english-bio-photographed** — `Morningside` / `Secure Systems` / `Kevin Park` / `Solutions Architect` / `Mobile: +1 (646) 555-0113` / `Office: +1 (212) 555-0199` / `Web: www.mss-secure.com` / `Address: 305 Madison Ave, New York, NY 10165`. Anchors: compact contains kevin / park / mss-secure; digits contain 5550113.
+- **Ground-truth discrepancy corrected:** prior working notes claimed card-013 depicted "Daniel Wu / stonepinebio.com". The ACTUAL image content is Kevin Park / Morningside Secure Systems / mss-secure.com / +1 (646) 555-0113. Tests anchor on the image's real content; the stale note was wrong.
+
+Processor-level real-Vision tests (`CardOCRProcessorTests`): configuration contract (level/languages/detect/correction=false/no customWords — structure asserted without freezing Vision internals beyond these setters); rawText verbatim newline join; real recognition of a CoreText-rendered bilingual PNG (anchors 13800138000 / wei.zhang@zhiyuntech.com, test-only lowercase/whitespace normalization); textless white PNG → EMPTY result, no throw; invalid bytes → `.recognitionFailed`. (CoreText draws in native bottom-left coordinates on a fresh CGBitmapContext — no UIKit-style context flip, which would double-flip and garble glyphs.)
+
+### Builds and tests (actual reruns)
+
+- Debug build: PASS.
+- Release build: PASS (`SWIFT_ACTIVE_COMPILATION_CONDITIONS` empty — the only definition is `DEBUG $(inherited)` on the Debug config; Release does not override). Release binary strings: ZERO matches for `SimCamCardOCR`, `DebugOCRProcessor`, `SimCamCardCrop`, `DebugCropProcessor`, `SimCamCardCamera`, `DebugCameraSessionController`; production `CardOCRProcessor`/`OCRConfiguration` and the `scan-recognition-*` identifiers DO ship.
+- Unit tests: **160/160 PASS** (was 147; +13 = 5 CardOCRProcessorTests + 3 dataset OCR smoke + 5 ScanViewModel T07 workflow tests: auto-start processing→rawText with crop staying `.confirmed`, empty→`.emptyRawResult`, failure→`.failed(.recognitionFailed)`, retake-during-processing stale discard, scanner-disappear stale discard; the two stale tests use deterministic continuation gates with bounded `Task.yield()` waits — no sleep).
+- UI tests: target total **23** (was 21; +2 new fixture tests; the Increment 5 confirm test was adapted 1:1 to the new auto-flow). Full sequential simulator run: 22/23 passed; the single failure was the PRE-EXISTING `testDeniedShowsStableFallbackWithoutSessionUI` timing out in the shared `closeScanner` existence wait under abnormal simulator load (a foreign QA simulator was booted on the machine; suite ran 857s vs ~90s normal; xcodebuild logged a 60s simulator-boot timeout). That path has no OCR involvement. Isolated rerun on a quiet simulator of the denied test + all three T07 tests: **4/4 PASS in 89.6s** — characterized as environmental flake, not a code regression. All T07 assertions passed in BOTH runs.
+  - `testRawOCRSuccessFixtureShowsPreservedRawText`: root + raw text present; label contains 张伟 / +86 138 0013 8000 / wei.zhang@zhiyuntech.com verbatim; no 保存; 重拍 returns to `scan-camera-preview`.
+  - `testRawOCREmptyFixtureShowsEmptyState`: `scan-recognition-empty` + "未识别到文字"; no raw-text block; not the failed id; no 保存; 重拍 returns.
+  - `testCropConfirmFlowsIntoRawRecognitionWithoutHandles` (adapted Increment 5 test): confirm now lands on the recognition screen; all four handles and the editing boundary absent; 重拍 recovers.
+- Validation screenshots (fixture-driven; manually opened and visually verified by AI — NOT human visual comparison): `ai/validation/2026-10-01-increment6-raw-ocr-fixture.png` (corrected synthetic card + 4 preserved lines), `ai/validation/2026-10-01-increment6-empty-ocr-fixture.png` (empty state). Fixture UI ≠ real Vision; real recognition is covered by the processor/dataset tests above.
+
+### Boundary / concurrency audit
+
+- No `@unchecked Sendable`, no `nonisolated(unsafe)`, no `Task.detached` (grep matches are explanatory comments only).
+- No Vision types in ViewModel/View: `RecognizedTextObservation`/`RecognizeTextRequest` confined to `SimCamCard/OCR/` (the only other `import Vision` files are the pre-existing Detection services). `UIImage(data:)` in RawRecognitionView is a display adapter only.
+- Model / Repository / spec / dataset / MockBusinessCards.swift / CardCropProcessor / CardRegionGeometry / AspectFitCoordinateMapper / project.pbxproj: unchanged. `BusinessCard.rawOCRText` (Week 2 optional, default nil) is NOT written by this increment — raw text lives only in `CardOCRResult`; the only `rawOCRText:` references remain pre-existing nil mocks.
+- New files auto-included via filesystem-synchronized groups; no pbxproj edits. `git status` shows no `ai/prompts/_local/` path.
+
+### Traceability
+
+- T04 capture mechanics: PASS automated; capture → Crop: PASS; capture → OCR processing: PASS automated (auto-chain after confirm); structured capture → Recognition/Edit: NOT IMPLEMENTED (Week 4); T04 overall: PARTIAL.
+- T05 import mechanics: PASS; import → Crop: PASS; import → OCR: same shared auto-chain; structured Recognition/Edit: NOT IMPLEMENTED; T05 overall: PARTIAL.
+- T07 Swift-native Vision text request on the upright PNG: PASS automated (real Vision, processor tests).
+- T07 cropped image → OCR: PASS automated (dataset smoke, real chain).
+- T07 raw observation lines preserved verbatim (top-1, order kept, correction off): PASS automated; real-data caveats (邮稍 / 张 伟) recorded above.
+- T07 raw text presented for copy (selection, not editing): PASS fixture-driven UI; Reference raw-text page NOT OBSERVED → Reference fidelity NOT APPLICABLE / NOT ESTABLISHED; this is explicitly a transitional implementation surface.
+- T07 overall: **PASS (functional, automated)** on manually verified image↔GT-consistent cards (card-001, card-004, card-016); card-013's OCR smoke is BLOCKED by a broader pre-existing frozen dataset image/GT integrity issue (card-005, card-013, card-014 confirmed mismatched); dataset NOT modified; physical-device camera→EXIF→crop→OCR chain still PENDING real hardware; native PhotosPicker real-asset path still NOT INDEPENDENTLY VERIFIED.
+- S05: processing state IMPLEMENTED; raw OCR transport (`processing` / raw / empty / failed foundation) IMPLEMENTED. Frozen structured states `structuredResultAvailable` / `missingFields` / `multiplePhoneFields` / `manualEditing`: NOT IMPLEMENTED (Week 4). `nonCardEmptyResult`: only the empty-RAW foundation exists — NOT the frozen structured behavior; must not be claimed as S05 acceptance. Cancelled/error path: IMPLEMENTED per actual behavior (`.failed` + 重拍).
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).
+
+AI did not commit, merge or tag. Increment 7 not entered. Recommended commit message when accepted: `feat(ocr): 实现名片原始文本识别`.
+
+## 2026-10-02 — Increment 6 Pre-Accept Correction (dataset integrity + actor reentrancy)
+
+Baseline: 68d242c. This section amends Increment 6 before Accept; no commit made.
+
+### Broader frozen dataset image/GT integrity issue
+
+A broader pre-existing frozen dataset image/GT integrity issue was discovered during Increment 6. Confirmed mismatches include card-005, card-013 and card-014. Increment 6 did not modify dataset or ground truth.
+
+**Manual re-verification of the primary four sources** (dataset/cards/card-013-english-bio-photographed.png, dataset/cards/card-014-missing-email-security.png, dataset/ground-truth/card-013.json, dataset/ground-truth/card-014.json):
+
+| Source | Identity observed |
+|---|---|
+| card-013 PNG | Kevin Park / Morningside Secure Systems / +1 (646) 555-0113 |
+| card-014 PNG | 何嘉怡 Jiayi He / 广州澜图文旅发展有限公司 (Chinese card) |
+| card-013 GT | Daniel Wu / Stonepine BioSystems / +44 7700 900245 |
+| card-014 GT | Kevin Park / Morningside Secure Systems / +1 (646) 555-0113 |
+
+Additionally verified during replacement-candidate screening: **card-005 PNG shows 王敏 Min Wang / 星澜智能制造有限公司 (the card-010 GT identity), not the card-005 GT (Olivia Chen / North Harbor Analytics).** card-013's PNG contains the identity card-014's GT describes. This is a PRE-EXISTING FROZEN DATASET INTEGRITY ISSUE, not an OCR defect. The dataset was NOT modified; Kevin Park is NOT adopted as new card-013 ground truth.
+
+**OCR functional smoke accounting** (only manually verified image↔GT-consistent cards count as real functional validation):
+
+- card-001 standard bilingual: PASS
+- card-004 minimal name+mobile: PASS
+- card-016 English software engineer: PASS (replacement; PNG ↔ GT manually confirmed consistent)
+- card-013 English bio: **DISABLED / BLOCKED BY FROZEN DATASET INTEGRITY ISSUE** (frozen image and GT do not correspond)
+
+card-013's disabled placeholder documents the mismatch in `OCRPipelineDatasetSmokeTests`; card-001 and card-004 smokes remain unchanged. The dataset was NOT modified; spec/* untouched.
+
+### Swift actor reentrancy correction
+
+**CardOCRProcessor actor comment fixed:** Removed the false claim that "actor serializes access to at most one active recognition." The actor isolates processor state and keeps Vision types behind the boundary, but Swift actors are reentrant across await points — actor isolation alone does NOT prevent two `perform` calls from overlapping.
+
+### Recognition Task ownership (calibrated wording)
+
+**ScanViewModel owns at most one current recognition Task** (never Task.detached):
+
+- Starting a new recognition cancels and supersedes the previously owned Task (`beginRecognition`: `recognitionTask?.cancel(); recognitionTask = nil`, increments generation, spawns new `recognitionTask = Task { ... }`).
+- `retake`: increments generation, cancels task, nils it, sets `recognition = .inactive`.
+- `scannerDidDisappear`: increments generation, cancels task, nils it (does NOT clear a settled result).
+- The Task body captures its generation; all state writes are guarded by `generation == self.recognitionGeneration`.
+
+**Responsibilities (calibrated):**
+- recognitionGeneration guarantees that stale completion from an older recognition cannot mutate the current workflow state.
+- Task cancellation does not establish that an already-running Vision request aborts immediately; underlying early-abort behavior remains framework-dependent.
+- No semaphore / blocking queue added; existing retake / scannerDidDisappear cancellation and new-recognition-supersedes-old semantics unchanged.
+
+### Stale A → new B deterministic test
+
+Added `staleACannotOverwriteNewerB` to ScanViewModelTests:
+
+1. OCR A starts (gated) → `.processing`, enteredCount=1.
+2. Retake → cancels A, invalidates generation, recognition = .inactive.
+3. Release A's gate → A completes but is discarded (state stays .inactive).
+4. New capture → crop → confirm → OCR B starts on the SAME view model (same FakeOCRProcessor instance, enteredCount now 2).
+5. Release B's gate → B completes → `.rawTextAvailable` with B's rawText.
+
+Assertions: A cannot resurrect recognition; B owns final state; A entered once, B entered once. No sleep; deterministic via gates + bounded Task.yield.
+
+### Updated test totals
+
+Swift Testing actual runner output: **162 discovered; 161 executed; 161 PASS; 1 disabled/skipped**.
+
+- **Baseline unit:** 147/147 PASS (unchanged from pre-Increment-6).
+- **OCR processor unit:** 5/5 PASS (config contract / rawText verbatim / real Vision on rendered PNG / empty non-throwing / invalid bytes).
+- **OCR dataset functional smoke:** 3/3 PASS (card-001 / card-004 / card-016); 1 disabled / BLOCKED (card-013 frozen dataset image/GT mismatch).
+- **ScanViewModel T07 workflow:** 6/6 PASS (auto-start processing→rawText / empty→.emptyRawResult / failure→.failed / retake stale discard / disappear stale discard / stale A→B supersede).
+- **Total accounting:** 147 + 5 + 3 + 6 = **161 executed and passing**; 1 disabled card-013 placeholder = **162 discovered**.
+
+**UI tests:** 23 total scheme tests; T07 3-test regression (success/empty/confirm-flow) PASS (94.971s).
+
+**Release build:** PASS; binary strings zero matches for SimCamCardOCR / DebugOCRProcessor / SimCamCardCrop / DebugCropProcessor / SimCamCardCamera / DebugCameraSessionController.
+
+**Concurrency audit:** zero @unchecked Sendable / nonisolated(unsafe) / Task.detached; Vision types confined to SimCamCard/OCR/ (Detection files are pre-existing).
+
+**Scope audit:** dataset/*, spec/*, Model/*, Repository/*, MockBusinessCards.swift, CardCropProcessor, CardRegionGeometry, AspectFitCoordinateMapper, project.pbxproj unchanged; no ai/prompts/_local/.
+
+### card-016 real Vision output (new smoke card)
+
+card-016-en-software-engineer.png → full chain (detect → perspectiveCorrect → OCR) → 7 lines:
+`Michael Chen / Senior Software Engineer / CloudMatrix Inc. / +1 415 555 0199 / mchen@cloudmatrix.com / www.cloudmatrix.com / 500 Terry A Francois Blvd, San Francisco, CA 94158, USA`
+
+Anchors verified: michael, chen, cloudmatrix, 14155550199 (digit-only).
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).
+
+AI did not commit, merge or tag. Increment 7 not entered.
+
+## 2026-10-02 — Week 3 Increment 7 Integration / Regression + Week 3 Freeze
+
+Baseline: b0404e2 (`feat(ocr): 实现名片原始文本识别`). Scope = integration/regression only; production freeze maintained.
+
+### Integration matrix
+
+| # | Scenario | Result |
+|---|----------|--------|
+| A | Camera authorized | PASS (fixture-driven automated) |
+| B | Camera denied | PASS (fixture-driven automated) |
+| C | Camera request → allowed | PASS (fixture-driven automated) |
+| D | Camera request → denied | PASS (fixture-driven automated) |
+| E | Photo import success | PASS (fixture-driven automated) |
+| F | Photo import cancel | PASS (fixture-driven automated) |
+| G | Photo import load failure | PASS (unit tested) |
+| H | live cardDetected | PASS (fixture-driven automated) |
+| I | live cardNotDetected | PASS (fixture-driven automated) |
+| J | camera capture → Crop | PASS (fixture-driven automated) |
+| K | photo import → Crop | PASS (fixture-driven automated) |
+| L | autoDetected Crop | PASS (fixture-driven automated) |
+| M | manualAdjusting Crop | PASS (fixture-driven automated) |
+| N | Crop confirm | PASS (fixture-driven automated) |
+| O | Crop retake | PASS (fixture-driven automated) |
+| P | Crop → raw OCR success | PASS (fixture-driven automated) |
+| Q | Crop → raw OCR empty | PASS (fixture-driven automated) |
+| R | Crop → raw OCR failure | PASS (fixture-driven automated) |
+| S | recognition retake → Scanner | PASS (fixture-driven automated) |
+| T | scanner exit while active | PASS (unit tested: disappearInvalidatesInFlightRecognition) |
+
+**Explicit non-claims:** All UI integration results are fixture-driven. Real AVFoundation camera capture, native PhotosPicker runtime, and physical-device verification are NOT INDEPENDENTLY VERIFIED.
+
+### New integration tests added
+
+1. **testCameraWorkflowRunsThroughCropAndRawOCRThenRetakes** — full camera pipeline: authorized → preview → capture → Crop → confirm → Raw OCR → retake → preview → close. Fixture-driven.
+2. **testPhotoImportWorkflowRunsThroughCropAndRawOCR** — photo import pipeline: authorized → 相册 → imported image → Crop → confirm → Raw OCR → retake → scanner. Fixture-driven.
+3. **testOCRFailureShowsStableRecoveryAndRetake** — OCR failure recovery: Crop confirm → recognition failed → no raw text → no Save → 重拍 → scanner. Fixture-driven.
+
+### Debug build
+
+**PASS** — 0 compile errors, 0 Swift concurrency diagnostics. Xcode 27 / iOS 27.0 SDK / Swift 6.4 language mode 6.
+
+### Release build
+
+**PASS** — SWIFT_ACTIVE_COMPILATION_CONDITIONS empty for Release.
+
+### Unit accounting
+
+Swift Testing actual runner output: **162 discovered; 161 executed; 161 PASS; 1 disabled/skipped**.
+
+- Baseline unit: 147/147 PASS (unchanged).
+- OCR processor unit: 5/5 PASS.
+- OCR dataset functional smoke: 3/3 PASS (card-001 / card-004 / card-016); 1 disabled / BLOCKED (card-013 frozen dataset image/GT mismatch).
+- ScanViewModel T07 workflow: 6/6 PASS (auto-start processing→rawText / empty→.emptyRawResult / failure→.failed / retake stale discard / disappear stale discard / stale A→B supersede).
+
+### UI accounting
+
+**26 UI tests total; 26/26 PASS in one full run** (418.948s, fixed UDID 5B32D815-5F37-4EE0-825C-85DE864E0B02, sequential).
+
+- Increment 6 baseline: 23 tests.
+- Increment 7 added: 3 integration tests (camera E2E / photo-import E2E / OCR failure recovery).
+- Previously flaky `testDeniedShowsStableFallbackWithoutSessionUI`: PASS in this clean run.
+
+### Dataset smoke
+
+- card-001 standard bilingual: PASS (real Vision).
+- card-004 minimal name+mobile: PASS (real Vision).
+- card-016 English software engineer: PASS (real Vision; PNG ↔ GT manually verified consistent).
+- card-013 English bio: **DISABLED / BLOCKED BY FROZEN DATASET INTEGRITY ISSUE** (frozen image and GT do not correspond; dataset NOT modified).
+
+### Fixture isolation audit
+
+Release binary strings: **0 matches** for SimCamCardCamera / DebugCameraSessionController / SimCamCardPhotoImport / SimCamCardDetection / DebugVideoFrameProcessor / SimCamCardCrop / DebugCropProcessor / SimCamCardOCR / DebugOCRProcessor.
+
+Production symbols present as expected: CameraSessionController (3), CardCropProcessor (2), CardOCRProcessor (2), OCRConfiguration (1).
+
+### Architecture audit
+
+- View → presentation + user intent only.
+- ScanViewModel → workflow ownership (@MainActor).
+- CameraSessionController → AVFoundation session (custom serial executor).
+- VideoFrameProcessor / CardRegionDetector → live Vision rectangle (dedicated detection queue).
+- CardCropProcessor → still decode/orientation/perspective correction (dedicated isolation).
+- CardOCRProcessor → raw text Vision (actor).
+- **No Vision types in SwiftUI View.** Detection files (VideoFrameProcessor, CardRegionDetector) legitimately use Vision for rectangle detection; OCR confined to SimCamCard/OCR/.
+- **No AVCaptureSession logic in View.**
+- **No UIImage source-of-truth in processor** (Data-based).
+- **No Repository save from ScanViewModel.**
+- **No BusinessCard creation in OCR/Crop.**
+
+### Concurrency audit
+
+- **Zero** `@unchecked Sendable` / `nonisolated(unsafe)` / `Task.detached` in production code.
+- `recognitionGeneration` stale guard: ACTIVE.
+- `recognitionTask` ownership: IMPLEMENTED (ScanViewModel owns at most one current recognition Task).
+- Task cancellation does not claim guaranteed immediate termination of an already-running Vision request; underlying Vision early-abort behavior remains framework-dependent.
+
+### State-family ownership audit
+
+Four state families remain independent:
+- S02 camera state (permissionUnknown/permissionDenied/preview/cardNotDetected/cardDetected/captured/cancelled)
+- S03 photoImport state (idle/pickerPresented/imageSelected/cancelled)
+- S04 cardRegion state (inactive/autoDetected/manualAdjusting/confirmed/retakeRequested)
+- raw RecognitionState (inactive/processing/rawTextAvailable/emptyRawResult/failed)
+
+No cross-contamination observed. Full path: preview → captured/imageSelected → crop → confirmed → recognition processing → raw/empty/failed. Retake path: recognition/crop → retakeRequested → preview.
+
+### Shared still pipeline audit
+
+Camera capture and Photo Import both enter the same pipeline:
+`CapturedPhoto → CardCropProcessor.prepare → CropDraft → perspectiveCorrect → CardCropResult → CardOCRProcessor`
+
+No duplicate camera/import OCR pipelines exist.
+
+### Original / processed image audit
+
+- `CapturedPhoto.data` = original source bytes (never overwritten).
+- `CardCropResult.processedImageData` = upright perspective-corrected PNG.
+- OCR **ONLY consumes processedImageData**; original image is never OCR'd.
+
+### Raw OCR audit
+
+Raw observations → top-1 candidate → surrounding trim only → OCRLine[] → newline-joined rawText.
+
+**Forbidden and confirmed absent:** phone normalization, email correction, field classification, semantic reorder, structured extraction.
+
+### Scope diff audit
+
+Production code changes: 0.
+
+Increment 7 working-tree artifacts:
+- SimCamCardUITests/ScanCameraUITests.swift
+- ai/changes.md
+- ai/validation/2026-10-02-increment7-camera-to-raw-ocr.png
+- ai/validation/2026-10-02-increment7-import-to-raw-ocr.png
+
+dataset/*, spec/*, Model/*, Repository/*, MockBusinessCards.swift, CardCropProcessor, CardRegionGeometry, AspectFitCoordinateMapper, project.pbxproj unchanged. No ai/prompts/_local/.
+
+### Frozen spec/data audit
+
+- spec/*: UNCHANGED
+- dataset/*: UNCHANGED
+- Model/*: UNCHANGED
+- Repository/*: UNCHANGED
+- MockBusinessCards.swift: UNCHANGED
+
+### Reference traceability
+
+#### T03 Camera Permission
+- allowed: PASS fixture-driven automated
+- denied: PASS fixture-driven automated
+- notDetermined → granted: PASS fixture-driven automated
+- notDetermined → denied: PASS fixture-driven automated
+- real iOS system camera permission dialog: NOT INDEPENDENTLY VERIFIED / no physical device
+- **T03 overall: PARTIAL**
+
+#### T04 Capture
+- capture mechanics: PASS fixture/automated
+- capture → still image → Crop: PASS
+- Crop → perspective correction: PASS
+- Crop → Raw OCR: PASS
+- structured Recognition/Edit: NOT IMPLEMENTED
+- physical camera: NOT INDEPENDENTLY VERIFIED
+- **T04 overall: PARTIAL**
+
+#### T05 Photo Import
+- photo import presentation/state: PASS automated
+- fixture selected image → Crop: PASS
+- Crop → Raw OCR: PASS
+- cancel: PASS
+- load failure: PASS
+- native PhotosPicker real selection: NOT INDEPENDENTLY VERIFIED
+- structured Recognition/Edit: NOT IMPLEMENTED
+- **T05 overall: PARTIAL**
+
+#### T06 Boundary Detection
+- live detection orchestration: PASS automated
+- fixture overlay: PASS
+- real dataset still rectangle detection: PASS
+- Crop autoDetected: PASS
+- manual adjustment: PASS
+- confirm: PASS
+- perspective correction: PASS
+- physical live camera detection: NOT INDEPENDENTLY VERIFIED
+- **T06 overall: PARTIAL**
+
+#### T07 Raw OCR
+- Swift-native Vision request: PASS real automated
+- processed crop → OCR: PASS
+- raw lines preserved: PASS
+- rawText preserved: PASS
+- empty result: PASS
+- failure separated from empty: PASS
+- verified dataset OCR: card-001 PASS, card-004 PASS, card-016 PASS
+- card-013: BLOCKED / disabled for OCR identity validation
+- raw-text Reference UI: NOT OBSERVED
+- physical camera → crop → OCR: NOT INDEPENDENTLY VERIFIED
+- **T07 functional requirement: PASS**
+
+### S02 Camera/Scanner state coverage
+
+- permissionUnknown: IMPLEMENTED
+- permissionDenied: IMPLEMENTED
+- preview: IMPLEMENTED
+- cardNotDetected: IMPLEMENTED
+- cardDetected: IMPLEMENTED
+- captured: IMPLEMENTED
+- cancelled: implementation/navigation coverage
+
+### S03 Photo Import state coverage
+
+- pickerPresented: IMPLEMENTED
+- imageSelected: IMPLEMENTED
+- cancelled: IMPLEMENTED
+- photoPermissionRequired / photoPermissionDenied: NOT EXPLICITLY IMPLEMENTED (system PhotosPicker owns access semantics)
+
+### S04 Card Region state coverage
+
+- autoDetected: IMPLEMENTED
+- manualAdjusting: IMPLEMENTED
+- confirmed: IMPLEMENTED
+- retakeRequested: IMPLEMENTED
+
+### S05 Recognition state coverage
+
+- processing: IMPLEMENTED
+- raw OCR transport: IMPLEMENTED
+- structuredResultAvailable: NOT IMPLEMENTED
+- nonCardEmptyResult: NOT FULLY IMPLEMENTED (only raw-OCR foundation exists)
+- missingFields: NOT IMPLEMENTED
+- multiplePhoneFields: NOT IMPLEMENTED
+- manualEditing: NOT IMPLEMENTED
+- cancelled: 按当前 raw OCR recovery 行为记录
+
+### Known limitations (Week 3 freeze)
+
+1. No physical iPhone verification.
+2. Real AVFoundation camera capture pending physical device.
+3. Real live-camera rectangle alignment pending physical device.
+4. Native PhotosPicker real-asset runtime not independently verified.
+5. RawRecognitionView is transitional, not reference P05.
+6. Structured extraction T08+ not implemented.
+7. Confirmed pre-existing frozen dataset image/GT mismatches:
+   - card-005
+   - card-013
+   - card-014
+
+   card-013 OCR identity validation: DISABLED / BLOCKED.
+
+   Dataset was not modified during Week 3.
+
+   A complete 34-card image ↔ GT integrity audit is required
+   after Week 3 freeze and before Week 4 T08–T11 structured-extraction
+   validation.
+
+### Week 3 freeze readiness criteria
+
+| Criterion | Status |
+|-----------|--------|
+| Debug PASS | ✅ |
+| Release PASS | ✅ |
+| all executed unit tests PASS | ✅ (161/161) |
+| exact skipped count documented | ✅ (1 disabled) |
+| full UI suite clean PASS in one stable run | ✅ (26/26) |
+| camera fixture E2E PASS | ✅ |
+| photo-import fixture E2E PASS | ✅ |
+| OCR failure recovery PASS | ✅ |
+| real Crop/OCR dataset smoke PASS on valid cases | ✅ (card-001/004/016) |
+| Release fixture isolation PASS | ✅ |
+| concurrency audit PASS | ✅ |
+| architecture audit PASS | ✅ |
+| scope audit PASS | ✅ |
+| no unintended production changes | ✅ |
+| no frozen spec/data changes | ✅ |
+
+**READY FOR WEEK 3 FREEZE**
+
+### Recommended commit/merge/tag (for human decision)
+
+**Increment 7 commit:**
+```text
+test(week3): 完成扫描与OCR集成回归
+```
+
+**Merge to main (after Accept):**
+```bash
+git switch main
+git pull --ff-only
+git merge --no-ff week3/camera-ocr -m "merge: 完成Week 3相机裁剪与OCR链路"
+git push
+```
+
+**Tag (after merge + human verification):**
+```text
+week3-camera-ocr-baseline
+```
+
+### Human Decision
+
+Accepted — 2026-10-02 (human review).
