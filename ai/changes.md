@@ -3022,3 +3022,257 @@ T20 empty-result visual fidelity: PARTIAL
 ### Human Decision
 
 Accepted — 2026-10-03 (human review)
+
+---
+
+## Week 4 Increment 3 — T11 Manual Editing
+
+Baseline: `77dd1cd` feat(recognition): 集成结构化识别表单 (branch
+`week4/structured-recognition`), clean tree. Increment 3 delivers the
+corrected intermediate state ONLY — no Save, no BusinessCard
+materialization, no Repository involvement.
+
+### Three-layer separation (core invariant)
+
+```text
+1. Raw OCR           StructuredRecognitionResult.ocrResult
+                     (CardOCRResult.lines + rawText) — never rewritten
+2. Structured result StructuredRecognitionResult.fields — never mutated
+3. Corrected draft   RecognitionDraft editable strings — this increment
+```
+
+`RecognitionDraft` keeps `let source: StructuredRecognitionResult`, so the
+traceability chain always exists:
+
+```text
+draft → source → original structured fields
+                → ocrResult.rawText / OCRLine[]
+                → ocrResult.cropResult (original + processed image)
+```
+
+### RecognitionDraft design
+
+NEW `SimCamCard/Recognition/RecognitionDraft.swift`
+
+```swift
+nonisolated struct RecognitionDraft: Sendable, Equatable {
+    struct PhoneField: Identifiable, Sendable, Equatable {
+        let id: Int          // stable edit-UI row identity (array position)
+        let sourceID: UUID   // structured intermediate PhoneNumber.id
+        let kind: PhoneNumber.Kind   // preserved, not editable this increment
+        var value: String
+    }
+    struct EmailField: Identifiable, Sendable, Equatable {
+        let id: Int
+        var value: String
+    }
+    let source: StructuredRecognitionResult
+    var name / company / jobTitle / website / address: String  // nil → ""
+    var phones: [PhoneField]
+    var emails: [EmailField]
+}
+```
+
+- Structured `String?` → editable `String` (nil → "").
+- `correctedFields: StructuredCardFields`: surrounding whitespace/newlines
+  trimmed; blank scalar → nil; blank phone/email row → dropped from
+  collection; phone kind preserved; phone rebuilt with `id: sourceID`;
+  `unclassifiedText` carried through unchanged. Non-empty user content is
+  preserved verbatim — no semantic correction (no phone reformatting, no
+  email lower-casing).
+- `hasChanges` = `correctedFields != source.fields`.
+- Identity semantics stay INTERMEDIATE: `PhoneField.id` is edit-UI row
+  identity; `sourceID` keeps the structured PhoneNumber.id; persisted
+  domain identity is reprocessed in the later Save increment.
+
+### manualEditing state (frozen S05)
+
+`ScanViewModel.RecognitionState` gains
+`case manualEditing(RecognitionDraft)` (included in `isActive`).
+Intents: `beginManualEditing()`, `updateDraftName/Company/JobTitle/
+Website/Address(_:)`, `updateDraftPhone(id:value:)`,
+`updateDraftEmail(id:value:)`; all mutations funnel through one private
+`mutateDraft` guard that acts only in `.manualEditing`. The View never
+owns a second copy — SwiftUI Bindings route get/set through the
+ViewModel intents.
+
+`beginManualEditing()` accepted from the four settled states
+(structuredResultAvailable / missingFields / multiplePhoneFields /
+nonCardEmptyResult); stable no-op when already editing (draft kept);
+ignored in inactive/processing/failed.
+
+### Editing interaction (based on REF-edit evidence)
+
+- Read-only P05 gains a trailing 编辑 entry (`scan-recognition-edit`)
+  next to 重拍. Increment-2 read-only presentation and all its
+  identifiers remain unchanged.
+- manualEditing reuses the SAME layout, row order, metrics and
+  data-driven row policy; value regions switch from Text to TextField;
+  hidden marker `scan-recognition-manual-editing`.
+- Tapping a row edits in place; native caret/tint; focused non-empty row
+  shows the trailing gray × clear button (accessibilityLabel 清除) per
+  REF-edit-02. Autocorrection / autocapitalization disabled.
+- Editable existing fields: name, company, jobTitle, all existing phone
+  values (kind kept), all existing email values, website (only when the
+  source form had the row), address. No "add field" rows (out of scope).
+- 重拍 in manualEditing discards the draft and returns to the scanner
+  preview (unit + UI covered). Reference 保存/取消: Save is explicitly
+  out of scope; discard maps to the existing 重拍 affordance.
+- Edit identifiers: `scan-edit-name/company/job-title/website/address`,
+  `scan-edit-mobile-0 / office-0 / fax-0 / other-phone-0` (per-kind
+  index matching the read-only rows), `scan-edit-email-<id>`.
+
+### Fixed T11 scenario (deterministic success fixture = card-001)
+
+```text
+name    张伟                 → 张伟 修正
+company 上海智云科技有限公司  → 上海智云科技
+mobile  +86 138 0013 8000   → +86 138 0013 8001
+```
+
+After correction: draft holds the new values;
+`draft.source.fields` still holds 张伟 / 上海智云科技有限公司 /
++86 138 0013 8000; `draft.source.ocrResult.rawText` String content
+remains unchanged. Unedited rows (office, email, website, address,
+jobTitle) remain unchanged.
+
+### Raw OCR preservation
+
+Unit/model tests verify that the original StructuredRecognitionResult
+and draft.source.ocrResult.rawText remain unchanged after manual edits.
+
+UI tests separately verify that corrected values remain visible and
+that unedited structured fields remain stable.
+
+(No byte-level comparison is claimed; preservation is asserted on the
+raw OCR String content and the structured source value.)
+
+### Tests
+
+```text
+Unit: 238/238 PASS (baseline 199 + RecognitionDraftTests 21 + T11 VM 18),
+      0 disabled / 0 skipped — Swift Testing, iOS Simulator (iPhone 18 Pro).
+      Coverage: 4 settled-state entries into manualEditing; init
+      preservation; name/company/phone-kind/email-surgical edits; blank
+      scalar→nil; blank phone/email dropped; source result unchanged;
+      raw OCR unchanged; hasChanges false→true; retake discards draft;
+      nonCardEmpty entry; begin-twice stable no-op; intents ignored
+      outside manualEditing; draft mapping/nil→""/order/Equatable/Sendable.
+UI:   30/30 PASS (baseline 28 + 2):
+      testManualCorrectionUpdatesRecognitionDraft
+      testManualEditingRetakeReturnsToScannerPreview
+      CJK typed via XCUITest typeText after the × clear; corrected values
+      re-asserted through the TextField values; original strings asserted
+      gone from the form.
+Debug build:   PASS
+Release build: PASS (generic/platform=iOS, /tmp/w4i3-release,
+               CODE_SIGNING_ALLOWED=NO)
+Release DEBUG fixture isolation: 8/8 ABSENT
+  SimCamCardOCR / DebugOCRProcessor / DebugCameraEnvironment /
+  SimCamCardCamera / SimCamCardDetection / SimCamCardCrop /
+  SimCamCardPhotoImport / DebugCameraFakes → 0 string matches.
+  (Short ASCII identifiers ≤15 bytes, e.g. scan-edit-name, are inlined
+   by the Swift compiler as immediates and therefore do not appear as
+   contiguous cstring bytes; this is normal release codegen, not a
+   functional gate.)
+```
+
+### Scope audit
+
+```text
+NEW      SimCamCard/Recognition/RecognitionDraft.swift
+NEW      SimCamCardTests/Recognition/RecognitionDraftTests.swift
+MODIFIED SimCamCard/ViewModel/ScanViewModel.swift
+MODIFIED SimCamCard/View/Scan/RecognitionView.swift
+MODIFIED SimCamCardTests/ViewModel/ScanViewModelTests.swift
+MODIFIED SimCamCardUITests/ScanCameraUITests.swift
+EVIDENCE ai/validation/2026-10-03-w4i3-before-edit.png
+         ai/validation/2026-10-03-w4i3-after-edit.png
+DOC      ai/changes.md (this section)
+
+Empty diff (verified): dataset/, spec/,
+  SimCamCard/Model/BusinessCard.swift, SimCamCard/Repository/,
+  SimCamCard.xcodeproj/project.pbxproj,
+  SimCamCard/Recognition/StructuredCardFields.swift,
+  SimCamCard/Recognition/CardFieldExtractor.swift
+```
+
+New files are picked up by the existing
+`PBXFileSystemSynchronizedRootGroup`; project.pbxproj untouched.
+
+### Screenshots produced (fixture-driven; NOT real camera, NOT real Vision)
+
+```text
+ai/validation/2026-10-03-w4i3-before-edit.png
+    read-only P05 (重拍 + 编辑), original extracted values
+ai/validation/2026-10-03-w4i3-after-edit.png
+    manualEditing form, 张伟 修正 / +86 138 0013 8001 with caret + × /
+    上海智云科技; unedited rows unchanged
+```
+
+### T-status
+
+```text
+T08: PASS
+T09: PASS
+T10: PASS
+
+T11 manual correction:
+PASS
+
+P05 full reference fidelity:
+PARTIAL
+
+Save:
+NOT IMPLEMENTED
+
+BusinessCard materialization:
+NOT IMPLEMENTED
+```
+
+T11 PASS 依据:
+
+```text
+- RecognitionDraft separates source and corrected values
+- manualEditing is owned by ScanViewModel
+- name/company/phone corrections verified in UI
+- source StructuredRecognitionResult preserved
+- raw OCR preserved by unit/model tests
+- retake discards draft
+- correctedFields available as intermediate result
+```
+
+P05 full fidelity 继续 PARTIAL，因为当前尚未实现:
+
+```text
+- Save
+- dedicated Cancel behavior
+- adding new missing fields
+- adding/removing phone/email rows
+- full Reference Edit Card workflow
+```
+
+### Known limitations
+
+1. Corrections stop at the corrected intermediate draft; nothing is
+   persisted and no final BusinessCard exists yet.
+2. No Save / 取消 affordance; discarding edits is only possible via
+   重拍 (which also restarts the camera). Editing an already-saved card
+   is out of scope.
+3. Phone kinds are not editable; adding/removing/reordering phone or
+   email rows and adding brand-new missing scalar fields are later
+   increments (T11 covers correction of recognized existing fields).
+4. Website row visibility while editing remains tied to the SOURCE form
+   (present rows can be corrected/cleared; absent rows cannot be added).
+5. correctedFields trims surrounding whitespace only; no value
+   validation or semantic repair by design.
+6. UI evidence is DEBUG-fixture-driven; real camera and real Vision OCR
+   remain NOT INDEPENDENTLY VERIFIED. Native iOS callout/magnifier
+   system chrome is not asserted.
+7. Unit-test simulator runs required `CoreSimulator` service reset once
+   during this increment (stale DTServiceHub "bless" failure after a
+   hung earlier run); final results above are from clean reruns.
+
+### Human Decision
+
+Accepted — 2026-10-03 (human review)

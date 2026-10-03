@@ -775,6 +775,153 @@ final class ScanCameraUITests: XCTestCase {
         closeScanner(app)
     }
 
+    // MARK: - Week 4 Increment 3: T11 manual correction
+
+    /// Enters the P05 form via the deterministic success fixture and
+    /// taps the 编辑 entry into S05 manualEditing.
+    @discardableResult
+    @MainActor
+    private func enterManualEditingOnSuccessFixture(_ app: XCUIApplication) -> XCUIElement {
+        app.buttons["scan-crop-confirm"].tap()
+
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Confirm must enter the P05 structured recognition form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-structured"].exists,
+                      "Success fixture must settle in structuredResultAvailable.")
+
+        app.buttons["scan-recognition-edit"].tap()
+
+        let marker = app.descendants(matching: .any)["scan-recognition-manual-editing"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 5),
+                      "编辑 must enter S05 manualEditing.")
+        return form
+    }
+
+    /// Fixture-driven T11 regression: read-only P05 → 编辑 →
+    /// inline TextFields. Corrections (name / company / mobile) stay
+    /// visible in the editing form and the original extracted values
+    /// disappear from the editable rows — the ViewModel draft holds
+    /// the corrected intermediate while source/raw OCR remain
+    /// untouched (source preservation is asserted in unit tests).
+    ///
+    /// NON-CLAIM: this is NOT real Vision OCR or a real camera; the
+    /// DEBUG success fixture and DebugCropProcessor drive the chain.
+    /// The native iOS callout/magnifier itself is system UI and is
+    /// not asserted.
+    @MainActor
+    func testManualCorrectionUpdatesRecognitionDraft() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+        app.buttons["scan-crop-confirm"].tap()
+
+        let form = app.descendants(matching: .any)["scan-recognition-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 5),
+                      "Confirm must enter the P05 structured recognition form.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-structured"].exists,
+                      "Success fixture must settle in structuredResultAvailable.")
+
+        // BEFORE: read-only P05 with the original extracted values.
+        let beforeShot = XCUIScreen.main.screenshot()
+        let beforeAttachment = XCTAttachment(screenshot: beforeShot)
+        beforeAttachment.name = "w4i3-before-edit"
+        beforeAttachment.lifetime = .keepAlways
+        add(beforeAttachment)
+
+        app.buttons["scan-recognition-edit"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-manual-editing"]
+                .waitForExistence(timeout: 5),
+            "编辑 must enter S05 manualEditing."
+        )
+
+        func editField(_ identifier: String, to newValue: String) {
+            let field = app.textFields[identifier]
+            XCTAssertTrue(field.waitForExistence(timeout: 5),
+                          "Editable field \(identifier) must exist.")
+            field.tap()
+            // The trailing clear (×) button appears while a focused
+            // field is non-empty (REF-edit-02 behavior): clear first,
+            // then type the full replacement — no cursor positioning.
+            let clearButton = app.buttons["清除"]
+            XCTAssertTrue(clearButton.waitForExistence(timeout: 3),
+                          "Focused non-empty field must show its clear button.")
+            clearButton.tap()
+            field.typeText(newValue)
+            XCTAssertEqual(field.value as? String, newValue,
+                           "Corrected value must remain visible in \(identifier).")
+        }
+
+        // Editing starts from the original extracted values.
+        let nameField = app.textFields["scan-edit-name"]
+        let companyField = app.textFields["scan-edit-company"]
+        let mobileField = app.textFields["scan-edit-mobile-0"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        XCTAssertEqual(nameField.value as? String, "张伟")
+        XCTAssertEqual(companyField.value as? String, "上海智云科技有限公司")
+        XCTAssertEqual(mobileField.value as? String, "+86 138 0013 8000")
+
+        // Corrections from the fixed T11 scenario.
+        editField("scan-edit-name", to: "张伟 修正")
+        editField("scan-edit-company", to: "上海智云科技")
+        editField("scan-edit-mobile-0", to: "+86 138 0013 8001")
+
+        // AFTER: the corrected intermediate values stay stable and
+        // visible; the old extracted strings are no longer presented.
+        XCTAssertEqual(app.textFields["scan-edit-name"].value as? String, "张伟 修正")
+        XCTAssertEqual(app.textFields["scan-edit-company"].value as? String, "上海智云科技")
+        XCTAssertEqual(app.textFields["scan-edit-mobile-0"].value as? String, "+86 138 0013 8001")
+        XCTAssertFalse(app.staticTexts["上海智云科技有限公司"].exists,
+                       "Original company must be replaced by the corrected value.")
+        XCTAssertFalse(app.staticTexts["+86 138 0013 8000"].exists,
+                       "Original mobile must be replaced by the corrected value.")
+        // Unedited fields keep their extracted values.
+        XCTAssertEqual(app.textFields["scan-edit-office-0"].value as? String,
+                       "+86 21 5555 1234")
+        XCTAssertEqual(app.textFields["scan-edit-email-0"].value as? String,
+                       "wei.zhang@zhiyuntech.com")
+        XCTAssertEqual(app.textFields["scan-edit-website"].value as? String,
+                       "www.zhiyuntech.com")
+
+        let afterShot = XCUIScreen.main.screenshot()
+        let afterAttachment = XCTAttachment(screenshot: afterShot)
+        afterAttachment.name = "w4i3-after-edit"
+        afterAttachment.lifetime = .keepAlways
+        add(afterAttachment)
+
+        // Discard the draft via 重拍 → scanner preview.
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake must discard the draft and return to the scanner preview."
+        )
+        closeScanner(app)
+    }
+
+    /// Fixture-driven T11 regression: editing then 重拍 returns to the
+    /// live scanner preview (the draft is discarded — there is no
+    /// Save in this increment).
+    @MainActor
+    func testManualEditingRetakeReturnsToScannerPreview() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+        enterManualEditingOnSuccessFixture(app)
+
+        let nameField = app.textFields["scan-edit-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        app.buttons["清除"].tap()
+        nameField.typeText("临时修改")
+        XCTAssertEqual(nameField.value as? String, "临时修改")
+
+        app.buttons["scan-recognition-retake"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "Retake from manualEditing must return to the scanner preview."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-manual-editing"].exists,
+                       "Retake must leave the manual editing state.")
+        closeScanner(app)
+    }
+
     // MARK: - Week 3 Increment 7: full integration tests
 
     /// Fixture-driven full camera pipeline: authorized → preview →

@@ -22,15 +22,19 @@
 //     claimed until dedicated Reference evidence exists — the card-b
 //     website omission must not be generalized to every scalar field.
 //
-//  Week 4 Increment 2 is READ-ONLY: fields are `Text`, not TextField/
-//  TextEditor / Binding. T11 editable increment will replace them.
+//  Week 4 Increment 2 shipped the READ-ONLY form. Week 4 Increment 3
+//  (T11) adds S05 manualEditing: an explicit 编辑 entry transitions
+//  the settled form into an editable variant where the existing rows
+//  become TextFields bound to ViewModel draft intents. The View never
+//  owns a second copy of the draft.
 //
-//  Recovery action: 重拍 returns to Scanner via the existing retake path.
+//  Recovery action: 重拍 returns to Scanner via the existing retake
+//  path; from manualEditing it discards the draft.
 //  NO Save button, NO BusinessCard creation, NO Repository write.
 //
 //  Raw OCR preservation: StructuredRecognitionResult.ocrResult is
-//  carried in state; rawText is not displayed as the primary UI but
-//  remains intact for later increments.
+//  carried in state; the draft keeps its immutable `source` result,
+//  so rawText stays intact and never displayed as editable content.
 //
 
 import SwiftUI
@@ -38,6 +42,22 @@ import SwiftUI
 struct RecognitionView: View {
 
     let viewModel: ScanViewModel
+
+    /// Per-field UI focus for the editing form. UI-local focus only —
+    /// NOT business state; the draft itself lives solely in the
+    /// ViewModel (one state, one owner).
+    @FocusState private var focusedField: EditingField?
+
+    /// Stable identity of whichever field row is being edited.
+    private enum EditingField: Hashable {
+        case name
+        case company
+        case jobTitle
+        case website
+        case address
+        case phone(Int)
+        case email(Int)
+    }
 
     private static let recognitionBlue = Color(red: 0.0, green: 0.62, blue: 1.0)
     private static let formBackground = Color(white: 0.11)
@@ -65,6 +85,8 @@ struct RecognitionView: View {
                 formContent(result, stateMarker: "scan-recognition-missing")
             case .multiplePhoneFields(let result):
                 formContent(result, stateMarker: "scan-recognition-multiple")
+            case .manualEditing(let draft):
+                editingContent(draft)
             case .failed(let error):
                 failedContent(error)
             }
@@ -76,7 +98,7 @@ struct RecognitionView: View {
 
     private func processingContent(_ crop: CardCropResult) -> some View {
         VStack(spacing: 0) {
-            topBar
+            topBar(showEditButton: false)
             ZStack {
                 cropImage(crop.processedImageData)
                 VStack(spacing: 12) {
@@ -105,7 +127,7 @@ struct RecognitionView: View {
     ) -> some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                topBar
+                topBar(showEditButton: true)
                 cropImage(result.ocrResult.cropResult.processedImageData)
                     .frame(height: proxy.size.height * Self.imageFraction)
 
@@ -213,6 +235,165 @@ struct RecognitionView: View {
         }
     }
 
+    // MARK: - P05 Manual editing form (T11)
+
+    /// S05 manualEditing variant of the P05 form. Layout, row order,
+    /// fixed/data-driven row policy and row metrics are identical to
+    /// the read-only form; only the value region switches from Text
+    /// to TextField and the state marker changes. The website row
+    /// exists while editing exactly when it existed on the source
+    /// form (a cleared website keeps its row but projects nil; adding
+    /// brand-new fields is a later increment).
+    private func editingContent(_ draft: RecognitionDraft) -> some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                topBar(showEditButton: false)
+                cropImage(draft.source.ocrResult.cropResult.processedImageData)
+                    .frame(height: proxy.size.height * Self.imageFraction)
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        stateAccessibility(marker: "scan-recognition-manual-editing")
+                        editableRow(
+                            label: "姓名",
+                            text: draftBinding(get: { $0.name }, set: { viewModel.updateDraftName($0) }),
+                            focus: .name,
+                            id: "scan-edit-name"
+                        )
+                        editingPhoneRows(draft.phones)
+                        editingEmailRows(draft.emails)
+                        editableRow(
+                            label: "公司",
+                            text: draftBinding(get: { $0.company }, set: { viewModel.updateDraftCompany($0) }),
+                            focus: .company,
+                            id: "scan-edit-company"
+                        )
+                        editableRow(
+                            label: "职位",
+                            text: draftBinding(get: { $0.jobTitle }, set: { viewModel.updateDraftJobTitle($0) }),
+                            focus: .jobTitle,
+                            id: "scan-edit-job-title"
+                        )
+                        // Website row existence stays driven by the
+                        // SOURCE form: only a field that was present on
+                        // P05 can be corrected here (§11).
+                        if draft.source.fields.website != nil {
+                            editableRow(
+                                label: "首页",
+                                text: draftBinding(get: { $0.website }, set: { viewModel.updateDraftWebsite($0) }),
+                                focus: .website,
+                                id: "scan-edit-website"
+                            )
+                        }
+                        editableRow(
+                            label: "公司地址",
+                            text: draftBinding(get: { $0.address }, set: { viewModel.updateDraftAddress($0) }),
+                            focus: .address,
+                            id: "scan-edit-address"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Builds a Binding for a draft scalar without the View holding
+    /// the draft: get reads the current manualEditing draft (empty
+    /// string in any non-editing state), set routes through the
+    /// owning ViewModel intent.
+    private func draftBinding(
+        get: @escaping (RecognitionDraft) -> String,
+        set: @escaping (String) -> Void
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                guard case .manualEditing(let draft) = viewModel.recognition else { return "" }
+                return get(draft)
+            },
+            set: { set($0) }
+        )
+    }
+
+    /// Label + editable value row matching the read-only row metrics.
+    /// The TextField carries the stable edit accessibility id; a
+    /// trailing clear (×) button appears while the row is focused and
+    /// non-empty, mirroring REF-edit-02.
+    private func editableRow(
+        label: String,
+        text: Binding<String>,
+        focus: EditingField,
+        id: String
+    ) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Text(label)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Self.labelColor)
+                    .frame(width: 72, alignment: .leading)
+                TextField("", text: text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white)
+                    .tint(Self.recognitionBlue)
+                    .focused($focusedField, equals: focus)
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier(id)
+                if focusedField == focus && !text.wrappedValue.isEmpty {
+                    Button {
+                        text.wrappedValue = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Color(white: 0.55))
+                    }
+                    .frame(width: 30, height: 30)
+                    .accessibilityLabel("清除")
+                }
+            }
+            .frame(height: 48)
+            .padding(.horizontal, 16)
+
+            Divider()
+                .background(Self.separatorColor)
+                .padding(.leading, 100)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    /// Editable phone rows preserving stored order and kind;
+    /// accessibility ids reuse the per-kind indexing of the
+    /// read-only rows (`scan-edit-mobile-0`, …).
+    private func editingPhoneRows(_ phones: [RecognitionDraft.PhoneField]) -> some View {
+        ForEach(Array(phones.enumerated()), id: \.element.id) { index, phone in
+            let (label, baseID) = phoneKindLabel(phone.kind)
+            let kindIndex = phones[0..<index].filter { $0.kind == phone.kind }.count
+            editableRow(
+                label: label,
+                text: draftBinding(
+                    get: { $0.phones.first(where: { $0.id == phone.id })?.value ?? "" },
+                    set: { viewModel.updateDraftPhone(id: phone.id, value: $0) }
+                ),
+                focus: .phone(phone.id),
+                id: "\(baseID.replacingOccurrences(of: "scan-field", with: "scan-edit"))-\(kindIndex)"
+            )
+        }
+    }
+
+    /// Editable email rows preserving stored order with indexed ids.
+    private func editingEmailRows(_ emails: [RecognitionDraft.EmailField]) -> some View {
+        ForEach(Array(emails.enumerated()), id: \.element.id) { _, email in
+            editableRow(
+                label: "工作邮箱",
+                text: draftBinding(
+                    get: { $0.emails.first(where: { $0.id == email.id })?.value ?? "" },
+                    set: { viewModel.updateDraftEmail(id: email.id, value: $0) }
+                ),
+                focus: .email(email.id),
+                id: "scan-edit-email-\(email.id)"
+            )
+        }
+    }
+
     // MARK: - Failure
 
     private func failedContent(_ error: OCRError) -> some View {
@@ -253,7 +434,11 @@ struct RecognitionView: View {
 
     // MARK: - Shared chrome
 
-    private var topBar: some View {
+    /// Recognition chrome. The read-only settled forms show a trailing
+    /// 编辑 entry into S05 manualEditing (T11); processing/failure and
+    /// the editing form itself show only 重拍 (which discards the
+    /// in-progress draft and returns to the Scanner).
+    private func topBar(showEditButton: Bool) -> some View {
         HStack {
             Button {
                 Task { await viewModel.retake() }
@@ -266,6 +451,18 @@ struct RecognitionView: View {
             }
             .accessibilityIdentifier("scan-recognition-retake")
             Spacer()
+            if showEditButton {
+                Button {
+                    viewModel.beginManualEditing()
+                } label: {
+                    Text("编辑")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Self.recognitionBlue)
+                        .frame(minWidth: 56, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("scan-recognition-edit")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)

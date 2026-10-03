@@ -239,6 +239,12 @@ final class ScanViewModel {
         case missingFields(StructuredRecognitionResult)
         /// Mobile + office + fax all present (T10).
         case multiplePhoneFields(StructuredRecognitionResult)
+        /// S05 manualEditing (T11): the user is correcting recognized
+        /// fields. The carried RecognitionDraft keeps the immutable
+        /// source StructuredRecognitionResult (and its raw OCR chain)
+        /// separate from the edited strings. Reached only via
+        /// `beginManualEditing()` from one of the settled states.
+        case manualEditing(RecognitionDraft)
         /// The recognition request failed (stable fallback).
         case failed(OCRError)
 
@@ -250,7 +256,7 @@ final class ScanViewModel {
             case .inactive:
                 return false
             case .processing, .structuredResultAvailable, .nonCardEmptyResult,
-                 .missingFields, .multiplePhoneFields, .failed:
+                 .missingFields, .multiplePhoneFields, .manualEditing, .failed:
                 return true
             }
         }
@@ -777,6 +783,87 @@ final class ScanViewModel {
             return .multiplePhoneFields(result)
         }
         return .structuredResultAvailable(result)
+    }
+
+    // MARK: - T11 Manual editing (S05 manualEditing)
+
+    /// Transitions a settled structured state into S05 manualEditing
+    /// by creating a RecognitionDraft from the immutable
+    /// StructuredRecognitionResult. Accepted from every settled state
+    /// (structuredResultAvailable / missingFields /
+    /// multiplePhoneFields / nonCardEmptyResult). Calling it while
+    /// already editing is a stable no-op (the in-progress draft is
+    /// kept); in inactive/processing/failed states it is ignored.
+    ///
+    /// The source result stays embedded in the draft, so the original
+    /// structured fields and raw OCR remain reachable and immutable
+    /// for the whole editing session.
+    func beginManualEditing() {
+        switch recognition {
+        case .structuredResultAvailable(let result),
+             .nonCardEmptyResult(let result),
+             .missingFields(let result),
+             .multiplePhoneFields(let result):
+            recognition = .manualEditing(RecognitionDraft(source: result))
+        case .manualEditing, .inactive, .processing, .failed:
+            break
+        }
+    }
+
+    /// Replaces the edited name string. No-op outside manualEditing.
+    func updateDraftName(_ value: String) {
+        mutateDraft { $0.name = value }
+    }
+
+    /// Replaces the edited company string. No-op outside manualEditing.
+    func updateDraftCompany(_ value: String) {
+        mutateDraft { $0.company = value }
+    }
+
+    /// Replaces the edited job title string. No-op outside
+    /// manualEditing.
+    func updateDraftJobTitle(_ value: String) {
+        mutateDraft { $0.jobTitle = value }
+    }
+
+    /// Replaces the edited website string. No-op outside
+    /// manualEditing.
+    func updateDraftWebsite(_ value: String) {
+        mutateDraft { $0.website = value }
+    }
+
+    /// Replaces the edited address string. No-op outside
+    /// manualEditing.
+    func updateDraftAddress(_ value: String) {
+        mutateDraft { $0.address = value }
+    }
+
+    /// Replaces the value of the phone row with the given stable edit
+    /// id. Kind and sourceID are untouched. An unknown id is ignored.
+    func updateDraftPhone(id: Int, value: String) {
+        mutateDraft { draft in
+            guard let index = draft.phones.firstIndex(where: { $0.id == id }) else { return }
+            draft.phones[index].value = value
+        }
+    }
+
+    /// Replaces the value of the email row with the given stable edit
+    /// id. An unknown id is ignored.
+    func updateDraftEmail(id: Int, value: String) {
+        mutateDraft { draft in
+            guard let index = draft.emails.firstIndex(where: { $0.id == id }) else { return }
+            draft.emails[index].value = value
+        }
+    }
+
+    /// Centralized draft mutation: every field intent goes through
+    /// here so manualEditing is the ONLY state in which the draft can
+    /// change and the View never owns a second copy.
+    private func mutateDraft(_ mutation: (inout RecognitionDraft) -> Void) {
+        guard case .manualEditing(let draft) = recognition else { return }
+        var updated = draft
+        mutation(&updated)
+        recognition = .manualEditing(updated)
     }
 
     /// User tapped 取消 (P04 retake): discard the draft/result, clear

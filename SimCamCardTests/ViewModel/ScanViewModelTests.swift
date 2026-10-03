@@ -1956,7 +1956,7 @@ struct ScanViewModelTests {
         for _ in 0..<timeout {
             switch state {
             case .structuredResultAvailable, .nonCardEmptyResult,
-                 .missingFields, .multiplePhoneFields, .failed:
+                 .missingFields, .multiplePhoneFields, .manualEditing, .failed:
                 return state
             case .inactive, .processing:
                 await Task.yield()
@@ -2150,5 +2150,280 @@ struct ScanViewModelTests {
             return
         }
         #expect(result.fields.name == "张伟")
+    }
+
+    // MARK: - Week 4 Increment 3 T11 manual editing
+
+    /// Drives the full pipeline to a settled state, then enters
+    /// manualEditing. Returns the editing ViewModel.
+    private func enterManualEditing(
+        ocr: FakeOCRProcessor,
+        extractor: (any CardFieldExtracting)? = nil
+    ) async -> ScanViewModel {
+        let vm = await driveCropAndWait(ocr: ocr, extractor: extractor)
+        _ = await waitForStructuredState(vm)
+        vm.beginManualEditing()
+        return vm
+    }
+
+    /// Extracts the draft from a `.manualEditing` state or records
+    /// an issue and returns nil.
+    private func draft(from vm: ScanViewModel) -> RecognitionDraft? {
+        guard case .manualEditing(let draft) = vm.recognition else {
+            Issue.record("expected .manualEditing, got \(vm.recognition)")
+            return nil
+        }
+        return draft
+    }
+
+    @Test("T11 1. structuredResultAvailable → beginManualEditing → manualEditing")
+    func beginEditingFromStructuredState() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.name == "张伟")
+        #expect(draft.company == "上海智云科技有限公司")
+    }
+
+    @Test("T11 2. missingFields → beginManualEditing → manualEditing")
+    func beginEditingFromMissingFieldsState() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .missing))
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.name == "李娜")
+        // Missing website maps to an editable empty string.
+        #expect(draft.website == "")
+        #expect(draft.source.fields.website == nil)
+    }
+
+    @Test("T11 3. multiplePhoneFields → beginManualEditing → manualEditing")
+    func beginEditingFromMultiplePhoneState() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .multiple))
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.phones.map(\.kind) == [.mobile, .office, .fax])
+    }
+
+    @Test("T11 4. draft initialization preserves every structured value")
+    func draftInitializationPreservesStructuredValues() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        guard let draft = draft(from: vm) else { return }
+
+        #expect(draft.name == "张伟")
+        #expect(draft.company == "上海智云科技有限公司")
+        #expect(draft.jobTitle == "产品总监 | Product Director")
+        #expect(draft.website == "www.zhiyuntech.com")
+        #expect(draft.address == "上海市浦东新区世纪大道100号 200120")
+        #expect(draft.phones.map(\.value) == ["+86 138 0013 8000", "+86 21 5555 1234"])
+        #expect(draft.phones.map(\.kind) == [.mobile, .office])
+        #expect(draft.emails.map(\.value) == ["wei.zhang@zhiyuntech.com"])
+    }
+
+    @Test("T11 5. editing name updates only the draft name")
+    func editingNameUpdatesDraftOnly() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftName("张伟 修正")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.name == "张伟 修正")
+        #expect(draft.correctedFields.name == "张伟 修正")
+        // All other values stay at their originals.
+        #expect(draft.company == "上海智云科技有限公司")
+        #expect(draft.jobTitle == "产品总监 | Product Director")
+        #expect(draft.phones.map(\.value) == ["+86 138 0013 8000", "+86 21 5555 1234"])
+        #expect(draft.emails.map(\.value) == ["wei.zhang@zhiyuntech.com"])
+        #expect(draft.website == "www.zhiyuntech.com")
+        #expect(draft.address == "上海市浦东新区世纪大道100号 200120")
+    }
+
+    @Test("T11 6. editing company updates only the draft company")
+    func editingCompanyUpdatesDraftOnly() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftCompany("上海智云科技")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.company == "上海智云科技")
+        #expect(draft.correctedFields.company == "上海智云科技")
+        #expect(draft.name == "张伟")
+        #expect(draft.source.fields.company == "上海智云科技有限公司")
+    }
+
+    @Test("T11 7. editing a phone value preserves the phone kind")
+    func editingPhonePreservesKind() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        guard let before = draft(from: vm) else { return }
+        let mobileID = before.phones[0].id
+        vm.updateDraftPhone(id: mobileID, value: "+86 138 0013 8001")
+
+        guard let draft = draft(from: vm) else { return }
+        let corrected = draft.correctedFields
+        #expect(corrected.phones(of: .mobile).map(\.value) == ["+86 138 0013 8001"])
+        #expect(corrected.phones(of: .office).map(\.value) == ["+86 21 5555 1234"])
+        // Kind and source identity are preserved.
+        #expect(draft.phones[0].kind == .mobile)
+        #expect(draft.phones[0].sourceID == before.phones[0].sourceID)
+    }
+
+    @Test("T11 8. editing one email updates only the intended email")
+    func editingEmailIsSurgical() async {
+        let fields = StructuredCardFields(
+            name: "张伟",
+            company: "上海智云科技有限公司",
+            jobTitle: "产品总监",
+            phones: [PhoneNumber(kind: .mobile, value: "+86 138 0013 8000")],
+            emails: ["first@example.com", "second@example.com"],
+            website: "www.example.com",
+            address: "某地址"
+        )
+        let vm = await enterManualEditing(
+            ocr: FakeOCRProcessor(outcome: .success),
+            extractor: FixedExtractor(fields: fields)
+        )
+        vm.updateDraftEmail(id: 1, value: "edited@example.com")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.emails.map(\.value) == ["first@example.com", "edited@example.com"])
+        #expect(draft.correctedFields.emails == ["first@example.com", "edited@example.com"])
+    }
+
+    @Test("T11 9. clearing a scalar produces nil in correctedFields")
+    func clearingScalarProducesNil() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftWebsite("")
+        vm.updateDraftName("   ")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.correctedFields.website == nil)
+        #expect(draft.correctedFields.name == nil)
+        // The edited strings remain empty/blank in the live draft
+        // (TextField shows them blank); only the projection nils them.
+        #expect(draft.website == "")
+    }
+
+    @Test("T11 10. clearing a phone/email removes it from correctedFields")
+    func clearingPhoneEmailRemovesFromCorrected() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        guard let before = draft(from: vm) else { return }
+        vm.updateDraftPhone(id: before.phones[0].id, value: "")
+        vm.updateDraftEmail(id: before.emails[0].id, value: "  ")
+
+        guard let draft = draft(from: vm) else { return }
+        // The editing rows still exist (correction of existing fields),
+        // but the corrected projection drops the blank values.
+        #expect(draft.phones.count == 2)
+        #expect(draft.emails.count == 1)
+        #expect(draft.correctedFields.phones.map(\.value) == ["+86 21 5555 1234"])
+        #expect(draft.correctedFields.emails.isEmpty)
+    }
+
+    @Test("T11 11. the source StructuredRecognitionResult remains unchanged")
+    func sourceStructuredResultRemainsUnchanged() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let settled = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let original) = settled else {
+            Issue.record("precondition: expected structuredResultAvailable, got \(settled)")
+            return
+        }
+
+        vm.beginManualEditing()
+        vm.updateDraftName("张伟 修正")
+        vm.updateDraftCompany("上海智云科技")
+        vm.updateDraftPhone(id: 0, value: "+86 138 0013 8001")
+        vm.updateDraftEmail(id: 0, value: "other@example.com")
+        vm.updateDraftWebsite("")
+        vm.updateDraftAddress("其他地址")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.source.fields == original.fields)
+        #expect(draft.source.fields.name == "张伟")
+        #expect(draft.source.fields.company == "上海智云科技有限公司")
+        #expect(draft.source.fields.website == "www.zhiyuntech.com")
+        #expect(draft.source.fields.emails == ["wei.zhang@zhiyuntech.com"])
+    }
+
+    @Test("T11 12. raw OCR remains unchanged after manual corrections")
+    func rawOCRRemainsUnchanged() async {
+        let ocr = FakeOCRProcessor(outcome: .success)
+        let vm = await driveCropAndWait(ocr: ocr)
+        let settled = await waitForStructuredState(vm)
+        guard case .structuredResultAvailable(let original) = settled else {
+            Issue.record("precondition: expected structuredResultAvailable, got \(settled)")
+            return
+        }
+
+        vm.beginManualEditing()
+        vm.updateDraftName("完全不同的名字")
+        vm.updateDraftPhone(id: 0, value: "000")
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.source.ocrResult == original.ocrResult)
+        #expect(draft.source.ocrResult.rawText == original.ocrResult.rawText)
+        #expect(draft.source.ocrResult.rawText.contains("张伟"))
+        #expect(draft.source.ocrResult.rawText.contains("+86 138 0013 8000"))
+        #expect(draft.source.ocrResult.lines.count == 10)
+    }
+
+    @Test("T11 13. hasChanges is false on a fresh draft")
+    func hasChangesFalseInitially() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        guard let draft = draft(from: vm) else { return }
+        #expect(!draft.hasChanges)
+        #expect(draft.correctedFields == draft.source.fields)
+    }
+
+    @Test("T11 14. hasChanges is true after a correction")
+    func hasChangesTrueAfterCorrection() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftName("张伟 修正")
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.hasChanges)
+    }
+
+    @Test("T11 15. retake from manualEditing discards the draft and returns to scanner")
+    func retakeFromManualEditingDiscardsDraft() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftName("张伟 修正")
+        guard case .manualEditing = vm.recognition else {
+            Issue.record("precondition: expected manualEditing")
+            return
+        }
+
+        await vm.retake()
+
+        #expect(vm.recognition == .inactive)
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+    }
+
+    @Test("T11 extra. nonCardEmptyResult can also enter manualEditing with an empty draft")
+    func beginEditingFromNonCardEmptyState() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .empty))
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.name == "")
+        #expect(draft.phones.isEmpty)
+        #expect(draft.emails.isEmpty)
+        #expect(draft.source.ocrResult.rawText.isEmpty)
+    }
+
+    @Test("T11 extra. beginning editing again keeps the in-progress draft (stable no-op)")
+    func beginEditingTwiceKeepsDraft() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        vm.updateDraftName("张伟 修正")
+        vm.beginManualEditing()
+
+        guard let draft = draft(from: vm) else { return }
+        #expect(draft.name == "张伟 修正")
+        #expect(draft.source.fields.name == "张伟")
+    }
+
+    @Test("T11 extra. editing intents are ignored outside manualEditing")
+    func editingIntentsIgnoredOutsideManualEditing() async {
+        let auth = FakeAuthorization(initialStatus: .authorized)
+        let vm = ScanViewModel(authorization: auth, sessionController: FakeSession())
+        #expect(vm.recognition == .inactive)
+
+        vm.beginManualEditing()
+        vm.updateDraftName("不应生效")
+        vm.updateDraftPhone(id: 0, value: "000")
+
+        #expect(vm.recognition == .inactive)
     }
 }
