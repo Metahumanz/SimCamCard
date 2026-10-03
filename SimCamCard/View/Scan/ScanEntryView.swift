@@ -69,14 +69,24 @@ struct ScanEntryView: View {
     /// dismissal can be distinguished from a cancel).
     @State private var didSelectItem = false
 
-    init(viewModel: ScanViewModel? = nil) {
+    init(
+        viewModel: ScanViewModel? = nil,
+        cardRepository: (any BusinessCardRepository)? = nil,
+        imageStore: (any ImageAssetStore)? = nil
+    ) {
         if let viewModel {
             _viewModel = State(initialValue: viewModel)
         } else {
             #if DEBUG
-            _viewModel = State(initialValue: ScanViewModel.configuredForDebugLaunch())
+            _viewModel = State(initialValue: ScanViewModel.configuredForDebugLaunch(
+                cardRepository: cardRepository,
+                imageStore: imageStore
+            ))
             #else
-            _viewModel = State(initialValue: ScanViewModel())
+            _viewModel = State(initialValue: ScanViewModel(
+                cardRepository: cardRepository,
+                imageStore: imageStore
+            ))
             #endif
         }
     }

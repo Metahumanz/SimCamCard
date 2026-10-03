@@ -30,7 +30,21 @@
 //
 //  Recovery action: 重拍 returns to Scanner via the existing retake
 //  path; from manualEditing it discards the draft.
-//  NO Save button, NO BusinessCard creation, NO Repository write.
+//
+//  Week 4 Increment 4 (T12) adds Save. Both the read-only settled form
+//  (编辑 + 保存 shown together) and the manualEditing form (保存) offer
+//  Save: saving does NOT require entering Edit first. Save materializes
+//  the current result (or the corrected draft) into a final
+//  BusinessCard via BusinessCardMaterializer, persists the original +
+//  processed image assets, writes to the repository and settles the
+//  separate SaveState in .saveSucceeded → P06. P06 screen ownership
+//  comes from saveState (S06) and takes priority over the S05 content,
+//  which stays intact underneath until 拍下一张 discards the workflow.
+//  P06 is a minimal-fidelity Save Result (REF-save-01): ✓名片保存成功
+//  title, 完成 (pop back to the Holder, which reloads), a saved-card
+//  summary strip, and 拍下一张 (retake into a fresh Scanner). The
+//  Reference's 分组/备注/提醒/保存失败 grid, VIP invite, 企业简介 and
+//  交换名片 are spec-excluded and not built.
 //
 //  Raw OCR preservation: StructuredRecognitionResult.ocrResult is
 //  carried in state; the draft keeps its immutable `source` result,
@@ -43,10 +57,20 @@ struct RecognitionView: View {
 
     let viewModel: ScanViewModel
 
+    /// P06 完成 pops the Scanner back to the Card Holder via the
+    /// enclosing NavigationStack (no custom navigation state).
+    @Environment(\.dismiss) private var dismiss
+
     /// Per-field UI focus for the editing form. UI-local focus only —
     /// NOT business state; the draft itself lives solely in the
     /// ViewModel (one state, one owner).
     @FocusState private var focusedField: EditingField?
+
+    /// P06 summary thumbnail bytes resolved from the ImageAssetStore via
+    /// the saved card's real `processedImageReference`. UI-local
+    /// presentation cache only — the Domain keeps String references and
+    /// the store remains the single owner of the asset bytes.
+    @State private var summaryThumbnail: Data?
 
     /// Stable identity of whichever field row is being edited.
     private enum EditingField: Hashable {
@@ -72,23 +96,30 @@ struct RecognitionView: View {
                 .accessibilityElement()
                 .accessibilityIdentifier("scan-recognition-form")
 
-            switch viewModel.recognition {
-            case .inactive:
-                Color.clear
-            case .processing(let crop):
-                processingContent(crop)
-            case .structuredResultAvailable(let result):
-                formContent(result, stateMarker: "scan-recognition-structured")
-            case .nonCardEmptyResult(let result):
-                formContent(result, stateMarker: "scan-recognition-empty")
-            case .missingFields(let result):
-                formContent(result, stateMarker: "scan-recognition-missing")
-            case .multiplePhoneFields(let result):
-                formContent(result, stateMarker: "scan-recognition-multiple")
-            case .manualEditing(let draft):
-                editingContent(draft)
-            case .failed(let error):
-                failedContent(error)
+            // S06 SaveState owns the screen once a save has settled:
+            // P06 takes priority over the S05 content, which stays
+            // intact underneath until 拍下一张 discards the workflow.
+            if case .saveSucceeded(let card) = viewModel.saveState {
+                saveSucceededContent(card)
+            } else {
+                switch viewModel.recognition {
+                case .inactive:
+                    Color.clear
+                case .processing(let crop):
+                    processingContent(crop)
+                case .structuredResultAvailable(let result):
+                    formContent(result, stateMarker: "scan-recognition-structured")
+                case .nonCardEmptyResult(let result):
+                    formContent(result, stateMarker: "scan-recognition-empty")
+                case .missingFields(let result):
+                    formContent(result, stateMarker: "scan-recognition-missing")
+                case .multiplePhoneFields(let result):
+                    formContent(result, stateMarker: "scan-recognition-multiple")
+                case .manualEditing(let draft):
+                    editingContent(draft)
+                case .failed(let error):
+                    failedContent(error)
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -98,7 +129,7 @@ struct RecognitionView: View {
 
     private func processingContent(_ crop: CardCropResult) -> some View {
         VStack(spacing: 0) {
-            topBar(showEditButton: false)
+            topBar(showEdit: false, showSave: false)
             ZStack {
                 cropImage(crop.processedImageData)
                 VStack(spacing: 12) {
@@ -127,7 +158,7 @@ struct RecognitionView: View {
     ) -> some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                topBar(showEditButton: true)
+                topBar(showEdit: true, showSave: true)
                 cropImage(result.ocrResult.cropResult.processedImageData)
                     .frame(height: proxy.size.height * Self.imageFraction)
 
@@ -247,7 +278,7 @@ struct RecognitionView: View {
     private func editingContent(_ draft: RecognitionDraft) -> some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                topBar(showEditButton: false)
+                topBar(showEdit: false, showSave: true)
                 cropImage(draft.source.ocrResult.cropResult.processedImageData)
                     .frame(height: proxy.size.height * Self.imageFraction)
 
@@ -432,13 +463,136 @@ struct RecognitionView: View {
         }
     }
 
+    // MARK: - P06 Save Result (T12)
+
+    /// Minimal-fidelity Save Result (REF-save-01): ✓名片保存成功 title,
+    /// 完成 (pop back to the Holder, which reloads and lists the new
+    /// card), a saved-card summary strip (real processed-image thumbnail
+    /// + name / job title / company) and 拍下一张 (discard the saved
+    /// workflow and return to a fresh Scanner). The Reference's
+    /// 分组/备注/提醒/保存失败 grid, VIP invite, 企业简介 and 交换名片 are
+    /// spec-excluded (spec/page-inventory.md P06) and not built.
+    private func saveSucceededContent(_ card: BusinessCard) -> some View {
+        VStack(spacing: 0) {
+            // Title bar: centered ✓名片保存成功 + trailing 完成.
+            ZStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white)
+                    Text("名片保存成功")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("完成")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 56, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityIdentifier("scan-save-done")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+
+            // Saved-card summary strip: real thumbnail resolved from the
+            // persisted image asset, then the saved structured fields.
+            HStack(spacing: 12) {
+                summaryThumbnailImage
+                    .frame(width: 72, height: 45)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .accessibilityIdentifier("scan-save-thumbnail")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(card.name ?? "未命名")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .accessibilityIdentifier("scan-save-name")
+                    if let jobTitle = card.jobTitle {
+                        Text(jobTitle)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                    if let company = card.company {
+                        Text(company)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Self.formBackground)
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("scan-save-summary")
+            .task(id: card.id) {
+                summaryThumbnail = await viewModel.imageData(
+                    for: card.processedImageReference
+                )
+            }
+
+            Spacer(minLength: 0)
+
+            // 拍下一张: white capsule (交换名片 is spec-excluded).
+            Button {
+                Task { await viewModel.captureNextAfterSave() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "camera")
+                        .font(.system(size: 17))
+                    Text("拍下一张")
+                        .font(.system(size: 17, weight: .medium))
+                }
+                .foregroundStyle(Self.recognitionBlue)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Capsule().fill(.white))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 28)
+            .accessibilityIdentifier("scan-save-next")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("scan-save-success")
+    }
+
+    /// P06 strip thumbnail decoded from the stored asset bytes. An
+    /// undecodable or missing asset renders a neutral dark slot (never
+    /// a fabricated image) — the text summary still identifies the card.
+    @ViewBuilder
+    private var summaryThumbnailImage: some View {
+        if let data = summaryThumbnail, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Self.separatorColor)
+        }
+    }
+
     // MARK: - Shared chrome
 
-    /// Recognition chrome. The read-only settled forms show a trailing
-    /// 编辑 entry into S05 manualEditing (T11); processing/failure and
-    /// the editing form itself show only 重拍 (which discards the
-    /// in-progress draft and returns to the Scanner).
-    private func topBar(showEditButton: Bool) -> some View {
+    /// Recognition chrome. 重拍 always discards the in-progress workflow
+    /// and returns to the Scanner. Trailing actions are independent
+    /// flags, NOT mutually exclusive:
+    ///  - read-only settled forms: 编辑 entry into S05 manualEditing
+    ///    AND direct 保存 — saving must not require Edit first (T12);
+    ///  - manualEditing: 保存 only (编辑 already active);
+    ///  - processing / failure: neither.
+    private func topBar(showEdit: Bool, showSave: Bool) -> some View {
         HStack {
             Button {
                 Task { await viewModel.retake() }
@@ -451,7 +605,7 @@ struct RecognitionView: View {
             }
             .accessibilityIdentifier("scan-recognition-retake")
             Spacer()
-            if showEditButton {
+            if showEdit {
                 Button {
                     viewModel.beginManualEditing()
                 } label: {
@@ -462,6 +616,19 @@ struct RecognitionView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("scan-recognition-edit")
+            }
+            if showSave {
+                Button {
+                    Task { await viewModel.saveCurrentCard() }
+                } label: {
+                    Text("保存")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Self.recognitionBlue)
+                        .frame(minWidth: 56, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .disabled(viewModel.isSaveInFlight)
+                .accessibilityIdentifier("scan-recognition-save")
             }
         }
         .padding(.horizontal, 12)

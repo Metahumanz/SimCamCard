@@ -597,11 +597,12 @@ final class ScanCameraUITests: XCTestCase {
         XCTAssertTrue(address.staticTexts["上海市浦东新区世纪大道100号 200120"].exists,
                       "Address must be present.")
 
-        // No raw-text block, no Save.
+        // No raw-text block; since the T12 calibration the read-only
+        // form offers BOTH 编辑 and direct 保存.
         XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
                        "P05 must not present the old raw-text block.")
-        XCTAssertFalse(app.buttons["保存"].exists,
-                       "No Save action exists in the P05 read-only increment.")
+        XCTAssertTrue(app.buttons["scan-recognition-save"].exists,
+                      "The read-only P05 form must offer direct 保存.")
 
         let screenshot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
@@ -645,8 +646,10 @@ final class ScanCameraUITests: XCTestCase {
                        "Empty is a valid result, not a failure.")
         XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
                        "P05 must not present the old raw-text block.")
-        XCTAssertFalse(app.buttons["保存"].exists,
-                       "No fabricated contact fields / save on empty result.")
+        // Saving an empty result is a legitimate settled-state save; the
+        // no-fabrication claim is about field VALUES (checked below).
+        XCTAssertTrue(app.buttons["scan-recognition-save"].exists,
+                      "The empty-result P05 form still offers 保存.")
 
         // Fixed structural scalar rows stay present with empty values.
         let name = app.descendants(matching: .any)["scan-field-name"]
@@ -1079,5 +1082,183 @@ final class ScanCameraUITests: XCTestCase {
         )
 
         closeScanner(app)
+    }
+
+    // MARK: - Week 4 Increment 4: T12 Save (S06 saveSucceeded → P06)
+
+    /// Fixture-driven T12 end-to-end: capture → crop confirm → P05 → 编辑
+    /// → correct the name → 保存 → P06 saveSucceeded (✓名片保存成功,
+    /// summary strip with the corrected name, 完成, 拍下一张) → 完成 pops
+    /// back to the Card Holder, which reloads and lists the saved card
+    /// (corrected name visible) → tapping the row opens the saved card's
+    /// Detail (T13 closure: corrected name + unedited company visible).
+    ///
+    /// NON-CLAIM: this is NOT a real camera, real Vision OCR or on-disk
+    /// persistence; the DEBUG fixtures drive the chain and the image
+    /// assets persist into the in-memory ImageAssetStore. T18 (persistence
+    /// across relaunch) is a later increment.
+    @MainActor
+    func testSaveFlowMaterializesCardIntoHolderAndDetail() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+        enterManualEditingOnSuccessFixture(app)
+
+        // Correct the name through the existing edit row.
+        let nameField = app.textFields["scan-edit-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        XCTAssertTrue(app.buttons["清除"].waitForExistence(timeout: 3))
+        app.buttons["清除"].tap()
+        nameField.typeText("张伟 修正")
+        XCTAssertEqual(nameField.value as? String, "张伟 修正")
+
+        // 保存 → P06 saveSucceeded.
+        XCTAssertTrue(app.buttons["scan-recognition-save"].waitForExistence(timeout: 3),
+                      "manualEditing must show the 保存 action.")
+        app.buttons["scan-recognition-save"].tap()
+
+        let saved = app.descendants(matching: .any)["scan-save-success"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 5),
+                      "保存 must settle in the P06 Save Result page.")
+        XCTAssertTrue(app.staticTexts["名片保存成功"].exists,
+                      "P06 must show the success title.")
+        XCTAssertTrue(app.buttons["scan-save-done"].exists,
+                      "P06 must offer 完成.")
+        XCTAssertTrue(app.buttons["scan-save-next"].exists,
+                      "P06 must offer 拍下一张.")
+        XCTAssertTrue(app.staticTexts["张伟 修正"].exists,
+                      "P06 summary must show the corrected name.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-save-thumbnail"].exists,
+                      "P06 summary must show the saved card thumbnail strip.")
+        // Spec-excluded Reference elements are not built.
+        XCTAssertFalse(app.buttons["交换名片"].exists,
+                       "交换名片 is spec-excluded and must not exist.")
+
+        let p06Shot = XCUIScreen.main.screenshot()
+        let p06Attachment = XCTAttachment(screenshot: p06Shot)
+        p06Attachment.name = "w4i4-p06-save-success"
+        p06Attachment.lifetime = .keepAlways
+        add(p06Attachment)
+
+        // 完成 → Card Holder reloads and immediately lists the saved card.
+        app.buttons["scan-save-done"].tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "完成 must pop back to the Card Holder."
+        )
+        let holderName = app.staticTexts["张伟 修正"]
+        XCTAssertTrue(holderName.waitForExistence(timeout: 5),
+                      "The saved card must immediately appear in the Holder.")
+        XCTAssertFalse(app.descendants(matching: .any)["card-holder-empty"].exists,
+                       "A saved card means the Holder is populated.")
+
+        let holderShot = XCUIScreen.main.screenshot()
+        let holderAttachment = XCTAttachment(screenshot: holderShot)
+        holderAttachment.name = "w4i4-holder-after-save"
+        holderAttachment.lifetime = .keepAlways
+        add(holderAttachment)
+
+        // Tap the new card row → Detail shows the corrected fields (T13).
+        holderName.tap()
+        XCTAssertTrue(
+            app.navigationBars["名片详情"].waitForExistence(timeout: 5),
+            "Tapping the saved card row must open its Detail."
+        )
+        XCTAssertEqual(app.descendants(matching: .any)["card-detail-name"].label,
+                       "张伟 修正",
+                       "Detail must show the corrected name.")
+        XCTAssertTrue(app.staticTexts["上海智云科技有限公司"].exists,
+                      "Detail must keep the unedited company.")
+
+        let detailShot = XCUIScreen.main.screenshot()
+        let detailAttachment = XCTAttachment(screenshot: detailShot)
+        detailAttachment.name = "w4i4-detail-saved-card"
+        detailAttachment.lifetime = .keepAlways
+        add(detailAttachment)
+    }
+
+    /// Fixture-driven T12: 拍下一张 on P06 discards the saved workflow
+    /// and returns to a fresh Scanner preview; the saved card stays in
+    /// the Holder when the Scanner is later closed.
+    @MainActor
+    func testCaptureNextAfterSaveReturnsToFreshScanner() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+        enterManualEditingOnSuccessFixture(app)
+
+        app.buttons["scan-recognition-save"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-save-success"].waitForExistence(timeout: 5),
+            "保存 must settle in the P06 Save Result page."
+        )
+
+        app.buttons["scan-save-next"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-camera-preview"].waitForExistence(timeout: 5),
+            "拍下一张 must return to a fresh scanner preview."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["scan-save-success"].exists,
+                       "The P06 page must be discarded after 拍下一张.")
+
+        // Closing the Scanner returns to the Holder with the saved card.
+        closeScanner(app)
+        XCTAssertTrue(app.staticTexts["张伟"].waitForExistence(timeout: 5),
+                      "The saved card must remain listed in the Holder.")
+    }
+
+    /// Fixture-driven T12 calibration: a complete structured result can
+    /// be saved DIRECTLY from the read-only P05 form — 编辑 and 保存 are
+    /// BOTH offered, and tapping 保存 without ever tapping 编辑 settles
+    /// the P06 Save Result with the extracted values, then 完成 pops
+    /// back to the Card Holder listing the directly saved card.
+    @MainActor
+    func testStructuredResultCanSaveWithoutEditing() throws {
+        let app = enterCropPage(cropMode: "auto", ocrMode: "success")
+
+        app.buttons["scan-crop-confirm"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["scan-recognition-structured"].waitForExistence(timeout: 5),
+            "Confirmed crop with success OCR must present the structured P05 form."
+        )
+
+        // Read-only P05: 编辑 and 保存 are BOTH present.
+        XCTAssertTrue(
+            app.buttons["scan-recognition-edit"].waitForExistence(timeout: 5),
+            "The read-only P05 form must offer 编辑."
+        )
+        XCTAssertTrue(
+            app.buttons["scan-recognition-save"].waitForExistence(timeout: 5),
+            "The read-only P05 form must offer 保存."
+        )
+
+        let readyShot = XCUIScreen.main.screenshot()
+        let readyAttachment = XCTAttachment(screenshot: readyShot)
+        readyAttachment.name = "w4i4-direct-save-ready"
+        readyAttachment.lifetime = .keepAlways
+        add(readyAttachment)
+
+        // Save DIRECTLY — this flow never taps Edit.
+        app.buttons["scan-recognition-save"].tap()
+
+        let saved = app.descendants(matching: .any)["scan-save-success"]
+        XCTAssertTrue(
+            saved.waitForExistence(timeout: 5),
+            "Direct save must settle in the P06 Save Result page."
+        )
+        XCTAssertTrue(app.staticTexts["名片保存成功"].exists,
+                      "P06 must show the success title.")
+        XCTAssertTrue(app.staticTexts["张伟"].exists,
+                      "The P06 summary must show the extracted name.")
+        XCTAssertTrue(app.buttons["scan-save-done"].exists,
+                      "P06 must offer 完成.")
+
+        // 完成 → Card Holder reloads and lists the directly saved card.
+        app.buttons["scan-save-done"].tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "完成 must pop back to the Card Holder."
+        )
+        XCTAssertTrue(
+            app.staticTexts["张伟"].waitForExistence(timeout: 5),
+            "The directly saved card must appear in the Holder."
+        )
     }
 }

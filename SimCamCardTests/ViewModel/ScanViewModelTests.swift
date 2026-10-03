@@ -2426,4 +2426,329 @@ struct ScanViewModelTests {
 
         #expect(vm.recognition == .inactive)
     }
+
+    // MARK: - Week 4 Increment 4 T12 Save (S06 SaveState)
+
+    /// Drives the full pipeline into a settled structured result with
+    /// persistence dependencies injected, WITHOUT entering Edit, then
+    /// returns the ViewModel and stores. A custom `ImageAssetStore` can
+    /// be injected (e.g. the gated double for the `.saving` test).
+    private func enterSettledWithPersistence(
+        ocr: FakeOCRProcessor = FakeOCRProcessor(outcome: .success),
+        imageStore injectedStore: (any ImageAssetStore)? = nil
+    ) async -> (ScanViewModel, InMemoryBusinessCardRepository, any ImageAssetStore) {
+        let repository = InMemoryBusinessCardRepository()
+        let store: any ImageAssetStore = injectedStore ?? InMemoryImageAssetStore()
+        let vm = ScanViewModel(
+            authorization: FakeAuthorization(initialStatus: .authorized),
+            sessionController: FakeSession(),
+            cropProcessor: FakeCropProcessor(outcome: .detected),
+            ocrProcessor: ocr,
+            cardRepository: repository,
+            imageStore: store
+        )
+        await vm.scannerDidAppear()
+        #expect(vm.state == .preview)
+        await vm.capture()
+        let confirmTask = await startGatedConfirmation(vm: vm, ocr: ocr)
+        await ocr.releaseGate()
+        await confirmTask.value
+        _ = await waitForStructuredState(vm)
+        return (vm, repository, store)
+    }
+
+    /// Same as `enterSettledWithPersistence` but additionally enters
+    /// S05 manualEditing (corrected-save path).
+    private func enterEditingWithPersistence(
+        ocr: FakeOCRProcessor = FakeOCRProcessor(outcome: .success)
+    ) async -> (ScanViewModel, InMemoryBusinessCardRepository, any ImageAssetStore) {
+        let (vm, repository, store) = await enterSettledWithPersistence(ocr: ocr)
+        vm.beginManualEditing()
+        return (vm, repository, store)
+    }
+
+    /// Gated ImageAssetStore: the first `save` suspends at an
+    /// observable gate until `releaseGate()`, so a test can assert the
+    /// transient `SaveState.saving` + `isSaveInFlight == true` phase.
+    /// Mirrors the established FakeOCRProcessor gate pattern.
+    private actor GatedImageAssetStore: ImageAssetStore {
+        private var assets: [String: Data] = [:]
+        private var gateEnabled = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        private(set) var enteredCount = 0
+
+        var persistedCount: Int { assets.count }
+
+        func enableGate() {
+            gateEnabled = true
+        }
+
+        func releaseGate() {
+            gateEnabled = false
+            let pending = waiters
+            waiters.removeAll()
+            for waiter in pending {
+                waiter.resume()
+            }
+        }
+
+        func save(reference: String, data: Data) async {
+            enteredCount += 1
+            if gateEnabled {
+                await withCheckedContinuation { continuation in
+                    waiters.append(continuation)
+                }
+            }
+            assets[reference] = data
+        }
+
+        func data(for reference: String) -> Data? {
+            assets[reference]
+        }
+    }
+
+    /// Extracts the card from a settled `.saveSucceeded` SaveState or
+    /// records an issue and returns nil.
+    private func savedCard(from vm: ScanViewModel) -> BusinessCard? {
+        guard case .saveSucceeded(let card) = vm.saveState else {
+            Issue.record("expected saveState .saveSucceeded, got \(vm.saveState)")
+            return nil
+        }
+        return card
+    }
+
+    @Test("T12 1. saveCurrentCard materializes the corrected draft into saveSucceeded")
+    func saveCurrentCardMaterializesCorrectedDraft() async {
+        let (vm, repository, _) = await enterEditingWithPersistence()
+        vm.updateDraftName("张伟 修正")
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        #expect(card.name == "张伟 修正")
+        #expect(card.company == "上海智云科技有限公司")
+        #expect(card.jobTitle == "产品总监 | Product Director")
+        #expect(card.website == "www.zhiyuntech.com")
+        #expect(card.phones.map(\.value) == ["+86 138 0013 8000", "+86 21 5555 1234"])
+        #expect(card.emails == ["wei.zhang@zhiyuntech.com"])
+        #expect(await repository.card(id: card.id) == card)
+    }
+
+    @Test("T12 2. saveCurrentCard persists both image assets byte-exact and wires real references")
+    func saveCurrentCardPersistsImageAssets() async {
+        let (vm, _, store) = await enterEditingWithPersistence()
+        guard let draft = draft(from: vm) else { return }
+        let expectedOriginal = draft.source.ocrResult.cropResult.original.data
+        let expectedProcessed = draft.source.ocrResult.cropResult.processedImageData
+
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        // References are real resolvable tokens, not placeholders.
+        #expect(card.originalImageReference.hasPrefix("card-"))
+        #expect(card.originalImageReference.hasSuffix("-original"))
+        #expect(card.processedImageReference.hasSuffix("-processed"))
+        #expect(card.originalImageReference.contains(card.id.uuidString))
+        #expect(await store.data(for: card.originalImageReference) == expectedOriginal)
+        #expect(await store.data(for: card.processedImageReference) == expectedProcessed)
+        // The ViewModel read seam resolves the same bytes.
+        #expect(await vm.imageData(for: card.processedImageReference) == expectedProcessed)
+    }
+
+    @Test("T12 3. saveCurrentCard keeps the original raw OCR text on the card")
+    func saveCurrentCardKeepsRawOCRText() async {
+        let (vm, _, _) = await enterEditingWithPersistence()
+        guard let draft = draft(from: vm) else { return }
+        let originalRawText = draft.source.ocrResult.rawText
+        vm.updateDraftName("完全不同的名字")
+
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        #expect(card.rawOCRText == originalRawText)
+        #expect(card.rawOCRText?.contains("张伟") == true)
+    }
+
+    @Test("T12 4. corrected blank fields are dropped from the saved card")
+    func saveCurrentCardProjectsBlankCorrections() async {
+        let (vm, repository, _) = await enterEditingWithPersistence()
+        guard let draft = draft(from: vm) else { return }
+        vm.updateDraftWebsite("")
+        vm.updateDraftPhone(id: draft.phones[0].id, value: "")
+
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        #expect(card.website == nil)
+        #expect(card.phones.map(\.value) == ["+86 21 5555 1234"])
+        #expect(card.phones.map(\.kind) == [.office])
+        #expect(await repository.card(id: card.id)?.website == nil)
+    }
+
+    @Test("T12 5. saveCurrentCard without persistence dependencies is a no-op")
+    func saveCurrentCardWithoutDependenciesIsNoOp() async {
+        let vm = await enterManualEditing(ocr: FakeOCRProcessor(outcome: .success))
+        await vm.saveCurrentCard()
+        guard case .manualEditing = vm.recognition else {
+            Issue.record("expected manualEditing to remain, got \(vm.recognition)")
+            return
+        }
+        #expect(vm.saveState == .idle)
+    }
+
+    @Test("T12 6. a complete structured result saves directly without Edit")
+    func completeStructuredResultSavesDirectlyWithoutEditing() async {
+        let (vm, repository, _) = await enterSettledWithPersistence()
+        #expect(vm.saveState == .idle)
+
+        // No Edit — Save directly from the read-only P05 form.
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        // S05 recognition stays untouched underneath the settled save.
+        guard case .structuredResultAvailable = vm.recognition else {
+            Issue.record("expected recognition to remain settled, got \(vm.recognition)")
+            return
+        }
+        // Values come verbatim from the structured result.
+        #expect(card.name == "张伟")
+        #expect(card.company == "上海智云科技有限公司")
+        #expect(card.jobTitle == "产品总监 | Product Director")
+        #expect(card.website == "www.zhiyuntech.com")
+        #expect(card.phones.map(\.value) == ["+86 138 0013 8000", "+86 21 5555 1234"])
+        #expect(card.emails == ["wei.zhang@zhiyuntech.com"])
+        #expect(await repository.card(id: card.id) == card)
+    }
+
+    @Test("T12 7. a missingFields result saves directly without fabrication")
+    func missingFieldsResultSavesDirectlyWithoutFabrication() async {
+        let (vm, repository, _) = await enterSettledWithPersistence(
+            ocr: FakeOCRProcessor(outcome: .missing)
+        )
+        guard case .missingFields(let result) = vm.recognition else {
+            Issue.record("expected .missingFields, got \(vm.recognition)")
+            return
+        }
+        // card-002 style: the website is missing from the extraction.
+        #expect(result.fields.website == nil)
+
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        // Missing fields stay nil on the final card — never fabricated.
+        #expect(card.website == nil)
+        #expect(card.name == result.fields.name)
+        #expect(card.company == result.fields.company)
+        #expect(card.jobTitle == result.fields.jobTitle)
+        #expect(card.phones.map(\.value) == result.fields.phones.map(\.value))
+        #expect(card.emails == result.fields.emails)
+        #expect(card.rawOCRText == result.ocrResult.rawText)
+        #expect(await repository.card(id: card.id) == card)
+    }
+
+    @Test("T12 8. final phone identities are fresh domain UUIDs")
+    func finalPhoneIDsAreFreshDomainIDs() async {
+        let (vm, repository, _) = await enterEditingWithPersistence()
+        guard let draft = draft(from: vm) else { return }
+        let intermediate = draft.correctedFields.phones
+        #expect(intermediate.count == 2)
+
+        await vm.saveCurrentCard()
+
+        guard let card = savedCard(from: vm) else { return }
+        // Only kind + value are inherited; identity is re-issued.
+        #expect(card.phones.map(\.value) == intermediate.map(\.value))
+        #expect(card.phones.map(\.kind) == intermediate.map(\.kind))
+        for (final, source) in zip(card.phones, intermediate) {
+            #expect(final.id != source.id)
+        }
+        // The fresh ids are pairwise distinct.
+        #expect(Set(card.phones.map(\.id)).count == card.phones.count)
+        // The persisted record carries exactly the settled fresh ids.
+        #expect(await repository.card(id: card.id)?.phones.map(\.id) == card.phones.map(\.id))
+    }
+
+    @Test("T12 9. save settles exactly once until the workflow is discarded")
+    func saveCurrentCardSettlesOnce() async {
+        let (vm, repository, store) = await enterEditingWithPersistence()
+        await vm.saveCurrentCard()
+
+        #expect(vm.isSaveInFlight == false)
+        guard let card = savedCard(from: vm) else { return }
+        #expect(await repository.allCards().count == 1)
+        // The settled result stays on screen (P06); a second save is
+        // blocked until 拍下一张 resets the SaveState.
+        await vm.saveCurrentCard()
+        #expect(await repository.allCards().count == 1)
+        guard case .saveSucceeded(let same) = vm.saveState else {
+            Issue.record("expected saveState to stay .saveSucceeded, got \(vm.saveState)")
+            return
+        }
+        #expect(same.id == card.id)
+        #expect(await store.data(for: card.processedImageReference) != nil)
+    }
+
+    @Test("T12 10. captureNextAfterSave resets SaveState and returns to a fresh preview")
+    func captureNextAfterSaveReturnsToPreview() async {
+        let (vm, repository, _) = await enterEditingWithPersistence()
+        await vm.saveCurrentCard()
+        guard let card = savedCard(from: vm) else { return }
+
+        await vm.captureNextAfterSave()
+
+        // 拍下一张: saveState → idle, recognition → inactive,
+        // crop → reset, scanner → preview.
+        #expect(vm.saveState == .idle)
+        #expect(vm.recognition == .inactive)
+        #expect(vm.cardRegion == .inactive)
+        #expect(vm.state == .preview)
+        // The saved card remains persisted after starting the next scan.
+        #expect(await repository.card(id: card.id) == card)
+        // Editing/save intents are ignored on the fresh (inactive) workflow.
+        vm.beginManualEditing()
+        await vm.saveCurrentCard()
+        #expect(vm.recognition == .inactive)
+        #expect(vm.saveState == .idle)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("T12 11. save flows idle → saving → saveSucceeded with the in-flight guard")
+    func saveStateFlowsThroughSaving() async {
+        let gated = GatedImageAssetStore()
+        let (vm, repository, _) = await enterSettledWithPersistence(imageStore: gated)
+        #expect(vm.saveState == .idle)
+        #expect(vm.isSaveInFlight == false)
+
+        await gated.enableGate()
+        let saveTask = Task { await vm.saveCurrentCard() }
+
+        // Deterministic synchronization: wait until the first image
+        // save has actually ENTERED the suspended gate. Observing
+        // `.saving` alone would not prove the storage operation is
+        // suspended while SaveState == .saving.
+        var entered = false
+        for _ in 0..<500 {
+            if await gated.enteredCount == 1 {
+                entered = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(entered, "The first image save must enter the gate.")
+        // The store save is suspended at the gate; the VM must already
+        // have published .saving BEFORE the await on the store.
+        #expect(vm.saveState == .saving, "SaveState must be .saving while the save is gated.")
+        #expect(vm.isSaveInFlight == true, "isSaveInFlight must be true while saving.")
+        #expect(await repository.allCards().isEmpty)
+        #expect(await gated.persistedCount == 0)
+
+        await gated.releaseGate()
+        await saveTask.value
+
+        guard let card = savedCard(from: vm) else { return }
+        #expect(vm.isSaveInFlight == false, "isSaveInFlight must clear after success.")
+        #expect(await repository.allCards().count == 1)
+        #expect(await repository.card(id: card.id) == card)
+        #expect(await gated.persistedCount == 2, "original + processed assets persisted.")
+        #expect(await gated.data(for: card.processedImageReference) != nil)
+    }
 }

@@ -3276,3 +3276,382 @@ P05 full fidelity 继续 PARTIAL，因为当前尚未实现:
 ### Human Decision
 
 Accepted — 2026-10-03 (human review)
+
+---
+
+## Week 4 Increment 4
+
+Baseline: `ee633e1` (`feat(recognition): 实现名片识别结果人工修正`, branch
+`week4/structured-recognition`).
+
+Scope: T12 Save — final BusinessCard materialization + image asset storage +
+repository save + P06 Save Result + Card Holder / Detail closure.
+
+```text
+RecognitionDraft.correctedFields
+→ persist original + processed image assets (real bytes)
+→ real image references on the card
+→ final BusinessCard (BusinessCardMaterializer)
+→ BusinessCardRepository.save()
+→ SaveState.saveSucceeded (S06, separate state family)
+→ P06 Save Result
+→ 完成 → Card Holder reload → saved card row
+→ saved card Detail
+```
+
+### Calibration (post technical review, same baseline ee633e1)
+
+Three directed calibrations applied on top of the reviewed主体实现:
+
+1. Direct save: `saveDraft()` (manualEditing-only) → `saveCurrentCard()`
+   resolving a draft from ANY settled recognition state — a complete
+   result no longer requires Edit before Save.
+2. S05/S06 boundary: `saveSucceeded` removed from `RecognitionState`;
+   new separate `SaveState` family (idle / saving / saveSucceeded).
+   P06 ownership = `saveState.saveSucceeded` over the intact S05
+   content.
+3. Materialization extracted to `BusinessCardMaterializer` (pure
+   deterministic mapping; fresh final phone UUIDs; injected refs +
+   timestamp), and the read-only P05 top bar now offers 编辑 AND 保存
+   together (manualEditing keeps 重拍 + 保存).
+
+Kept unchanged: ImageAssetStore / InMemoryImageAssetStore, real image
+bytes, P06 composition, Holder immediate refresh + real thumbnail,
+Detail corrected fields, shared Repository / ImageAssetStore instances.
+
+Second-round constraints (same review, same baseline):
+
+4. Duplicate-save guard: `saveCurrentCard()` entry is exactly
+   `guard saveState == .idle, !isSaveInFlight, let cardRepository,
+   let imageStore else { return }` — after `.saveSucceeded` the settled
+   S05 state stays as-is, so without the `saveState == .idle` clause a
+   second tap WOULD re-enter; the clause makes it a no-op (regression
+   test unit T12 9: repository contains exactly one new card).
+5. Materializer fully deterministic: it performs NO implicit
+   `UUID()` / `Date()` calls. The orchestration layer allocates the
+   fresh final phone IDs (`corrected.phones.map { _ in UUID() }`) and
+   injects them; the materializer signature takes `cardID`,
+   `finalPhoneIDs: [UUID]`, `timestamp: Date` and precondition-checks
+   1:1 alignment. Fixed-UUID tests verify same complete inputs → same
+   BusinessCard.
+6. `SaveState.saving` has real behavior coverage: a gated
+   `GatedImageAssetStore` double suspends the first image save, and the
+   test observes idle → (isSaveInFlight true, .saving, nothing
+   persisted) → release → .saveSucceeded (isSaveInFlight false,
+   repository + both assets present). All three SaveState cases are now
+   covered.
+
+### ImageAssetStore (new abstraction)
+
+- `SimCamCard/Repository/ImageAssetStore.swift`:
+  `nonisolated protocol ImageAssetStore: Sendable`
+  (`save(reference:data:)` idempotent replace + `data(for:) -> Data?`),
+  `actor InMemoryImageAssetStore`. Mirrors the BusinessCardRepository
+  design: ViewModels/Views depend on the protocol, never a concrete store.
+- The frozen Domain Model keeps REQUIRED String reference tokens
+  (`originalImageReference` / `processedImageReference`) — never UIImage /
+  Data; this store is the bridge between those tokens and the real bytes
+  (`CardCropResult.original.data` + `processedImageData`).
+- In-memory only this increment. On-disk persistence (T18, spec/data-model.md
+  §Persistence rule) is introduced behind the same abstraction later —
+  after relaunch the saved card is NOT retained (explicitly out of scope).
+
+### ScanViewModel T12 save path
+
+- NEW separate `SaveState` state family — `idle / saving /
+  saveSucceeded(BusinessCard)` with `private(set) var saveState`.
+  `saveSucceeded` was REMOVED from `RecognitionState`, which again
+  expresses ONLY S05 (inactive / processing / structuredResultAvailable
+  / nonCardEmptyResult / missingFields / multiplePhoneFields /
+  manualEditing / failed). P06 screen ownership comes from
+  `saveState.saveSucceeded` and takes priority over the S05 content,
+  which stays intact underneath until 拍下一张 discards the workflow.
+  No `.failed` case exists — the InMemory stores expose no failure API.
+- New optional dependencies `cardRepository` / `imageStore`, injected from
+  the App composition root (`SimCamCardApp` builds ONE shared
+  `InMemoryBusinessCardRepository` + `InMemoryImageAssetStore` and passes
+  them App → CardHolderView → ScanEntryView → ScanViewModel, DEBUG fixture
+  path included). Optional so capture/crop/OCR/edit stay usable without
+  persistence; only `saveCurrentCard()` requires both.
+- `saveCurrentCard()` (renamed from `saveDraft()`): saves the CURRENT
+  result — directly from ANY settled recognition state
+  (structuredResultAvailable / missingFields / multiplePhoneFields /
+  nonCardEmptyResult) WITHOUT requiring Edit first, or from
+  manualEditing using the corrected draft. Chain: resolve the
+  intermediate RecognitionDraft (edited buffer, or a fresh draft
+  projected verbatim from the settled result — no fabrication) →
+  persist original + processed image bytes FIRST so the references
+  always resolve → materialize via `BusinessCardMaterializer` →
+  `repository.save(card)` → settle `saveState = .saveSucceeded(card)`.
+  No-ops: non-settled state, missing dependencies, `isSaveInFlight`
+  (double tap), `saveState != .idle` (a settled save blocks a second
+  save until 拍下一张 resets it).
+- `captureNextAfterSave()`: 拍下一张 delegates to the shared retake path
+  (recognition → inactive, crop → reset, scanner → preview; the saved
+  card stays persisted), then resets `saveState → .idle`.
+- `imageData(for:)`: View-layer read seam back to the injected store
+  (P06 thumbnail). Nil store / unknown reference → nil → neutral slot,
+  never a fabricated image.
+
+### BusinessCardMaterializer (new, T12 calibration)
+
+`SimCamCard/Recognition/BusinessCardMaterializer.swift` — pure
+deterministic final-domain mapping, no I/O / state / clock and NO
+implicit `UUID()` / `Date()` calls:
+
+```text
+RecognitionDraft + cardID + image references + timestamp +
+finalPhoneIDs: [UUID]
+    → BusinessCard
+```
+
+- Corrected-field projection via `draft.correctedFields` (blank scalars
+  → nil, blank phone/email rows dropped, kinds preserved).
+- Phone identity rule: the final record inherits ONLY kind + value;
+  final IDs are the caller-injected `finalPhoneIDs` aligned by index
+  (precondition: count == corrected phones). The orchestration layer
+  allocates the fresh domain UUIDs; the draft's edit-row ids and the
+  structured intermediate PhoneNumber.ids never leak into the persisted
+  record.
+- Determinism: identical complete inputs produce identical
+  BusinessCards (fixed-UUID test).
+- `rawOCRText` = original `draft.source.ocrResult.rawText`, untouched.
+- `createdAt == updatedAt == timestamp` (injected).
+- ScanViewModel keeps ONLY orchestration (resolve draft → allocate
+  final IDs → save images → materialize → repository.save → SaveState).
+
+### P06 Save Result (minimal fidelity, REF-save-01)
+
+`RecognitionView.saveSucceededContent` (`scan-save-success`):
+
+```text
+✓名片保存成功 (centered title) + 完成 (top-right, scan-save-done,
+    @Environment(\.dismiss) → pop Scanner → Holder)
+summary strip (scan-save-summary): real processed-image thumbnail
+    (scan-save-thumbnail, resolved via imageData(for:) from the card's
+    persisted reference — proves references are real) + name
+    (scan-save-name) + jobTitle + company
+拍下一张 (bottom white capsule, scan-save-next → captureNextAfterSave)
+```
+
+Spec-excluded Reference elements NOT built (spec/page-inventory.md P06):
+分组/备注/提醒/保存失败 action grid, VIP invite banner, 企业简介, 交换名片.
+
+### Card Holder / Detail closure
+
+- `CardHolderView.onAppear` reloads (`viewModel.loadCards()`) so 完成
+  popping back immediately lists the saved card (T12 "new card immediately
+  appears in holder").
+- `BusinessCardRow(card:imageStore:)`: optional store → renders the card's
+  REAL processed-image thumbnail (64×40, REF-card-holder-02-after-save.png
+  has a thumbnail). No store / unresolved reference (Week 2 seed fixtures,
+  Previews) → text-only row, no placeholder image (previous "no fabricated
+  thumbnail" decision preserved for non-real assets).
+- `CardDetailView` unchanged: REF-detail-01-collapsed header uses a surname
+  avatar circle (previously documented fidelity gap), NOT the card image;
+  T13 = structured fields visible, already satisfied. Tapping the saved
+  row opens Detail with corrected name + unedited fields intact.
+
+### Accessibility IDs (new)
+
+```text
+scan-recognition-save   保存 (read-only settled P05 alongside 编辑 AND
+                        manualEditing top bar; disabled while
+                        isSaveInFlight)
+scan-save-success       P06 root marker
+scan-save-done          完成
+scan-save-next          拍下一张
+scan-save-summary       summary strip
+scan-save-thumbnail     strip thumbnail
+scan-save-name          strip corrected name
+card-row-thumbnail      holder row real thumbnail (only when resolved)
+```
+
+### Verification
+
+```text
+Debug build: PASS
+Unit:
+262 / 262 PASS
+24 suites
+0 failed
+0 disabled
+0 skipped
+Swift Testing runner reports 262 total tests.
+261 quoted display-name test lines were observed,
+plus the existing unquoted template example() test.
+UI: 33/33 PASS, 0 failed, one sequential run,
+    iPhone 18 Pro id 5B32D815-5F37-4EE0-825C-85DE864E0B02,
+    -parallel-testing-enabled NO
+    (baseline 30 + testSaveFlowMaterializesCardIntoHolderAndDetail
+     + testCaptureNextAfterSaveReturnsToFreshScanner
+     + testStructuredResultCanSaveWithoutEditing)
+Release build: PASS
+Release DEBUG fixture isolation: 8/8 ABSENT
+    (SimCamCardOCR, DebugOCRProcessor, DebugCameraEnvironment,
+     SimCamCardCamera, SimCamCardDetection, SimCamCardCrop,
+     SimCamCardPhotoImport, DebugCameraFakes)
+Release production id present: scan-recognition-save (1)
+```
+
+Calibration iteration note: the first post-calibration full UI run had
+3 failures — two OBSOLETE pre-calibration assertions ("no Save in the
+P05 read-only increment" on the success/empty fixtures, exactly the
+behavior this calibration introduces) plus the new direct-save test
+missing its scan-crop-confirm tap. All three were fixed (assertions
+inverted to require 保存 alongside 编辑; confirm tap added); the three
+tests passed in isolation (28s / 26s / 18s) and the final full UI
+number above is one clean sequential run with zero failures. No
+disabled / skipped tests anywhere.
+
+### Screenshots produced (fixture-driven; NOT real camera, NOT real Vision)
+
+```text
+ai/validation/2026-10-03-w4i4-p06-save-success.png
+    P06: ✓名片保存成功 + 完成 + summary strip (real thumbnail,
+    张伟 修正 / 产品总监 | Product Director / 上海智云科技有限公司)
+    + 拍下一张 capsule; excluded items absent
+ai/validation/2026-10-03-w4i4-holder-after-save.png
+    名片夹 with the saved card row (real thumbnail + corrected name)
+ai/validation/2026-10-03-w4i4-detail-saved-card.png
+    Detail: corrected name 张伟 修正 + unedited structured fields
+    (phones / email / website / address)
+ai/validation/2026-10-03-w4i4-direct-save-ready.png
+    read-only P05 top bar with 重拍 | 编辑 | 保存 all present
+    (direct-save entry point; calibration evidence)
+```
+
+### T-status
+
+```text
+T08: PASS
+T09: PASS
+T10: PASS
+
+T11 corrected value reaches final BusinessCard:
+PASS (manualEditing draft → saveCurrentCard → corrected values on the
+      final record; raw OCR + structured source untouched)
+
+T12 Save:
+PASS
+- direct save without edit (all four settled states resolvable;
+  structuredResultAvailable + missingFields covered by dedicated unit
+  tests, structuredResultAvailable by a dedicated UI test)
+- corrected save after manual edit
+
+T13 saved card Detail:
+PASS (corrected fields visible; holder-resolved full BusinessCard,
+      no second fetch)
+
+T18 persistence across relaunch:
+NOT IMPLEMENTED (in-memory repository + image store this increment;
+                 disk persistence behind the same abstractions later)
+
+P06 required-scope fidelity:
+PASS (✓名片保存成功 / 完成 / real-thumbnail summary strip / 拍下一张)
+
+P06 full Reference surface:
+PARTIAL (分组/备注/提醒/保存失败 grid, VIP invite, 企业简介, 交换名片
+         are spec-excluded)
+```
+
+T12 PASS 依据:
+
+```text
+- corrected draft materializes into a final BusinessCard (unit T12 1;
+  BusinessCardMaterializerTests cover the pure mapping directly)
+- original + processed image assets persisted byte-exact under real
+  references (unit T12 2, UI P06/holder thumbnails render real bytes)
+- rawOCRText preserved on the saved card (unit T12 3 + materializer
+  test)
+- blank corrections projected (nil/dropped) (unit T12 4 + materializer
+  test)
+- complete structured result saves DIRECTLY without Edit (unit T12 6)
+- missingFields result saves directly WITHOUT fabrication (unit T12 7)
+- final phone identities are FRESH domain UUIDs — kind + value
+  inherited, intermediate ids never leak (unit T12 8 covers the
+  ViewModel-allocated ids; materializer tests cover injected fixed ids
+  + same-inputs/same-output determinism)
+- no-dependency / non-settled saves are no-ops (unit T12 5)
+- exactly-once settle: saveState blocks a second save until 拍下一张
+  (unit T12 9; a second saveCurrentCard() at .saveSucceeded is a no-op
+  and the repository holds exactly one new card)
+- idle → saving → saveSucceeded transition with isSaveInFlight toggling
+  true-then-false, gated at the image store (unit T12 11)
+- materializer determinism: same complete inputs → same BusinessCard;
+  final IDs are injected, never implicitly generated (BusinessCard-
+  MaterializerTests, fixed UUIDs)
+- read-only P05 offers 编辑 AND 保存 together (updated
+  testStructuredRecognitionSuccessShowsP05Fields /
+  testStructuredEmptyFixtureShowsEmptyP05WithoutFailure + new
+  testStructuredResultCanSaveWithoutEditing)
+- P06 → 完成 → holder immediately lists the saved card (UI tests 1/3)
+- holder row → saved card Detail shows corrected fields (UI test 1)
+- 拍下一张 → saveState idle + fresh scanner; card stays saved (unit
+  T12 10, UI test 2)
+```
+
+### Known limitations
+
+1. Persistence is in-memory: a full quit + relaunch loses saved cards and
+   image assets (T18 deferred behind the same Repository/ImageAssetStore
+   abstractions).
+2. Holder rows show real thumbnails only for cards saved this session;
+   Week 2 seed fixtures / Previews stay text-only (no fabricated images).
+3. Detail header keeps the documented fidelity gaps (avatar circle, card
+   image strip, action grid, grouping/notes/export rows) — unchanged.
+4. P06 is minimal fidelity by scope decision; the summary strip is not
+   tappable (Detail is reached via the Holder after 完成).
+5. UI evidence is DEBUG-fixture-driven; real camera, real Vision OCR and
+   physical-device save remain NOT INDEPENDENTLY VERIFIED.
+
+### Audits
+
+```text
+dataset/* diff: empty
+spec/* diff: empty
+evidence/* diff: empty
+SimCamCard/Model/BusinessCard.swift diff: empty
+SimCamCard/Repository/BusinessCardRepository.swift diff: empty
+SimCamCard/Repository/InMemoryBusinessCardRepository.swift diff: empty
+project.pbxproj diff: empty (PBXFileSystemSynchronizedRootGroup picks up
+    the four new Swift files automatically)
+
+logical scope:
+  production:
+    - SimCamCard/Repository/ImageAssetStore.swift (NEW)
+    - SimCamCard/Recognition/BusinessCardMaterializer.swift (NEW)
+    - SimCamCard/ViewModel/ScanViewModel.swift
+    - SimCamCard/View/Scan/RecognitionView.swift
+    - SimCamCard/View/Scan/ScanEntryView.swift
+    - SimCamCard/View/CardHolder/CardHolderView.swift
+    - SimCamCard/View/CardHolder/BusinessCardRow.swift
+    - SimCamCard/App/SimCamCardApp.swift
+    - SimCamCard/Camera/Debug/DebugCameraFakes.swift (DEBUG-only)
+  tests:
+    - SimCamCardTests/Repository/InMemoryImageAssetStoreTests.swift (NEW)
+    - SimCamCardTests/Recognition/BusinessCardMaterializerTests.swift (NEW)
+    - SimCamCardTests/ViewModel/ScanViewModelTests.swift
+    - SimCamCardUITests/ScanCameraUITests.swift
+  documentation:
+    - ai/changes.md
+  evidence:
+    - 4 PNGs under ai/validation/
+
+untracked files (sole source of truth: `git status --short`,
+2026-10-03 final run): 4 Swift + 4 PNG = 8
+    Swift: ImageAssetStore.swift, BusinessCardMaterializer.swift,
+           InMemoryImageAssetStoreTests.swift,
+           BusinessCardMaterializerTests.swift
+    PNG:   w4i4-p06-save-success / w4i4-holder-after-save /
+           w4i4-detail-saved-card / w4i4-direct-save-ready
+
+concurrency: ImageAssetStore read seam is protocol + async; the in-memory
+    store is an actor (no @unchecked Sendable, no nonisolated(unsafe),
+    no Task.detached); isSaveInFlight is MainActor-owned UI state.
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)

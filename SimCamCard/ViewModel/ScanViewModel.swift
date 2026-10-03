@@ -262,6 +262,26 @@ final class ScanViewModel {
         }
     }
 
+    /// S06 Save state (Week 4 Increment 4 calibration). Deliberately a
+    /// SEPARATE state family from `RecognitionState`: saving is a
+    /// persistence workflow layered ON TOP of recognition, not another
+    /// recognition phase. RecognitionState keeps expressing ONLY S05;
+    /// the settled recognition state stays intact underneath
+    /// `.saveSucceeded` until 拍下一张 discards the whole workflow.
+    enum SaveState: Equatable {
+        /// No save has started for the current workflow.
+        case idle
+        /// Materialization/persistence in flight (image assets +
+        /// repository write). Transient.
+        case saving
+        /// The final BusinessCard has been materialized, its original
+        /// and processed image assets persisted and the record written
+        /// to the repository. Carries the saved card so P06 renders the
+        /// confirmation summary without a second fetch. The InMemory
+        /// stores expose no failure API, so no `.failed` case exists.
+        case saveSucceeded(BusinessCard)
+    }
+
     /// Current T07 raw-recognition state. `.inactive` until a crop is
     /// confirmed; recognition then starts automatically.
     private(set) var recognition: RecognitionState = .inactive
@@ -308,6 +328,25 @@ final class ScanViewModel {
     /// can substitute a canned extractor without touching Vision.
     private let fieldExtractor: any CardFieldExtracting
 
+    /// Week 4 Increment 4 persistence dependencies (T12 Save). Optional:
+    /// the Scanner is fully usable for capture/crop/OCR/edit without
+    /// them; only `saveCurrentCard()` requires both. The App composition
+    /// root injects the shared instances so a saved card lands in the
+    /// same repository the Card Holder reads.
+    private let cardRepository: (any BusinessCardRepository)?
+    private let imageStore: (any ImageAssetStore)?
+
+    /// T12 save-in-flight guard (NOT a frozen state): while true the
+    /// 保存 button is disabled so a double tap cannot materialize and
+    /// persist the same draft twice.
+    private(set) var isSaveInFlight = false
+
+    /// S06 Save state. `.idle` until a save starts; only
+    /// `captureNextAfterSave()` (拍下一张) returns it to `.idle`. While
+    /// `.saveSucceeded` a second save is blocked, so the same result
+    /// cannot be saved twice within one workflow.
+    private(set) var saveState: SaveState = .idle
+
     /// The single Task consuming the live detection stream while in
     /// `.preview`. Cancelled on scanner disappear, on capture, on photo
     /// import, and on any transition out of preview. Never more than
@@ -341,7 +380,9 @@ final class ScanViewModel {
         cropProcessor: (any CardCropProcessing)? = nil,
         ocrProcessor: (any CardOCRProcessing)? = nil,
         cropFixture: CropFixtureParam = nil,
-        fieldExtractor: (any CardFieldExtracting)? = nil
+        fieldExtractor: (any CardFieldExtracting)? = nil,
+        cardRepository: (any BusinessCardRepository)? = nil,
+        imageStore: (any ImageAssetStore)? = nil
     ) {
         self.authorization = authorization
         let controller = sessionController ?? CameraSessionController()
@@ -352,6 +393,8 @@ final class ScanViewModel {
         self.ocrProcessor = ocrProcessor ?? CardOCRProcessor()
         self.cropFixture = cropFixture
         self.fieldExtractor = fieldExtractor ?? CardFieldExtractor()
+        self.cardRepository = cardRepository
+        self.imageStore = imageStore
     }
 
     // MARK: - Lifecycle
@@ -864,6 +907,100 @@ final class ScanViewModel {
         var updated = draft
         mutation(&updated)
         recognition = .manualEditing(updated)
+    }
+
+    // MARK: - T12 Save (S06 SaveState)
+
+    /// Saves the CURRENT result as a final BusinessCard — directly from
+    /// any settled recognition state (structuredResultAvailable /
+    /// missingFields / multiplePhoneFields / nonCardEmptyResult) without
+    /// requiring Edit first, or from manualEditing using the corrected
+    /// draft. Resolves the intermediate RecognitionDraft, persists the
+    /// original + processed image assets, materializes via
+    /// `BusinessCardMaterializer`, writes the record to the repository
+    /// and settles `saveState` in `.saveSucceeded(card)` (P06 owns the
+    /// screen; `recognition` stays untouched underneath).
+    ///
+    /// No-ops when: the workflow is not in a settled / manualEditing
+    /// state, persistence dependencies are missing, a save is already in
+    /// flight, or this workflow already saved (`saveState != .idle`
+    /// until 拍下一张 resets it).
+    ///
+    /// The card keeps full traceability: raw OCR text plus the real
+    /// original/processed image references. Phone/email identity is
+    /// re-issued by the materializer — the final record inherits only
+    /// corrected kind + value, never the intermediate UUIDs.
+    func saveCurrentCard() async {
+        guard saveState == .idle,
+              let cardRepository, let imageStore,
+              !isSaveInFlight else { return }
+
+        // Resolve the intermediate draft: the edited buffer when the
+        // user entered manualEditing, otherwise a fresh draft projected
+        // verbatim from the settled structured result (no fabrication).
+        let draft: RecognitionDraft
+        switch recognition {
+        case .structuredResultAvailable(let result),
+             .nonCardEmptyResult(let result),
+             .missingFields(let result),
+             .multiplePhoneFields(let result):
+            draft = RecognitionDraft(source: result)
+        case .manualEditing(let edited):
+            draft = edited
+        case .inactive, .processing, .failed:
+            return
+        }
+
+        isSaveInFlight = true
+        defer { isSaveInFlight = false }
+        saveState = .saving
+
+        let crop = draft.source.ocrResult.cropResult
+        let cardID = UUID()
+        let originalRef = "card-\(cardID.uuidString)-original"
+        let processedRef = "card-\(cardID.uuidString)-processed"
+
+        // Final phone identities are allocated HERE (the orchestration
+        // layer), never inside the pure materializer: one fresh domain
+        // UUID per corrected phone, aligned by index.
+        let corrected = draft.correctedFields
+        let finalPhoneIDs = corrected.phones.map { _ in UUID() }
+
+        // Persist real image bytes first so the saved references always
+        // resolve; then write the record.
+        await imageStore.save(reference: originalRef, data: crop.original.data)
+        await imageStore.save(reference: processedRef, data: crop.processedImageData)
+
+        let card = BusinessCardMaterializer.materialize(
+            draft: draft,
+            cardID: cardID,
+            originalImageReference: originalRef,
+            processedImageReference: processedRef,
+            timestamp: Date(),
+            finalPhoneIDs: finalPhoneIDs
+        )
+        await cardRepository.save(card)
+        saveState = .saveSucceeded(card)
+    }
+
+    /// User tapped 拍下一张 on P06: discard the saved workflow and return
+    /// to a fresh Scanner preview so another card can be captured. The
+    /// saved card stays persisted. Delegates to the shared retake path
+    /// (recognition → inactive, crop → reset, scanner → preview), then
+    /// clears the SaveState so the next capture can save again.
+    func captureNextAfterSave() async {
+        await retake()
+        saveState = .idle
+    }
+
+    /// View-layer lookup of a persisted image asset by its real
+    /// reference (e.g. the P06 summary strip thumbnail). The Domain
+    /// keeps String references only; this is the read seam back to the
+    /// injected ImageAssetStore. Returns nil when no store is injected
+    /// or the reference is unknown — callers render a neutral fallback,
+    /// never a fabricated image.
+    func imageData(for reference: String) async -> Data? {
+        await imageStore?.data(for: reference)
     }
 
     /// User tapped 取消 (P04 retake): discard the draft/result, clear

@@ -27,23 +27,41 @@ import SwiftUI
 @main
 struct SimCamCardApp: App {
 
-    /// Holds the ViewModel for the app's lifetime. `@State` (not
-    /// `@StateObject`) is the standard holder for `@Observable` classes.
-    ///
-    /// Repository seed: `SimCamCardFixture.initialCards()` returns `[]`
-    /// for normal launches and Release builds. DEBUG UI tests opt in to
-    /// deterministic mock fixtures via `-SimCamCardFixture <mode>` launch
-    /// arguments. The default runtime NEVER injects mock data.
-    @State private var viewModel = CardHolderViewModel(
-        repository: InMemoryBusinessCardRepository(
+    /// The shared card repository, owned by the composition root for the
+    /// app's lifetime. Injected into BOTH the Card Holder (read) and the
+    /// Scanner (T12 save) so a card saved after recognition appears in
+    /// the same store the Holder lists. Assigned once in `init`.
+    private let cardRepository: InMemoryBusinessCardRepository
+
+    /// The shared image asset store (T12). Saves the original + processed
+    /// image bytes under the references carried by each saved BusinessCard;
+    /// Card Holder / Detail resolve those references back to real images.
+    private let imageStore = InMemoryImageAssetStore()
+
+    /// Holds the Card Holder ViewModel for the app's lifetime. `@State`
+    /// (not `@StateObject`) is the standard holder for `@Observable`.
+    @State private var viewModel: CardHolderViewModel
+
+    /// Seeds the single shared repository (empty for normal/Release
+    /// launches; deterministic mock fixtures only for DEBUG UI-test opt-in
+    /// via `-SimCamCardFixture <mode>`) and wires it into the Card Holder
+    /// ViewModel. The default runtime NEVER injects mock data.
+    init() {
+        let repository = InMemoryBusinessCardRepository(
             initialCards: SimCamCardFixture.initialCards()
         )
-    )
+        self.cardRepository = repository
+        _viewModel = State(initialValue: CardHolderViewModel(repository: repository))
+    }
 
     var body: some Scene {
         WindowGroup {
             NavigationStack {
-                CardHolderView(viewModel: viewModel)
+                CardHolderView(
+                    viewModel: viewModel,
+                    cardRepository: cardRepository,
+                    imageStore: imageStore
+                )
             }
             .task {
                 await viewModel.loadCards()

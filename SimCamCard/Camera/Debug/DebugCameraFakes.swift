@@ -195,7 +195,9 @@ enum DebugCameraEnvironment {
     /// `-SimCamCardOCR <success|empty|failure>` to drive post-confirm
     /// raw recognition without real Vision (T07 fixture regression).
     static func makeViewModelIfRequested(
-        arguments: [String] = ProcessInfo.processInfo.arguments
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        cardRepository: (any BusinessCardRepository)? = nil,
+        imageStore: (any ImageAssetStore)? = nil
     ) -> ScanViewModel? {
         guard let index = arguments.firstIndex(of: launchArgument),
               index + 1 < arguments.count,
@@ -235,7 +237,9 @@ enum DebugCameraEnvironment {
             photoImportFixture: photoImportFixture,
             cropProcessor: cropFixture == nil ? nil : DebugCropProcessor(),
             ocrProcessor: ocrFixture.map { DebugOCRProcessor(mode: $0) },
-            cropFixture: cropFixture
+            cropFixture: cropFixture,
+            cardRepository: cardRepository,
+            imageStore: imageStore
         )
     }
 
@@ -480,8 +484,19 @@ extension ScanViewModel {
     /// DEBUG launch composition: fixture VM when requested, otherwise
     /// the production real-AVFoundation VM. Release builds call the
     /// real initializer directly (this extension does not exist there).
-    static func configuredForDebugLaunch() -> ScanViewModel {
-        DebugCameraEnvironment.makeViewModelIfRequested() ?? ScanViewModel()
+    /// T12 persistence dependencies are forwarded when supplied by the
+    /// composition root (CardHolderView → ScanEntryView).
+    static func configuredForDebugLaunch(
+        cardRepository: (any BusinessCardRepository)? = nil,
+        imageStore: (any ImageAssetStore)? = nil
+    ) -> ScanViewModel {
+        DebugCameraEnvironment.makeViewModelIfRequested(
+            cardRepository: cardRepository,
+            imageStore: imageStore
+        ) ?? ScanViewModel(
+            cardRepository: cardRepository,
+            imageStore: imageStore
+        )
     }
 }
 

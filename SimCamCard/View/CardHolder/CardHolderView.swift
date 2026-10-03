@@ -65,6 +65,24 @@ struct CardHolderView: View {
     /// own `[BusinessCard]`.
     let viewModel: CardHolderViewModel
 
+    /// Persistence dependencies forwarded to the Scanner (T12 Save). The
+    /// composition root injects the shared instances so a card saved after
+    /// recognition lands in the same repository this Holder reads. Both
+    /// are optional: the Holder lists cards without them, and Previews /
+    /// tests that never enter the Scanner may omit them.
+    let cardRepository: (any BusinessCardRepository)?
+    let imageStore: (any ImageAssetStore)?
+
+    init(
+        viewModel: CardHolderViewModel,
+        cardRepository: (any BusinessCardRepository)? = nil,
+        imageStore: (any ImageAssetStore)? = nil
+    ) {
+        self.viewModel = viewModel
+        self.cardRepository = cardRepository
+        self.imageStore = imageStore
+    }
+
     var body: some View {
         Group {
             if viewModel.cards.isEmpty {
@@ -75,7 +93,11 @@ struct CardHolderView: View {
             } else {
                 List(viewModel.cards) { card in
                     NavigationLink(value: AppRoute.cardDetail(card.id)) {
-                        BusinessCardRow(card: card)
+                        // T12: forward the store so cards saved this
+                        // session render their real processed-image
+                        // thumbnail (fixture-seeded / preview cards
+                        // without stored assets stay text-only).
+                        BusinessCardRow(card: card, imageStore: imageStore)
                     }
                     .accessibilityIdentifier("card-row-\(card.id.uuidString)")
                 }
@@ -94,9 +116,19 @@ struct CardHolderView: View {
                 // A missing id cannot occur via holder row taps; an empty
                 // fallback is sufficient for the typed initializer.
             case .scan:
-                // P02 Scanner static UI shell (Week 2 Increment 6).
-                ScanEntryView()
+                // P02 Scanner. Forward the shared persistence dependencies
+                // so the T12 save path (recognition → corrected draft →
+                // final BusinessCard) writes into the same repository this
+                // Holder lists, and stores the card's image assets.
+                ScanEntryView(cardRepository: cardRepository, imageStore: imageStore)
             }
+        }
+        .onAppear {
+            // Reload on every appearance so a card saved in the Scanner
+            // (T12) is listed immediately when P06 完成 pops back here.
+            // The repository defines no ordering; membership is what
+            // matters. Initial load also runs via the App's `.task`.
+            Task { await viewModel.loadCards() }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
