@@ -3,18 +3,23 @@
 //  SimCamCard
 //
 //  Card Detail page (P07, S06 detailCollapsed / T13 Detail) with the
-//  T14 Existing-Card Editing entry.
+//  T14 Existing-Card Editing entry and the T17 Delete flow.
 //
 //  Spec sources:
 //   - spec/page-inventory.md P07 Card Detail ("View structured data")
-//   - spec/state-inventory.md S06 detailCollapsed
+//   - spec/state-inventory.md S06 detailCollapsed, S06 `deleted`, S01
+//     list updates immediately after delete
 //   - spec/reference-tests.md T13 Detail ("Saved structured fields are
 //     visible in detail view."), T14 Existing-Card Editing ("edited
 //     title → stored BusinessCard changes → Detail displays corrected
-//     title")
+//     title"), T17 Delete ("Confirmation precedes delete; card
+//     disappears afterward.")
 //   - spec/data-model.md §Multi-value observation, §Missing-field rule
 //   - Evidence: evidence/screenshots/REF-detail-01-collapsed.png,
 //     evidence/screenshots/REF-detail-03-after-edit-expanded.png,
+//     evidence/screenshots/REF-detail-04-more-actions.png,
+//     evidence/screenshots/REF-delete-01-confirmation.png,
+//     evidence/screenshots/REF-card-holder-01-empty.png,
 //     evidence/screenshots/REF-edit-01-before-change.png,
 //     evidence/screenshots/REF-edit-02-after-title-change.png
 //
@@ -46,12 +51,18 @@
 //  the sheet dismisses, without returning to the Holder. The Holder
 //  reloads through its existing onAppear path when the user goes back.
 //
-//  Deliberately NOT implemented: Group (T16), Notes (P10), Delete (T17),
-//  Export (T19), phone/email/web invocation (no tel:/URL wiring),
-//  favorite star, the ••• more sheet, the 电话/地址/备注 actions, the
-//  未分组 group row, the notes row, the bottom 存入通讯录/递名片/分享名片
-//  bar, avatar, card image (Domain holds String references only), and
-//  展开/收起. No "Coming soon" / "Not implemented" text.
+//  Deliberately NOT implemented: Notes (P10), Export (T19),
+//  phone/email/web invocation (no tel:/URL wiring), favorite star, the
+//  deferred more-sheet entries (保存到通讯录/分组/备注/提醒/邀请使用名片),
+//  the 电话/地址 action-strip entries, the 未分组 group row, the notes
+//  row, the bottom 存入通讯录/递名片/分享名片 bar, avatar, card image
+//  (Domain holds String references only), and 展开/收起.
+//  No "Coming soon" / "Not implemented" text.
+//
+//  T17 closure: the trailing ••• (card-detail-more) opens a native
+//  confirmationDialog whose only live action is 删除 (card-detail-delete);
+//  that presents the native 「提示」 alert. Confirm runs repository delete
+//  → Holder onDeleted reload → dismiss; 取消 leaves the card untouched.
 //
 
 import SwiftUI
@@ -59,6 +70,21 @@ import SwiftUI
 struct CardDetailView: View {
 
     let viewModel: CardDetailViewModel
+
+    /// T17: invoked AFTER the shared repository has deleted the card and
+    /// BEFORE this Detail is dismissed. The Holder reloads its cards +
+    /// groups snapshot here, so the list is already correct when the pop
+    /// completes (not relying on onAppear timing). Production always
+    /// supplies a real reload closure; Previews pass a no-op.
+    let onDeleted: @MainActor () async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    /// Presents the Reference more-actions bottom surface (•••).
+    @State private var showMoreActions = false
+
+    /// Presents the native 「提示」 delete confirmation alert.
+    @State private var showDeleteAlert = false
 
     private var card: BusinessCard { viewModel.card }
 
@@ -169,6 +195,62 @@ struct CardDetailView: View {
         .accessibilityIdentifier("card-detail")
         .navigationTitle("名片详情")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // T17 Reference entry (REF-detail-04): the trailing ••• opens
+            // the native more-actions surface. Only the functional 删除
+            // action is rendered this Increment — the Reference's other
+            // grid entries (保存到通讯录/分组/备注/提醒/邀请) are deferred
+            // and never faked as dead buttons.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showMoreActions = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("更多操作")
+                .accessibilityIdentifier("card-detail-more")
+            }
+        }
+        .confirmationDialog(
+            "更多操作",
+            isPresented: $showMoreActions,
+            titleVisibility: .visible
+        ) {
+            // 删除 → request confirmation (T17). The destructive action
+            // moves the ViewModel to .confirming and presents the alert.
+            Button(role: .destructive) {
+                viewModel.requestDelete()
+                showDeleteAlert = true
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+            .accessibilityIdentifier("card-detail-delete")
+
+            Button("取消", role: .cancel) {}
+        }
+        .alert("提示", isPresented: $showDeleteAlert) {
+            // 取消 (T17): confirmation dismissed, card and repository
+            // untouched; the Detail stays on screen.
+            Button("取消", role: .cancel) {
+                viewModel.cancelDelete()
+            }
+            .accessibilityIdentifier("card-delete-cancel")
+
+            // 删除名片 (T17): hard-delete through the repository, then let
+            // the Holder reload, and only THEN dismiss the Detail. The
+            // ordering is strictly repository delete → reload → dismiss.
+            Button("删除名片", role: .destructive) {
+                Task {
+                    if await viewModel.confirmDelete() {
+                        await onDeleted()
+                        dismiss()
+                    }
+                }
+            }
+            .accessibilityIdentifier("card-delete-confirm")
+        } message: {
+            Text("删除未同步名片将无法恢复，请确认是否要删除？")
+        }
         .sheet(isPresented: editingSheetBinding) {
             CardEditView(viewModel: viewModel)
         }
@@ -224,7 +306,8 @@ private extension PhoneNumber.Kind {
                 repository: InMemoryBusinessCardRepository(
                     initialCards: MockBusinessCards.all
                 )
-            )
+            ),
+            onDeleted: {}
         )
     }
 }
@@ -237,7 +320,8 @@ private extension PhoneNumber.Kind {
                 repository: InMemoryBusinessCardRepository(
                     initialCards: [MockBusinessCards.card004]
                 )
-            )
+            ),
+            onDeleted: {}
         )
     }
 }

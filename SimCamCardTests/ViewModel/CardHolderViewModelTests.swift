@@ -586,5 +586,73 @@ struct CardHolderViewModelTests {
         #expect(viewModel.groupCardSelection.isEmpty)
     }
 
+    // MARK: - T17 Delete → Holder reload
+
+    @Test("T17 loadHolderData after a repository delete drops the id from the cards snapshot")
+    func t17ReloadAfterDeleteDropsCard() async throws {
+        let cardRepo = InMemoryBusinessCardRepository(
+            initialCards: MockBusinessCards.all
+        )
+        let groupRepo = InMemoryCardGroupRepository()
+        let viewModel = CardHolderViewModel(repository: cardRepo, groupRepository: groupRepo)
+        await viewModel.loadHolderData()
+        #expect(viewModel.cards.contains { $0.id == MockBusinessCards.card001ID })
+
+        // The Detail's confirm path performs the repository delete, then the
+        // Holder's onDeleted calls loadHolderData() explicitly.
+        await cardRepo.delete(id: MockBusinessCards.card001ID)
+        await viewModel.loadHolderData()
+
+        #expect(!viewModel.cards.contains { $0.id == MockBusinessCards.card001ID })
+        #expect(viewModel.cards.count == MockBusinessCards.all.count - 1)
+        // A subsequent search must not hit the deleted card (S01).
+        viewModel.searchQuery = "张伟"
+        #expect(
+            !viewModel.visibleCards.contains { $0.id == MockBusinessCards.card001ID }
+        )
+    }
+
+    @Test("T17 deleting the only card of a group keeps the catalog group with cardCount 0")
+    func t17DeleteLastCardOfGroupKeepsGroupAtZero() async throws {
+        let cardRepo = InMemoryBusinessCardRepository(
+            initialCards: MockBusinessCards.all
+        )
+        let groupRepo = InMemoryCardGroupRepository()
+        let viewModel = CardHolderViewModel(repository: cardRepo, groupRepository: groupRepo)
+        await viewModel.loadHolderData()
+
+        // Build a group 客户 that contains card001 ONLY.
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+        let groupID = try #require(tag?.id)
+        #expect(viewModel.cardCount(in: groupID) == 1)
+
+        // Filter by that group before deletion, then remove its only card
+        // and reload exactly as the T17 onDeleted path does.
+        viewModel.selectGroup(groupID)
+        #expect(viewModel.groupFilteredCards.count == 1)
+
+        await cardRepo.delete(id: MockBusinessCards.card001ID)
+        await viewModel.loadHolderData()
+
+        // The BusinessCard aggregate is gone...
+        #expect(!viewModel.cards.contains { $0.id == MockBusinessCards.card001ID })
+
+        // ...but the group CATALOG entry survives (groups are independent
+        // of cards.tags, per Increment 7), now reporting zero cards.
+        #expect(viewModel.groups.contains { $0.id == groupID })
+        #expect(viewModel.groups.first { $0.id == groupID }?.name == "客户")
+        #expect(viewModel.cardCount(in: groupID) == 0)
+        let storedGroups = await groupRepo.allGroups()
+        #expect(storedGroups.contains { $0.id == groupID })
+        #expect(storedGroups.count == 1)
+
+        // The active group filter resolves to an empty set rather than a
+        // dangling card; the other cards remain outside the group.
+        #expect(viewModel.isGroupFiltered)
+        #expect(viewModel.groupFilteredCards.isEmpty)
+        #expect(viewModel.cards.count == MockBusinessCards.all.count - 1)
+    }
+
     #endif
 }

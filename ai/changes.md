@@ -4586,3 +4586,275 @@ Release fixture isolation:
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+## Week 4 Increment 8 — T17 Delete (2026-10-04)
+
+- Baseline commit: `b5d4dd1`（Increment 7「feat(group): 实现名片分组管理」，
+  已 accepted + pushed；开工时 `git switch week4/structured-recognition` /
+  `git pull --ff-only`（Already up to date）/ `git status` clean）。
+- Regression baseline：Unit 337/337（27 suites）、UI 40/40、Debug PASS、
+  Release PASS、fixture isolation 8/8 ABSENT。
+- 本 Increment 结束：**未 commit、未 push**，等待 human review。
+
+### Reference observations（frozen evidence，未改动）
+
+逐张核对 REF-detail-04 / REF-delete-01 / REF-card-holder-01-empty，文案以
+Reference 为准：
+
+- **More entry location**：名片详情（P07）顶栏右上角 `•••`（ellipsis），
+  位于收藏星 ☆ 同侧 trailing（星标本 Increment 不实现）。稳定 identifier
+  `card-detail-more`。
+- **More-actions surface**：点击 ••• 弹出 Reference 底部操作面板（网格图标：
+  保存到通讯录 / 编辑 / 邀请使用名片全能王 / 分组 / 备注 / 提醒 / 删除 + 取消）。
+  本 Increment 仅渲染真实可用的 **删除** 一项，其余为死按钮不做。
+- **Delete row wording**：垃圾桶图标 + 文案「删除」（destructive）。
+  identifier `card-detail-delete`。
+- **Confirmation title**：「提示」。
+- **Confirmation message**：「删除未同步名片将无法恢复，请确认是否要删除？」
+- **destructive / cancel button wording**：右侧红色「删除名片」
+  （identifier `card-delete-confirm`）；左侧中性「取消」
+  （identifier `card-delete-cancel`）。
+- **confirm destination**：确认 → repository delete(id:) → Holder reload
+  （loadHolderData：cards + groups）→ Detail dismiss → 名片夹中该卡消失；
+  删除最后一张 → 名片夹回到空态（`card-holder-empty`，名片 (0张)），
+  扫描入口（+）仍可用。
+- **cancel result**：取消确认框 → Detail 保持在前台，名片姓名仍显示，
+  repository 中该卡完全不变。
+- spec 复核：page-inventory P07 actions 含 Delete；state-inventory
+  S06 `deleted`；S01 删除后列表即时更新、删最后一张回空态；
+  reference-tests T17「Confirmation precedes delete; card disappears
+  afterward.」
+
+### DeleteState 设计（独立于 EditState）
+
+`CardDetailViewModel` 在现有 `EditState { viewing / editing(draft) /
+saving(draft) }` 之外新增**独立**的删除状态族，二者正交，互不污染：
+
+```swift
+enum DeleteState: Equatable {
+    case idle
+    case confirming
+    case deleting
+    case deleted
+}
+private(set) var deleteState: DeleteState = .idle
+```
+
+Intents（`SimCamCard/ViewModel/CardDetailViewModel.swift`）：
+
+- `requestDelete()`：仅当 `editState == .viewing && deleteState == .idle`
+  才进入 `.confirming`；editing / saving / deleting / deleted 全部 no-op。
+- `cancelDelete()`：仅 `.confirming → .idle`；显示中的 card 与 repository
+  完全不变；其它状态 no-op。
+- `@discardableResult func confirmDelete() async -> Bool`：仅 `.confirming`
+  可执行：`.confirming → .deleting → await repository.delete(id: card.id)
+  → .deleted`，返回 `true`；任何非 `.confirming` 调用是稳定 no-op，返回
+  `false`（重复 confirm 不会二次删除、也不会离开 `.deleted`）。
+- 当前 repository 不抛错，**不制造**假的 failed state；没有新增
+  deleted flag / soft-delete / DTO / tombstone。
+
+### More-actions entry / confirmation 行为（CardDetailView）
+
+- 新增 `@Environment(\.dismiss)` 与由 Holder 注入的
+  `let onDeleted: @MainActor () async -> Void`（production 传真实回调；
+  仅两个 #Preview 传 no-op `{}`）。
+- 导航栏 trailing 新增 native `•••`（`Image(systemName: "ellipsis")`，
+  accessibilityLabel「更多操作」，identifier `card-detail-more`）。
+- 点击呈现 SwiftUI native `.confirmationDialog("更多操作", …)`，**本
+  Increment 只渲染一个真实可用动作**：destructive「删除」（trash，
+  identifier `card-detail-delete`），外加系统「取消」。不做保存通讯录 /
+  分组 / 备注 / 提醒 / 邀请等死按钮。
+- 「删除」→ `viewModel.requestDelete()` 并呈现 native `.alert("提示")`：
+  message 严格等于「删除未同步名片将无法恢复，请确认是否要删除？」；
+  - 取消（role `.cancel`，identifier `card-delete-cancel`）→
+    `viewModel.cancelDelete()`，Detail 与卡完全不变。
+  - 删除名片（role `.destructive`，红色，identifier
+    `card-delete-confirm`）→
+    ```swift
+    Task {
+        if await viewModel.confirmDelete() {
+            await onDeleted()
+            dismiss()
+        }
+    }
+    ```
+  - 顺序严格为 **repository delete → Holder onDeleted reload → Detail
+    dismiss**，不先 dismiss 再赌 onAppear。
+
+### 显式 Holder reload（CardHolderView wiring）
+
+`navigationDestination(.cardDetail)` 构造 `CardDetailView` 时继续传同一
+`BusinessCardRepository`，并新增：
+
+```swift
+onDeleted: { await viewModel.loadHolderData() }
+```
+
+`loadHolderData()` 顺序 reload cards + groups。删除确认返回后，pop 完成时
+Holder 已持有最新 snapshot：普通列表、group cardCount、当前活动 group
+filter、以及之后的 Search（不再命中已删卡）全部即时正确，不依赖
+onAppear 时序。
+
+### Cancel 语义
+
+取消确认框：alert 关闭、`deleteState → .idle`、`editState` 仍 `.viewing`，
+头部姓名仍在；返回 Holder 后 card001 行仍存在、空态不出现。单元测试
+`t17CancelPreservesCardAndRepository` 与 UI
+`testDeleteCancelLeavesCardUnchanged` 双重固化；另验证「请求/取消删除」
+不干扰 T14 编辑保存链路（`t17DoesNotDisturbEditWorkflow`）。
+
+### 分组卡删除语义（group catalog 独立）
+
+删除 `BusinessCard` 仅让该 aggregate 从 `BusinessCardRepository` 消失；
+**不触碰 `CardGroupRepository`**。例：客户 group 仅含 card001，删除
+card001 后，group「客户」仍在 catalog 中、`cardCount == 0`，活动中的该
+group filter 解析为空集而非悬挂卡。由
+`t17DeleteLastCardOfGroupKeepsGroupAtZero` 断言（含 groupRepo
+`allGroups()` 仍含该 tag）。`ImageAssetStore` 本 Increment 未改；持久化
+资产回收留待 T18 disk-persistence 统一设计。
+
+### 测试变更
+
+- 单元（Swift Testing，DEBUG fixture 段）：
+  - `CardDetailViewModelTests` 新增 **11** 个 T17 用例：初始 idle；
+    request→confirming；editing 中 request 被忽略；deleted 后 request
+    被忽略；cancel→idle；cancel 卡/repository 完全不变；confirm 删除同
+    UUID 且到 deleted；非 confirming confirm 返回 false（idle 与取消后两
+    种）；重复 confirm 稳定停留 deleted 且不二次删除；删一卡保全其它卡；
+    删除请求/取消不破坏 T14 编辑保存。
+  - `CardHolderViewModelTests` 新增 **2** 个 T17 用例：repository 删除后
+    `loadHolderData()` 的 cards snapshot 不再含该 id 且 Search 不再命中；
+    删除某 group 唯一卡后 catalog group 保留、cardCount 0、活动 filter
+    为空、groupRepo 仍含该 group。
+- UI（XCTest）：新增 `SimCamCardUITests/CardDeleteUITests.swift`
+  （`-SimCamCardFixture single`，仅 card001；全程 waitForExistence /
+  waitForNonExistence，无 sleep；`-parallel-testing-enabled NO`）：
+  - `testDeleteConfirmedRemovesCardAndReturnsEmptyHolder`：••• → 删除 →
+    「提示」确认（断言标题/逐字 message/两按钮）→ 删除名片 → Detail 消失
+    → Holder 中 card001 行缺席 → `card-holder-empty` +「名片 (0张)」→
+    `scan-entry` 仍在。
+  - `testDeleteCancelLeavesCardUnchanged`：确认框 → 取消 → alert 消失、
+    Detail 与「张伟」仍在 → 返回 Holder，card001 仍存在、空态不出现。
+  - 查询遵循 Increment 7 bridge 经验：alert/dialog Button 用
+    `.matching(identifier:).firstMatch`，中文 label 兜底；helper 均
+    `@MainActor`。
+
+### Verification results
+
+```text
+Unit:
+350 / 350 PASS
+27 suites
+0 failed
+0 disabled
+0 skipped
+
+UI:
+42 / 42 PASS（serial, -parallel-testing-enabled NO；新增 2 条删除用例）
+0 failed
+0 disabled
+0 skipped
+
+Debug:
+BUILD SUCCEEDED
+
+Release:
+BUILD SUCCEEDED
+
+Release fixture isolation:
+8 / 8 ABSENT
+（SimCamCardOCR / DebugOCRProcessor / DebugCameraEnvironment /
+ SimCamCardCamera / SimCamCardDetection / SimCamCardCrop /
+ SimCamCardPhotoImport / DebugCameraFakes 各 0 匹配，strings 扫描
+ Release-iphonesimulator/SimCamCard.app/SimCamCard）
+
+日志：
+/tmp/w4i8-unit.log   /tmp/w4i8-ui.log
+/tmp/w4i8-debug.log  /tmp/w4i8-release.log
+xcresult：
+/tmp/w4i8-unit.xcresult  /tmp/w4i8-ui.xcresult
+设备：iPhone 18 Pro / iOS 27.0（platform=iOS Simulator,name=iPhone 18 Pro）
+```
+
+### Evidence（fixture-driven，非真实数据）
+
+```text
+ai/validation/2026-10-04-w4i8-delete-confirmation.png  「提示」确认框（逐字文案/取消/红色删除名片）
+ai/validation/2026-10-04-w4i8-holder-after-delete.png  删除后空态：名片 (0张)，扫描 + 与分组入口仍在
+ai/validation/2026-10-04-w4i8-more-actions.png         ••• native 更多操作面板（仅红色「删除」）
+```
+
+均从全量串行 UI 运行的 `/tmp/w4i8-ui.xcresult` 以 XCTAttachment
+（.keepAlways）导出（`xcresulttool export attachments` + activities
+name/uuid 映射），已逐一打开核对内容。
+
+### Scope audit（冻结面保持无 diff）
+
+保持无 diff（最终 `git status --short` / `git diff --name-status` 复核）：
+
+```text
+dataset/*        spec/*        evidence/*
+BusinessCard.swift        PhoneNumber.swift        CardTag.swift
+CardNote.swift
+BusinessCardRepository.swift
+InMemoryBusinessCardRepository.swift
+ImageAssetStore.swift
+Recognition/*   Edit/*   Search/*   Group Repository 实现
+（CardGroupRepository / InMemoryCardGroupRepository）
+project.pbxproj（新文件经 PBXFileSystemSynchronizedRootGroup 自动纳入）
+```
+
+实际变更面：
+
+```text
+M  SimCamCard/ViewModel/CardDetailViewModel.swift
+M  SimCamCard/View/CardDetail/CardDetailView.swift
+M  SimCamCard/View/CardHolder/CardHolderView.swift
+M  SimCamCardTests/ViewModel/CardDetailViewModelTests.swift
+M  SimCamCardTests/ViewModel/CardHolderViewModelTests.swift
+M  ai/changes.md
+A  SimCamCardUITests/CardDeleteUITests.swift
+A  ai/validation/2026-10-04-w4i8-delete-confirmation.png
+A  ai/validation/2026-10-04-w4i8-holder-after-delete.png
+A  ai/validation/2026-10-04-w4i8-more-actions.png
+```
+
+### T17 behavioral acceptance
+
+```text
+T17 behavioral acceptance: PASS
+P07 / More Actions full Reference fidelity: PARTIAL
+```
+
+- T17 冻结行为完整实现：More → Delete → confirmation → Cancel / Confirm →
+  repository delete → Holder reload → card disappears。
+- 删除确认框的 title/message/buttons 与 REF-delete-01 一致。
+- 删除最后一张名片后 Holder 进入 0 张空态，scan entry 仍可用。
+- 当前 ••• 使用原生 SwiftUI confirmationDialog，只呈现当前真正可用的 Delete。
+- iOS 27 实际呈现为锚定 ••• 的 native popover；Reference
+  REF-detail-04-more-actions 为底部九宫格 more-actions sheet。
+- Reference 中保存通讯录/编辑/分组/备注/提醒等其它 action 不属于本
+  Increment，不为了视觉完整度制造 dead controls。
+- 因此 T17 required behavior = PASS；当前 P07 More Actions full
+  Reference surface fidelity = PARTIAL。
+- 后续随着 Notes / Export 等真实功能实现，再统一做 final fidelity sweep。
+
+### T-status
+
+```text
+T11 PASS
+T12 PASS
+T13 PASS
+T14 PASS
+T15 PASS
+T16 PASS
+T17 PASS
+
+T18 Persistence:
+NOT IMPLEMENTED
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)

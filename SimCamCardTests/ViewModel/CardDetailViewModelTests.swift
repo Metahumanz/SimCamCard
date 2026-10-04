@@ -327,5 +327,168 @@ struct CardDetailViewModelTests {
         #expect(await repository.allCards().count == 3)
     }
 
+    // MARK: - T17 Delete
+
+    /// Builds a VM over a repository seeded with ALL mock cards so the
+    /// "other cards preserved" and N-1 count assertions are meaningful.
+    private func makeDeleteViewModel() -> (
+        CardDetailViewModel, InMemoryBusinessCardRepository
+    ) {
+        let repository = InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all)
+        let viewModel = CardDetailViewModel(
+            card: MockBusinessCards.card001,
+            repository: repository
+        )
+        return (viewModel, repository)
+    }
+
+    @Test("T17 initial deleteState is idle")
+    func t17InitialDeleteStateIsIdle() {
+        let (viewModel, _) = makeDeleteViewModel()
+        #expect(viewModel.deleteState == .idle)
+        #expect(viewModel.editState == .viewing)
+    }
+
+    @Test("T17 requestDelete moves viewing+idle to confirming without touching storage")
+    func t17RequestDeleteOpensConfirmation() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        viewModel.requestDelete()
+        #expect(viewModel.deleteState == .confirming)
+        // Confirmation precedes delete: nothing removed yet.
+        #expect(await repository.card(id: MockBusinessCards.card001ID) != nil)
+        #expect(await repository.allCards().count == 3)
+    }
+
+    @Test("T17 requestDelete is ignored while editing")
+    func t17RequestDeleteIgnoredWhileEditing() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        viewModel.beginEditing()
+        viewModel.requestDelete()
+        #expect(viewModel.deleteState == .idle)
+        guard case .editing = viewModel.editState else {
+            Issue.record("Expected to remain in editing state")
+            return
+        }
+        #expect(await repository.card(id: MockBusinessCards.card001ID) != nil)
+    }
+
+    @Test("T17 requestDelete is ignored after the card has been deleted")
+    func t17RequestDeleteIgnoredAfterDeleted() async {
+        let (viewModel, _) = makeDeleteViewModel()
+        viewModel.requestDelete()
+        #expect(await viewModel.confirmDelete())
+        #expect(viewModel.deleteState == .deleted)
+        viewModel.requestDelete()
+        #expect(viewModel.deleteState == .deleted)
+    }
+
+    @Test("T17 cancelDelete returns confirming to idle")
+    func t17CancelReturnsToIdle() {
+        let (viewModel, _) = makeDeleteViewModel()
+        viewModel.requestDelete()
+        viewModel.cancelDelete()
+        #expect(viewModel.deleteState == .idle)
+    }
+
+    @Test("T17 cancel leaves the displayed card and repository card completely unchanged")
+    func t17CancelPreservesCardAndRepository() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        viewModel.requestDelete()
+        viewModel.cancelDelete()
+
+        #expect(viewModel.deleteState == .idle)
+        #expect(viewModel.card == MockBusinessCards.card001)
+        let stored = await repository.card(id: MockBusinessCards.card001ID)
+        #expect(stored == MockBusinessCards.card001)
+        #expect(await repository.allCards().count == 3)
+
+        // cancelDelete outside confirming is a safe no-op.
+        viewModel.cancelDelete()
+        #expect(viewModel.deleteState == .idle)
+    }
+
+    @Test("T17 confirmDelete removes exactly the same UUID and reaches deleted")
+    func t17ConfirmRemovesSameUUIDAndReachesDeleted() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        viewModel.requestDelete()
+
+        let removed = await viewModel.confirmDelete()
+        #expect(removed)
+        #expect(viewModel.deleteState == .deleted)
+        #expect(await repository.card(id: MockBusinessCards.card001ID) == nil)
+        #expect(await repository.allCards().count == 2)
+    }
+
+    @Test("T17 confirmDelete outside confirming is a stable no-op returning false")
+    func t17ConfirmOutsideConfirmingReturnsFalse() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+
+        // From idle: nothing deleted.
+        let fromIdle = await viewModel.confirmDelete()
+        #expect(fromIdle == false)
+        #expect(viewModel.deleteState == .idle)
+        #expect(await repository.card(id: MockBusinessCards.card001ID) != nil)
+        #expect(await repository.allCards().count == 3)
+
+        // After a cancel (back to idle): still no deletion.
+        viewModel.requestDelete()
+        viewModel.cancelDelete()
+        let afterCancel = await viewModel.confirmDelete()
+        #expect(afterCancel == false)
+        #expect(viewModel.deleteState == .idle)
+        #expect(await repository.card(id: MockBusinessCards.card001ID) != nil)
+        #expect(await repository.allCards().count == 3)
+    }
+
+    @Test("T17 a re-entrant second confirm cannot leave the deleted state or delete twice")
+    func t17DoubleConfirmStaysDeleted() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        viewModel.requestDelete()
+        #expect(await viewModel.confirmDelete())
+
+        let second = await viewModel.confirmDelete()
+        #expect(second == false)
+        #expect(viewModel.deleteState == .deleted)
+        // Count is exactly N-1 and stays there — no second removal.
+        #expect(await repository.allCards().count == MockBusinessCards.all.count - 1)
+    }
+
+    @Test("T17 deleting one card preserves every other card untouched")
+    func t17DeletingOnePreservesOthers() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+        let otherIDs = Set(MockBusinessCards.all.map(\.id))
+            .subtracting([MockBusinessCards.card001ID])
+
+        viewModel.requestDelete()
+        _ = await viewModel.confirmDelete()
+
+        let remaining = await repository.allCards()
+        #expect(remaining.count == MockBusinessCards.all.count - 1)
+        #expect(Set(remaining.map(\.id)) == otherIDs)
+        // The surviving aggregates keep their full values.
+        for other in MockBusinessCards.all where other.id != MockBusinessCards.card001ID {
+            #expect(await repository.card(id: other.id) == other)
+        }
+    }
+
+    @Test("T17 delete request/cancel does not disturb the T14 edit workflow")
+    func t17DoesNotDisturbEditWorkflow() async {
+        let (viewModel, repository) = makeDeleteViewModel()
+
+        // Open and cancel a delete, then edit and save normally.
+        viewModel.requestDelete()
+        viewModel.cancelDelete()
+        viewModel.beginEditing()
+        viewModel.updateJobTitle("高级产品总监 | Senior Product Director")
+        await viewModel.saveEdits()
+
+        #expect(viewModel.editState == .viewing)
+        #expect(viewModel.deleteState == .idle)
+        #expect(viewModel.card.jobTitle == "高级产品总监 | Senior Product Director")
+        let stored = await repository.card(id: MockBusinessCards.card001ID)
+        #expect(stored?.jobTitle == "高级产品总监 | Senior Product Director")
+        #expect(await repository.allCards().count == 3)
+    }
+
     #endif
 }

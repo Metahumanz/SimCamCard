@@ -160,12 +160,23 @@ struct CardHolderView: View {
                 // Holder lists. Production always injects it; Previews /
                 // throwaway contexts fall back to an isolated repository
                 // seeded with this card.
+                //
+                // T17: onDeleted explicitly reloads this Holder's cards +
+                // groups snapshot AFTER the shared repository has removed
+                // the card and BEFORE the Detail is popped, so the list,
+                // group card counts, active filter and future search all
+                // reflect the deletion without relying on onAppear timing.
                 if let card = viewModel.cards.first(where: { $0.id == id }) {
-                    CardDetailView(viewModel: CardDetailViewModel(
-                        card: card,
-                        repository: cardRepository
-                            ?? InMemoryBusinessCardRepository(initialCards: [card])
-                    ))
+                    CardDetailView(
+                        viewModel: CardDetailViewModel(
+                            card: card,
+                            repository: cardRepository
+                                ?? InMemoryBusinessCardRepository(initialCards: [card])
+                        ),
+                        onDeleted: {
+                            await viewModel.loadHolderData()
+                        }
+                    )
                 }
                 // A missing id cannot occur via holder row taps; an empty
                 // fallback is sufficient for the typed initializer.

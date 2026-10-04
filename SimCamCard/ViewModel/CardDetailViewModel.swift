@@ -61,6 +61,23 @@ final class CardDetailViewModel {
         case saving(BusinessCardEditDraft)
     }
 
+    /// Delete workflow state for the saved card (T17), S06 `deleted`.
+    /// Kept independent from `EditState` — viewing and delete confirmation
+    /// are orthogonal to the edit draft family.
+    ///
+    /// - idle: no delete interaction; the read-only Detail is shown.
+    /// - confirming: the native 「删除名片」 confirmation is presented;
+    ///   the repository/card are still untouched.
+    /// - deleting: the repository delete(id:) call is in flight; re-entrant
+    ///   confirms are ignored.
+    /// - deleted: the aggregate has been removed; the View dismisses.
+    enum DeleteState: Equatable {
+        case idle
+        case confirming
+        case deleting
+        case deleted
+    }
+
     /// The saved card whose structured fields are displayed. Updated
     /// IN PLACE (same aggregate id) after a successful T14 edit save.
     private(set) var card: BusinessCard
@@ -71,6 +88,9 @@ final class CardDetailViewModel {
     private let repository: any BusinessCardRepository
 
     private(set) var editState: EditState = .viewing
+
+    /// T17 delete workflow state (see DeleteState).
+    private(set) var deleteState: DeleteState = .idle
 
     init(card: BusinessCard, repository: any BusinessCardRepository) {
         self.card = card
@@ -114,6 +134,41 @@ final class CardDetailViewModel {
 
         self.card = updated
         editState = .viewing
+    }
+
+    // MARK: - Delete lifecycle (T17, S06 deleted)
+    //
+    // Delete is a separate state family from editing. The confirmation
+    // precedes every deletion (reference-tests T17); cancel leaves the
+    // card and repository completely untouched. The repository never
+    // throws today, so there is no fabricated failed state.
+
+    /// More → 删除: open the native confirmation. Allowed only while the
+    /// Detail is read-only (`.viewing`) and no delete flow is active
+    /// (`.idle`); no-op during editing/saving and once deleting/deleted.
+    func requestDelete() {
+        guard editState == .viewing, deleteState == .idle else { return }
+        deleteState = .confirming
+    }
+
+    /// 取消 on the confirmation: return to idle. The displayed card and
+    /// the repository are not touched. No-op outside `.confirming`.
+    func cancelDelete() {
+        guard deleteState == .confirming else { return }
+        deleteState = .idle
+    }
+
+    /// 删除名片 on the confirmation: persist the hard delete through the
+    /// existing repository contract, then mark `.deleted`. Returns true
+    /// only when a deletion was actually performed; a re-entrant /
+    /// out-of-state call is a stable no-op returning false.
+    @discardableResult
+    func confirmDelete() async -> Bool {
+        guard deleteState == .confirming else { return false }
+        deleteState = .deleting
+        await repository.delete(id: card.id)
+        deleteState = .deleted
+        return true
     }
 
     // MARK: - Draft intents
