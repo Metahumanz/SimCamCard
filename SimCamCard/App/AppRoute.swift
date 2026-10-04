@@ -47,4 +47,9 @@ enum AppRoute: Hashable {
     /// search query; result rows reuse the `.cardDetail` route — there is
     /// no second Detail navigation path.
     case search
+
+    /// Pushes the P09 Group Management page from the Card Holder group
+    /// entry (T16). The page shares the same CardHolderViewModel for
+    /// group catalog, selection, and filtering state.
+    case groups
 }

@@ -93,7 +93,18 @@ struct CardHolderView: View {
 
     var body: some View {
         Group {
-            if viewModel.cards.isEmpty {
+            if viewModel.isGroupFiltered {
+                // S01 groupFiltered — show only cards in the selected group.
+                List(viewModel.groupFilteredCards) { card in
+                    NavigationLink(value: AppRoute.cardDetail(card.id)) {
+                        BusinessCardRow(card: card, imageStore: imageStore)
+                    }
+                    .accessibilityIdentifier("card-row-\(card.id.uuidString)")
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    groupFilterBanner
+                }
+            } else if viewModel.cards.isEmpty {
                 ContentUnavailableView {
                     Label("名片 (0张)", systemImage: "rectangle.stack")
                 }
@@ -169,6 +180,10 @@ struct CardHolderView: View {
                 // ViewModel (query + visibleCards projection) and reuses
                 // the AppRoute.cardDetail rows/destination above.
                 CardSearchView(viewModel: viewModel, imageStore: imageStore)
+            case .groups:
+                // P09 Group Management (T16). Shares this Holder's
+                // ViewModel (group catalog, selection, filter state).
+                GroupManagementView(viewModel: viewModel, imageStore: imageStore)
             }
         }
         .onAppear {
@@ -176,9 +191,18 @@ struct CardHolderView: View {
             // (T12) is listed immediately when P06 完成 pops back here.
             // The repository defines no ordering; membership is what
             // matters. Initial load also runs via the App's `.task`.
-            Task { await viewModel.loadCards() }
+            Task { await viewModel.loadHolderData() }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                // T16 Group entry — replaces the Quick Action Grid
+                // placeholder with a real navigation target.
+                NavigationLink(value: AppRoute.groups) {
+                    Image(systemName: "folder")
+                }
+                .accessibilityLabel("分组")
+                .accessibilityIdentifier("card-holder-groups")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // Typed navigation entry to the Scanner shell (T02).
                 // Reuses the same NavigationStack + AppRoute system as
@@ -189,6 +213,38 @@ struct CardHolderView: View {
                 .accessibilityLabel("扫描")
                 .accessibilityIdentifier("scan-entry")
             }
+        }
+    }
+    // MARK: - Group filter banner
+
+    /// Shown above the list when a group filter is active (S01
+    /// `groupFiltered`). Displays the selected group name and offers a
+    /// × to clear the filter.
+    @ViewBuilder
+    private var groupFilterBanner: some View {
+        if let group = viewModel.selectedGroup {
+            HStack(spacing: 8) {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(.secondary)
+                Text(group.name)
+                    .font(.subheadline.weight(.medium))
+                Text("(\(viewModel.groupFilteredCards.count))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button {
+                    viewModel.clearGroupFilter()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("清除分组筛选")
+                .accessibilityIdentifier("group-filter-clear")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+            .accessibilityIdentifier("group-filter-active")
         }
     }
 }
@@ -211,7 +267,8 @@ struct CardHolderView: View {
     NavigationStack {
         CardHolderView(
             viewModel: CardHolderViewModel(
-                repository: InMemoryBusinessCardRepository()
+                repository: InMemoryBusinessCardRepository(),
+                groupRepository: InMemoryCardGroupRepository()
             )
         )
     }
@@ -221,11 +278,12 @@ struct CardHolderView: View {
     let viewModel = CardHolderViewModel(
         repository: InMemoryBusinessCardRepository(
             initialCards: MockBusinessCards.all
-        )
+        ),
+        groupRepository: InMemoryCardGroupRepository()
     )
     return NavigationStack {
         CardHolderView(viewModel: viewModel)
-            .task { await viewModel.loadCards() }
+            .task { await viewModel.loadHolderData() }
     }
 }
 

@@ -49,7 +49,7 @@ struct CardHolderViewModelTests {
     @Test("a fresh ViewModel starts with empty cards before loadCards is called")
     func freshViewModelHasEmptyCards() async throws {
         let repo = InMemoryBusinessCardRepository()
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         #expect(viewModel.cards.isEmpty)
         #expect(viewModel.cards.count == 0)
@@ -60,7 +60,7 @@ struct CardHolderViewModelTests {
     @Test("loadCards on an empty repository keeps cards empty")
     func loadCardsWithEmptyRepositoryProducesEmptyCards() async throws {
         let repo = InMemoryBusinessCardRepository()
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
 
@@ -75,7 +75,7 @@ struct CardHolderViewModelTests {
         let cardA = makeCard(name: "张伟")
         let cardB = makeCard(name: "李娜")
         let repo = InMemoryBusinessCardRepository(initialCards: [cardA, cardB])
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
 
@@ -91,7 +91,7 @@ struct CardHolderViewModelTests {
         let cardA = makeCard(name: "张伟")
         let cardB = makeCard(name: "李娜")
         let repo = InMemoryBusinessCardRepository(initialCards: [cardA, cardB])
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
         let firstLoad = Set(viewModel.cards.map(\.id))
@@ -108,7 +108,7 @@ struct CardHolderViewModelTests {
     @Test("loadCards after a repository save reflects the new card")
     func loadCardsAfterRepositorySaveReflectsNewCard() async throws {
         let repo = InMemoryBusinessCardRepository()
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
         #expect(viewModel.cards.isEmpty)
@@ -129,7 +129,7 @@ struct CardHolderViewModelTests {
         let cardA = makeCard(name: "张伟")
         let cardB = makeCard(name: "李娜")
         let repo = InMemoryBusinessCardRepository(initialCards: [cardA, cardB])
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
         #expect(viewModel.cards.count == 2)
@@ -151,7 +151,7 @@ struct CardHolderViewModelTests {
         // Release builds of the test target.
         let seeded = MockBusinessCards.all
         let repo = InMemoryBusinessCardRepository(initialCards: seeded)
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
 
         await viewModel.loadCards()
 
@@ -174,7 +174,7 @@ struct CardHolderViewModelTests {
             initialCards: MockBusinessCards.all
         )
     ) async throws -> (CardHolderViewModel, InMemoryBusinessCardRepository) {
-        let viewModel = CardHolderViewModel(repository: repo)
+        let viewModel = CardHolderViewModel(repository: repo, groupRepository: InMemoryCardGroupRepository())
         await viewModel.loadCards()
         return (viewModel, repo)
     }
@@ -315,5 +315,276 @@ struct CardHolderViewModelTests {
         viewModel.searchQuery = "新公司"
         #expect(Set(viewModel.visibleCards.map(\.id)) == [card.id])
     }
+    #endif
+
+    // MARK: - T16 Group / Tag
+
+    #if DEBUG
+
+    /// Helper: creates a ViewModel with the populated fixture and a
+    /// dedicated group repository, then loads both cards and groups.
+    @MainActor
+    private func makeGroupTestViewModel(
+        cardRepo: InMemoryBusinessCardRepository = InMemoryBusinessCardRepository(
+            initialCards: MockBusinessCards.all
+        ),
+        groupRepo: InMemoryCardGroupRepository = InMemoryCardGroupRepository()
+    ) async throws -> (CardHolderViewModel, InMemoryBusinessCardRepository, InMemoryCardGroupRepository) {
+        let viewModel = CardHolderViewModel(
+            repository: cardRepo,
+            groupRepository: groupRepo
+        )
+        await viewModel.loadHolderData()
+        return (viewModel, cardRepo, groupRepo)
+    }
+
+    @Test("T16 loadGroups populates the group catalog")
+    func t16LoadGroups() async throws {
+        let group = CardTag(name: "VIP")
+        let groupRepo = InMemoryCardGroupRepository(initialGroups: [group])
+        let (viewModel, _, _) = try await makeGroupTestViewModel(groupRepo: groupRepo)
+
+        #expect(viewModel.groups.count == 1)
+        #expect(viewModel.groups.first?.name == "VIP")
+    }
+
+    @Test("T16 createGroup assigns the same CardTag ID to selected card")
+    func t16CreateGroupAssignsToSelectedCard() async throws {
+        let (viewModel, cardRepo, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        #expect(tag != nil)
+        #expect(tag?.name == "客户")
+
+        // The card in the repository carries the tag.
+        let stored = await cardRepo.card(id: MockBusinessCards.card001ID)
+        #expect(stored?.tags.contains(where: { $0.id == tag!.id }) == true)
+
+        // The ViewModel snapshot reflects the assignment.
+        let card = viewModel.cards.first(where: { $0.id == MockBusinessCards.card001ID })
+        #expect(card?.tags.contains(where: { $0.id == tag!.id }) == true)
+    }
+
+    @Test("T16 multiple selected cards receive the same group ID")
+    func t16MultipleCardsSameGroupID() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card002ID)
+        let tag = await viewModel.createGroup(named: "合作伙伴")
+
+        #expect(tag != nil)
+
+        for cardID in [MockBusinessCards.card001ID, MockBusinessCards.card002ID] {
+            let card = viewModel.cards.first(where: { $0.id == cardID })
+            #expect(card?.tags.contains(where: { $0.id == tag!.id }) == true)
+        }
+
+        // card004 was NOT selected.
+        let card004 = viewModel.cards.first(where: { $0.id == MockBusinessCards.card004ID })
+        #expect(card004?.tags.contains(where: { $0.id == tag!.id }) != true)
+    }
+
+    @Test("T16 assignment does not duplicate the same group on a card")
+    func t16AssignmentNoDuplicate() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        // Assign again (simulating re-assign).
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        // Manually create a second group with same name — different ID.
+        let tag2 = await viewModel.createGroup(named: "客户")
+        #expect(tag2 != nil)
+        #expect(tag2!.id != tag!.id) // identity by ID, not name
+
+        let card = viewModel.cards.first(where: { $0.id == MockBusinessCards.card001ID })
+        let matchingTags = card?.tags.filter { $0.id == tag!.id } ?? []
+        #expect(matchingTags.count == 1) // no duplicate
+    }
+
+    @Test("T16 assignment preserves card identity and metadata")
+    func t16AssignmentPreservesMetadata() async throws {
+        let (viewModel, cardRepo, _) = try await makeGroupTestViewModel()
+
+        let before = viewModel.cards.first(where: { $0.id == MockBusinessCards.card001ID })!
+        let beforePhoneIDs = Set(before.phones.map(\.id))
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        _ = await viewModel.createGroup(named: "VIP")
+
+        let after = viewModel.cards.first(where: { $0.id == MockBusinessCards.card001ID })!
+
+        // Identity and metadata preserved.
+        #expect(after.id == before.id)
+        #expect(after.originalImageReference == before.originalImageReference)
+        #expect(after.processedImageReference == before.processedImageReference)
+        #expect(after.rawOCRText == before.rawOCRText)
+        #expect(after.name == before.name)
+        #expect(after.company == before.company)
+        #expect(after.jobTitle == before.jobTitle)
+        #expect(after.website == before.website)
+        #expect(after.address == before.address)
+        #expect(after.createdAt == before.createdAt)
+        #expect(after.notes == before.notes)
+
+        // Phone IDs preserved.
+        #expect(Set(after.phones.map(\.id)) == beforePhoneIDs)
+        #expect(after.phones == before.phones)
+
+        // Only tags and updatedAt changed.
+        #expect(after.tags.count == before.tags.count + 1)
+        #expect(after.updatedAt != before.updatedAt)
+    }
+
+    @Test("T16 cardCount returns correct count for a group")
+    func t16CardCount() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card004ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        #expect(viewModel.cardCount(in: tag!.id) == 2)
+        #expect(viewModel.cardCount(in: UUID()) == 0)
+    }
+
+    @Test("T16 selectGroup filters cards by group membership")
+    func t16SelectGroupFilters() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        viewModel.selectGroup(tag!.id)
+
+        #expect(viewModel.isGroupFiltered)
+        #expect(viewModel.selectedGroup?.id == tag!.id)
+        #expect(viewModel.groupFilteredCards.count == 1)
+        #expect(viewModel.groupFilteredCards.first?.id == MockBusinessCards.card001ID)
+    }
+
+    @Test("T16 clearGroupFilter restores full snapshot")
+    func t16ClearGroupFilter() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        viewModel.selectGroup(tag!.id)
+        #expect(viewModel.groupFilteredCards.count == 1)
+
+        viewModel.clearGroupFilter()
+        #expect(!viewModel.isGroupFiltered)
+        #expect(viewModel.selectedGroupID == nil)
+        #expect(viewModel.groupFilteredCards.count == 3)
+    }
+
+    @Test("T16 group filter + search compose correctly (group first, then search)")
+    func t16GroupPlusSearchCompose() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        // Assign card001 to group "客户"; card004 stays ungrouped.
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        // Select the group → only card001 passes the group filter.
+        viewModel.selectGroup(tag!.id)
+
+        // Both card001 and card004 are named "张伟", but only card001
+        // is in the selected group, so search must find only card001.
+        viewModel.searchQuery = "张伟"
+        #expect(viewModel.isSearching)
+        #expect(viewModel.visibleCards.count == 1)
+        #expect(viewModel.visibleCards.first?.id == MockBusinessCards.card001ID)
+    }
+
+    @Test("T16 delete group removes catalog entry")
+    func t16DeleteGroupRemovesCatalog() async throws {
+        let (viewModel, _, groupRepo) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+        #expect(viewModel.groups.count == 1)
+
+        await viewModel.deleteGroup(id: tag!.id)
+        #expect(viewModel.groups.isEmpty)
+        let stored = await groupRepo.allGroups()
+        #expect(stored.isEmpty)
+    }
+
+    @Test("T16 delete group removes tag from cards but keeps cards")
+    func t16DeleteGroupCardsRemain() async throws {
+        let (viewModel, cardRepo, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        let beforeCount = viewModel.cards.count
+
+        await viewModel.deleteGroup(id: tag!.id)
+
+        // Cards unchanged in count.
+        #expect(viewModel.cards.count == beforeCount)
+
+        // Tag removed from card001.
+        let card001 = viewModel.cards.first(where: { $0.id == MockBusinessCards.card001ID })
+        #expect(card001?.tags.contains(where: { $0.id == tag!.id }) != true)
+
+        // Repository count unchanged.
+        let stored = await cardRepo.allCards()
+        #expect(stored.count == beforeCount)
+    }
+
+    @Test("T16 delete selected group clears the filter")
+    func t16DeleteSelectedGroupClearsFilter() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "客户")
+
+        viewModel.selectGroup(tag!.id)
+        #expect(viewModel.isGroupFiltered)
+
+        await viewModel.deleteGroup(id: tag!.id)
+        #expect(!viewModel.isGroupFiltered)
+        #expect(viewModel.selectedGroupID == nil)
+        #expect(viewModel.groupFilteredCards.count == 3)
+    }
+
+    @Test("T16 createGroup with blank name returns nil")
+    func t16CreateGroupBlankName() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        let tag = await viewModel.createGroup(named: "   ")
+        #expect(tag == nil)
+        #expect(viewModel.groups.isEmpty)
+    }
+
+    @Test("T16 groupCardSelection toggle behavior")
+    func t16GroupCardSelectionToggle() async throws {
+        let (viewModel, _, _) = try await makeGroupTestViewModel()
+
+        viewModel.beginGroupSelection()
+        #expect(viewModel.groupCardSelection.isEmpty)
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        #expect(viewModel.groupCardSelection.count == 1)
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        #expect(viewModel.groupCardSelection.isEmpty)
+
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card001ID)
+        viewModel.toggleGroupCardSelection(MockBusinessCards.card002ID)
+        #expect(viewModel.groupCardSelection.count == 2)
+
+        viewModel.clearGroupCardSelection()
+        #expect(viewModel.groupCardSelection.isEmpty)
+    }
+
     #endif
 }

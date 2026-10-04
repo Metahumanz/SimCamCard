@@ -33,6 +33,10 @@ struct SimCamCardApp: App {
     /// the same store the Holder lists. Assigned once in `init`.
     private let cardRepository: InMemoryBusinessCardRepository
 
+    /// The shared group catalog repository (T16). App-lifetime ownership;
+    /// injected into the Card Holder ViewModel alongside the card repo.
+    private let groupRepository: InMemoryCardGroupRepository
+
     /// The shared image asset store (T12). Saves the original + processed
     /// image bytes under the references carried by each saved BusinessCard;
     /// Card Holder / Detail resolve those references back to real images.
@@ -42,16 +46,21 @@ struct SimCamCardApp: App {
     /// (not `@StateObject`) is the standard holder for `@Observable`.
     @State private var viewModel: CardHolderViewModel
 
-    /// Seeds the single shared repository (empty for normal/Release
+    /// Seeds the single shared repositories (empty for normal/Release
     /// launches; deterministic mock fixtures only for DEBUG UI-test opt-in
-    /// via `-SimCamCardFixture <mode>`) and wires it into the Card Holder
+    /// via `-SimCamCardFixture <mode>`) and wires them into the Card Holder
     /// ViewModel. The default runtime NEVER injects mock data.
     init() {
-        let repository = InMemoryBusinessCardRepository(
+        let cardRepo = InMemoryBusinessCardRepository(
             initialCards: SimCamCardFixture.initialCards()
         )
-        self.cardRepository = repository
-        _viewModel = State(initialValue: CardHolderViewModel(repository: repository))
+        let groupRepo = InMemoryCardGroupRepository()
+        self.cardRepository = cardRepo
+        self.groupRepository = groupRepo
+        _viewModel = State(initialValue: CardHolderViewModel(
+            repository: cardRepo,
+            groupRepository: groupRepo
+        ))
     }
 
     var body: some Scene {
@@ -64,7 +73,7 @@ struct SimCamCardApp: App {
                 )
             }
             .task {
-                await viewModel.loadCards()
+                await viewModel.loadHolderData()
             }
         }
     }

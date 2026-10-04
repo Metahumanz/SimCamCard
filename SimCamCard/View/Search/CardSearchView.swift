@@ -147,12 +147,13 @@ struct CardSearchView: View {
     let viewModel = CardHolderViewModel(
         repository: InMemoryBusinessCardRepository(
             initialCards: MockBusinessCards.all
-        )
+        ),
+        groupRepository: InMemoryCardGroupRepository()
     )
     return NavigationStack {
         CardSearchView(viewModel: viewModel, imageStore: nil)
     }
-    .task { await viewModel.loadCards() }
+    .task { await viewModel.loadHolderData() }
 }
 
 #endif

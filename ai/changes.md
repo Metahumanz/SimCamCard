@@ -4230,3 +4230,359 @@ Release fixture isolation:
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+## Week 4 Increment 7 — T16 Group/Tag (2026-10-04)
+
+### Baseline
+
+```text
+branch: week4/structured-recognition
+HEAD:   194a6c3 (feat(search): 实现名片多字段搜索 — Increment 6 accepted)
+working tree at start: 6 tracked modified carried from this Increment
+regression baseline: Unit 314/314 PASS · UI 38/38 PASS ·
+  Debug TEST BUILD SUCCEEDED · Release BUILD SUCCEEDED ·
+  Release fixture isolation 8/8 ABSENT
+```
+
+### Reference observations（frozen evidence，未改动）
+
+- `REF-group-01-select-card.png`：选卡页 —— 顶部「已选 N 张」计数，
+  每张名片一行带勾选（已选实心蓝勾 / 未选空心圆），底部蓝色主按钮
+  「添加到分组 (N)」，右上「取消」。
+- `REF-group-02-create-dialog.png`（深色 macOS 版）：底层是全屏
+  「添加到分组」选择页 —— 顶栏 取消 / 添加到分组 / 确认；分组名搜索框；
+  「+ 新建分组」入口；「未分组」分区带勾选；「你可能会用到的分组」预设
+  标签 VIP / 客户 / 供应商 / 合作伙伴 / 同行。其上叠加「新建分组」小对话框：
+  单行输入框（带 × 清空）+ 完成 / 取消。
+- `REF-group-03-assigned.png` / `REF-group-04-list.png`：分组管理列表
+  —— 顶部「+ 新建分组」入口，其下「我的分组」分区，每行显示分组名 +
+  成员数，右侧删除控件与 chevron。
+- `REF-group-05-filtered-list.png`：点击某个分组后回到名片夹，仅显示该组
+  名片；顶部出现分组筛选条（文件夹图标 + 组名 + 计数 + × 清除）。
+- `REF-group-06-delete-confirmation.png`：删除确认对话框「删除分组」，
+  文案明示删除后分组不可恢复、名片保留，按钮 取消 / 确认删除（红色）。
+- `REF-group-07-after-delete-empty.png`：删除最后一个分组后列表回到空态
+  「你还未创建分组」。
+- spec 复核：page-inventory P09「Group Management — Create/assign/view
+  card groups → Group list / filtered list」；state-inventory S07
+  `ungrouped / selectingCards / creatingGroup / assigned / groupFiltered /
+  groupDeleted`；reference-tests T16 冻结工作流「Create → Assign → View
+  by Group/Tag → Delete Group/Tag。Deleting a group removes the group
+  while the business cards remain in the Card Holder.」
+
+### Domain model（复用，未新增字段）
+
+```text
+SimCamCard/Model/CardTag.swift（Week 2 既有，未改动）
+  nonisolated struct CardTag: Identifiable, Sendable, Hashable
+    let id: UUID
+    var name: String
+SimCamCard/Model/BusinessCard.swift（未改动）
+  var tags: [CardTag]   // "card → assigned groups"
+```
+
+- 未给 BusinessCard 增加任何字段；分组能力完全建立在既有 `tags` 之上。
+
+### 双存储模型：分组目录 vs 名片 tags
+
+T16 需要「即使最后一张名片被移出，分组本身仍然存在」（空分组是合法的，
+见 REF-group-04 与 S07 `ungrouped`）。单一 `BusinessCard.tags` 无法表达
+空分组，因此引入独立的分组目录仓储，与名片仓储并列、同样走构造注入：
+
+```text
+SimCamCard/Repository/CardGroupRepository.swift (NEW)
+  nonisolated protocol CardGroupRepository: Sendable
+    func allGroups() async -> [CardTag]
+    func group(id: UUID) async -> CardTag?
+    func save(_ group: CardTag) async      // 同 id = replace
+    func delete(id: UUID) async            // 缺席 = 安全 no-op
+
+SimCamCard/Repository/InMemoryCardGroupRepository.swift (NEW)
+  actor InMemoryCardGroupRepository: CardGroupRepository
+    private var groups: [UUID: CardTag]
+```
+
+- 与 `BusinessCardRepository` / `InMemoryBusinessCardRepository` 完全同构：
+  protocol `nonisolated` + 全 async；可变状态只存在于 actor 内，按 UUID
+  字典串行化；无 mutable class、无锁、无 `@unchecked Sendable`。
+- 语义：`BusinessCard.tags` 表示「名片 → 所属分组」；
+  `CardGroupRepository` 表示「用户定义过的全部分组」。删除分组时两边都
+  更新，但名片本体永不删除。
+
+### CardHolderViewModel — 唯一状态所有者（S07）
+
+- 新增注入：构造器新增 `groupRepository: any CardGroupRepository`
+  （`let`，组合根注入；与既有 `repository` 并列）。`loadHolderData()`
+  同时 `loadCards()` + `loadGroups()`。
+- 持有的状态：`groups: [CardTag]`（`private(set)`，仓储快照）、
+  `selectedGroupID: UUID?`（S01/S07 `groupFiltered`）、
+  瞬态 `groupCardSelection: Set<UUID>` 与 `pendingGroupName: String`。
+  View（GroupManagementView）不持任何 cards/groups/selection 的副本。
+- 派生投影（兑现 Increment 6 预留的组合点，无第二条数据路径）：
+
+```text
+visibleCards = cards 快照
+   → groupFilteredCards（selectedGroupID 命中 card.tags[id]，无选中 = 全量）
+   → BusinessCardSearchMatcher（trim query，空 = 全量）
+cardCount(in:) = cards 快照中 tags 含该组 id 的数量（无独立计数存储）
+```
+
+- `createGroup(named:)`：trim 后空名 → 返回 nil（不建组）；否则
+  ① groupRepository.save(新 CardTag) ② 把**同一个 CardTag 值**追加到每张
+  选中卡 `card.tags`（同 id 去重），经 `repository.save(card)` 写回，
+  更新 `updatedAt` ③ reload cards + groups ④ 清空瞬态选择/输入。
+- `deleteGroup(id:)`：① groupRepository.delete ② 从**所有携带该 tag 的
+  名片**上移除该 tag 并逐张 `repository.save`（名片本身保留）③ reload
+  两个快照 ④ 若被删组正是当前筛选组则清空筛选。
+- `selectGroup / clearGroupFilter / beginGroupSelection /
+  toggleGroupCardSelection / clearGroupCardSelection` 均为 ViewModel 上的
+  纯状态变更；分组计数、筛选、搜索全部由快照派生（无大型状态 enum）。
+
+### View / navigation（P09）
+
+- `AppRoute` 新增 `case .groups`；Holder 顶部 toolbar 新增文件夹入口
+  `card-holder-groups`（`NavigationLink(value: .groups)`，label「分组」），
+  由 Holder 既有 `navigationDestination` 统一解析到
+  `GroupManagementView` —— 没有第二套导航、没有并行 Bool/sheet 状态。
+- `SimCamCard/View/Group/GroupManagementView.swift`（NEW）：共享 Holder
+  的同一个 `CardHolderViewModel`（分组目录、选择、筛选状态同源），仅持有
+  本地 UI phase（`groupList` / `selectingCards`）与两个 alert 的呈现态。
+  - groupList 阶段：「+ 新建分组」入口（identifier `group-create`）、
+    「我的分组」分区（行 `group-row-<uuid>`：组名 + `(N)`，点击 =
+    selectGroup + dismiss 回 Holder 进入筛选；红色 `minus.circle.fill`
+    删除按钮 `group-delete-<uuid>`）、空态 `group-empty`「你还未创建分组」。
+  - selectingCards 阶段：「已选 N 张」计数、复用 `BusinessCardRow` 的
+    勾选行 `group-card-select-<uuid>`、右上「取消」
+    （`group-selection-cancel`）、底部「添加到分组 (N)」主按钮（空选禁用）。
+  - 两个原生 SwiftUI `.alert`：「新建分组」（TextField 占位
+    「请输入分组名称」+ 取消 / 完成，完成在创建后从选卡阶段回到列表）；
+    「删除分组」（完整保留提示文案 + 取消 / 确认删除 destructive）。
+- Holder 筛选态（S01 `groupFiltered`）：当 `selectedGroupID != nil`，
+  列表渲染 `groupFilteredCards`，并以 `.safeAreaInset(edge: .top)` 显示
+  筛选条 `group-filter-active`（文件夹 + 组名 + `(N)` + × 清除
+  `group-filter-clear` / label「清除分组筛选」）。× 恢复完整快照；
+  行 identifier 继续是 `card-row-<UUID>`，与搜索/详情完全兼容。
+- `SimCamCardApp` 组合根构造 `InMemoryCardGroupRepository()` 并注入
+  ViewModel；`CardSearchView` 预览仅随新构造器签名更新（无行为变化）。
+
+### T16 冻结工作流验证（fixture-driven，membership only）
+
+- Create：空态 → 新建分组 → 勾选 card001（已选 1 张）→ 添加到分组 →
+  「新建分组」对话框输入「客户」→ 完成；列表出现「我的分组 / 客户 (1)」。
+- Assign：同一张 CardTag（同 UUID）写入分组目录与 card001.tags；多卡同组、
+  重复分配去重、空名拒绝由单元测试覆盖。
+- View filtered：点「客户」行回到名片夹，筛选条出现，仅 card001 可见；
+  card002 / card004 在筛选列表中缺席（按 `card-row-<UUID>` 成员关系断言，
+  不依赖行位置）。
+- 与搜索组合：筛选可再叠加搜索（单元测试 `t16GroupPlusSearchCompose`）。
+- Delete group / cards preserved：删除 → 红色确认对话框 → 确认删除 →
+  目录空态；返回名片夹 card001 / card002 / card004 三张全部仍在。
+  「删除被筛选中的分组自动清筛选」由单元测试覆盖。
+
+### Verification
+
+- Unit（Swift Testing，runner 权威行，串行，iPhone 18 Pro / iOS 27）：
+  `✔ Test run with 337 tests in 27 suites passed after 8.879 seconds.`
+  314 → **337/337 PASS**（+23：InMemoryCardGroupRepositoryTests 9 +
+  CardHolderViewModelTests T16 段 14），0 failed / 0 disabled / 0 skipped，
+  26 → 27 suites。
+  - 仓储 9：初始空 / 初始种子 / insert / 同 id replace / 异 id 共存 /
+    id 查询 / 删除存在 / 删除缺席 no-op / 空分组独立于名片存在。
+  - VM 14：loadGroups、创建并分配、多卡同组同 id、分配去重、
+    分配保持其余元数据、cardCount 派生、selectGroup 筛选、清筛选、
+    分组+搜索组合、删除移除目录、删除后名片保留、删除当前筛选组清筛选、
+    空白组名拒绝、选卡 toggle。
+  - 权威日志：`/tmp/w4i7-unit2.log`。
+- UI（XCTest，runner 权威行，**串行**
+  `-parallel-testing-enabled NO`，iPhone 18 Pro / iOS 27）：
+  `Executed 40 tests, with 0 failures (0 unexpected) in 696.760 seconds`
+  → **40/40 PASS**（38 → 40；`** TEST SUCCEEDED **`），0 disabled /
+  0 skipped。
+  - `CardGroupUITests.testGroupFullFlow`（34.3s）
+  - `CardGroupUITests.testGroupDeleteFlow`（36.4s）
+  - 全量串行（应设备高压要求，全程未开并行）；38 个既有用例零回归。
+  - 权威日志：`/tmp/w4i7-ui-full.log`；bundle `/tmp/w4i7-ui-full.xcresult`。
+- Debug：**TEST BUILD SUCCEEDED**（337 Unit + 40 UI 均在该测试构建执行）。
+- Release：**BUILD SUCCEEDED**（`-configuration Release
+  CODE_SIGNING_ALLOWED=NO`，0 errors，日志 `/tmp/w4i7-release.log`）。
+  该验证在本 Increment 生产代码冻结点完成；其后仅更新 UI 测试文件
+  （SimCamCardUITests target），app 生产 target 输入未再变化。
+- Release DEBUG fixture isolation（Release app binary strings）：
+  **8/8 ABSENT** — SimCamCardOCR / DebugOCRProcessor /
+  DebugCameraEnvironment / SimCamCardCamera / SimCamCardDetection /
+  SimCamCardCrop / SimCamCardPhotoImport / DebugCameraFakes 各 0 匹配。
+
+### UI 测试工程注记（XCTest ↔ SwiftUI bridge）
+
+本 Increment 新增的两条 bridge 行为已通过失败快照实证并固化到测试注释：
+
+1. SwiftUI `.alert`（bridge 到 UIAlertController）中的 **TextField 不导出
+   自定义 accessibilityIdentifier**（`group-name-field` 全树 0 匹配），但
+   其 placeholderValue 正常导出；故用
+   `app.alerts["新建分组"].textFields.firstMatch` + 占位文本断言定位。
+2. alert **Button 的 identifier 会导出，但在 bridge 层可能落在多个节点上**，
+   直接 `alert.buttons["..."]` tap 触发单匹配错误；改用
+   `.matching(identifier:).firstMatch`。
+3. 给「内含交互 Button 的容器 HStack」挂 `.accessibilityIdentifier` 时，
+   该容器 id 会污染内部 Button 的 bridge 节点（失败归档 plist 实证：× 按钮
+   elementType=9(Button)、label「清除分组筛选」完好，但 identifier 显示为
+   容器的 `group-filter-active`，`group-filter-clear` 全树 0 匹配；同条 HStack
+   内两个静态文本节点也被挂了容器 id）。因此筛选条 × 以无障碍 label
+   「清除分组筛选」为首选查询，identifier / banner 右端坐标为兜底。
+   （生产视觉与行为未为此改动；仅测试定位方式适配。）
+
+### Evidence（fixture-driven，非真实相机/OCR 证据）
+
+```text
+ai/validation/2026-10-04-w4i7-group-selecting.png      (选卡页：已选 1 张，card001 勾选)
+ai/validation/2026-10-04-w4i7-group-created.png        (我的分组：客户 (1))
+ai/validation/2026-10-04-w4i7-group-filtered.png       (筛选条 客户(1)，仅 card001)
+ai/validation/2026-10-04-w4i7-group-delete-confirm.png (删除分组确认对话框)
+ai/validation/2026-10-04-w4i7-group-after-delete.png   (删除后空态：你还未创建分组)
+```
+
+从全量串行 UI 运行的 .xcresult 以 XCTAttachment（.keepAlways）导出；人工
+目检：选卡页 3 行仅 card001 实心蓝勾；分组列表「客户 (1)」+ 红色删除控件；
+筛选页 banner 与单卡；删除对话框文案与红色确认键；删除后空态图标与文案。
+与冻结 REF-* 证据分离，未覆盖任何 Reference。
+
+### Audits
+
+```text
+dataset/* diff: empty
+spec/* diff: empty
+evidence/* diff: empty
+SimCamCard/Model/BusinessCard.swift diff: empty
+SimCamCard/Model/CardTag.swift diff: empty
+SimCamCard/Recognition/* diff: empty
+project.pbxproj diff: empty (PBXFileSystemSynchronizedRootGroup
+    自动纳入新 Swift 源文件与新测试文件)
+
+logical scope:
+  production (7):
+    - SimCamCard/Repository/CardGroupRepository.swift (NEW)
+    - SimCamCard/Repository/InMemoryCardGroupRepository.swift (NEW)
+    - SimCamCard/View/Group/GroupManagementView.swift (NEW)
+    - SimCamCard/App/AppRoute.swift (MODIFIED, +case groups)
+    - SimCamCard/App/SimCamCardApp.swift (MODIFIED, 注入 groupRepository)
+    - SimCamCard/View/CardHolder/CardHolderView.swift (MODIFIED, 入口+筛选态)
+    - SimCamCard/ViewModel/CardHolderViewModel.swift (MODIFIED, S07 状态/投影)
+  incidental (1, preview-only):
+    - SimCamCard/View/Search/CardSearchView.swift (预览随构造器签名更新)
+  tests (3):
+    - SimCamCardTests/Repository/InMemoryCardGroupRepositoryTests.swift (NEW, 9)
+    - SimCamCardTests/ViewModel/CardHolderViewModelTests.swift (MODIFIED, +14)
+    - SimCamCardUITests/CardGroupUITests.swift (NEW, 2)
+  documentation:
+    - ai/changes.md
+  evidence:
+    - 5 PNGs under ai/validation/
+
+`git status --short`（2026-10-04 final run，唯一权威）:
+  6 tracked modified, 11 untracked entries
+  untracked physical files: 5 Swift + 1 View/Group directory + 5 PNG
+  5 new Swift:
+    - SimCamCard/Repository/CardGroupRepository.swift
+    - SimCamCard/Repository/InMemoryCardGroupRepository.swift
+    - SimCamCard/View/Group/GroupManagementView.swift
+    - SimCamCardTests/Repository/InMemoryCardGroupRepositoryTests.swift
+    - SimCamCardUITests/CardGroupUITests.swift
+  5 PNG:
+    - ai/validation/2026-10-04-w4i7-group-selecting.png
+    - ai/validation/2026-10-04-w4i7-group-created.png
+    - ai/validation/2026-10-04-w4i7-group-filtered.png
+    - ai/validation/2026-10-04-w4i7-group-delete-confirm.png
+    - ai/validation/2026-10-04-w4i7-group-after-delete.png
+  （未触碰 Domain 字段、识别栈、持久化接缝与冻结参考；分组目录经构造注入，
+   Increment 5 记录的 CardHolderView temporary repository fallback
+   仍按评审结论保留，留待 persistence/composition cleanup。）
+```
+
+### T-status
+
+```text
+T11 structured scan:        PASS
+T12 manual correction:      PASS
+T13 detail:                 PASS
+T14 existing-card edit:     PASS
+T15 search:                 PASS
+T16 group/tag:              PASS  ← this Increment
+T17 delete:                 not this Increment
+T18 persistence across relaunch: NOT IMPLEMENTED
+```
+
+### Final fidelity statement
+
+```text
+T16 Group/Tag behavioral acceptance:
+PASS
+
+P09 full Reference fidelity:
+PARTIAL
+```
+
+PARTIAL rationale:
+
+```text
+冻结的 T16 行为工作流（Create → Assign → View filtered → Delete group,
+cards remain in the Card Holder）全部由自动化覆盖并 PASS。以下 REF-group-02
+的表面未复刻：
+  - 「添加到分组」全屏选择页（分组名搜索框、右上角确认、未分组分区勾选）；
+  - 「你可能会用到的分组」预设标签 VIP/客户/供应商/合作伙伴/同行；
+  - 把名片加入「已存在分组」的多选路径（当前支持新建组并一次性分配；
+    点已有组行是筛选而非向其追加成员）；
+  - 新建分组输入框内的 × 清空；
+  - Reference 为深色 macOS 体系，本实现为 iOS 浅色体系，做结构复刻而非
+    像素级复制。
+空分组在目录中独立存在、删除分组保留名片这两条关键领域语义均已实现。
+```
+
+T-status remains:
+
+```text
+T11 PASS
+T12 PASS
+T13 PASS
+T14 PASS
+T15 PASS
+
+T16 Group/Tag behavioral acceptance:
+PASS
+
+P09 full Reference fidelity:
+PARTIAL
+
+T17:
+not this Increment
+
+T18:
+NOT IMPLEMENTED
+```
+
+Verification results:
+
+```text
+Unit:
+337 / 337 PASS
+27 suites
+0 failed
+0 disabled
+0 skipped
+
+UI:
+40 / 40 PASS（serial, -parallel-testing-enabled NO）
+
+Debug:
+TEST BUILD SUCCEEDED
+
+Release:
+BUILD SUCCEEDED
+
+Release fixture isolation:
+8 / 8 ABSENT
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)
