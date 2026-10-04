@@ -67,9 +67,9 @@ final class CardHolderPopulatedUITests: XCTestCase {
 
     @MainActor
     func testPopulatedCardHolderShowsMockCardsByMembership() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardFixture", "populated"]
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: ["-SimCamCardFixture", "populated"]
+        )
 
         // 1. Card Holder root exists (page identity).
         XCTAssertTrue(

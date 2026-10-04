@@ -56,9 +56,9 @@ final class CardDeleteUITests: XCTestCase {
     /// Launches the app with the single-card deterministic fixture.
     @MainActor
     private func launchSingle() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardFixture", "single"]
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: ["-SimCamCardFixture", "single"]
+        )
         XCTAssertTrue(
             app.navigationBars["名片夹"].waitForExistence(timeout: 10),
             "Card Holder should be visible after launch."

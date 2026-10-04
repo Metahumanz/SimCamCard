@@ -47,9 +47,9 @@ final class CardSearchUITests: XCTestCase {
 
     @MainActor
     private func launchPopulated() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardFixture", "populated"]
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: ["-SimCamCardFixture", "populated"]
+        )
         XCTAssertTrue(
             app.navigationBars["名片夹"].waitForExistence(timeout: 10),
             "Card Holder should be visible after launch."

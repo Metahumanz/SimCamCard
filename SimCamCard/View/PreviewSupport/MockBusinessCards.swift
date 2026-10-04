@@ -29,7 +29,7 @@
 #if DEBUG
 import Foundation
 
-enum MockBusinessCards {
+nonisolated enum MockBusinessCards {
 
     // MARK: - Fixed identifiers and timestamps
     //

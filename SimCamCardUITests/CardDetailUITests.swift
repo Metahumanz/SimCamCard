@@ -56,10 +56,11 @@ final class CardDetailUITests: XCTestCase {
     private let card004MobileRowID = "card-detail-phone-40000000-0000-0000-0000-000000000001"
 
     /// Launches the app with the populated deterministic fixture.
+    @MainActor
     private func launchPopulated() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardFixture", "populated"]
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: ["-SimCamCardFixture", "populated"]
+        )
         XCTAssertTrue(
             app.navigationBars["名片夹"].waitForExistence(timeout: 10),
             "Card Holder should be visible after launch."

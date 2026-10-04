@@ -4858,3 +4858,331 @@ NOT IMPLEMENTED
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+---
+
+## Week 4 Increment 9 — T18 Persistence
+
+### Baseline
+
+```text
+分支：week4/structured-recognition
+Baseline HEAD：6649434（feat(delete): 实现名片删除流程 = W4I8 T17，已 push）
+基线回归：Unit 350/350（27 suites）、UI 42/42、Debug PASS、Release PASS、
+fixture isolation 8/8 ABSENT
+设备：iPhone 18 Pro / iOS 27.0（platform=iOS Simulator,name=iPhone 18 Pro）
+```
+
+### Reference 观察（Reference first，本 Increment 未开始编码前完成）
+
+- `evidence/screenshots/REF-persistence-01-after-relaunch.png`：
+  完整杀掉 App 后重新启动，进入「名片详情」，名片仍在：
+  - 头部：张伟 / 高级产品总监 | Senior Product Director /
+    上海智云科技有限公司；
+  - 头部摘要条：+8613800138000、中国 上海市 浦东新区世纪大道 100 号 200120；
+  - 分组行：未分组；备注行：备注：2026-09-28 拍名片保存；
+  - 展开字段：+86 138 0013 8000（手机）、+86 2155551234（工作电话）、
+    wel.zhang@zhiyuntech.com（工作邮箱）、地址、公司（中/英两行）、
+    www.zhiyuntech.com（首页）。
+- spec/reference-tests.md T18：「After a full quit and relaunch,
+  the saved card and retained edited data remain available. The
+  termination action itself has no useful screenshot; the post-relaunch
+  state is preserved as evidence.」必须保留：original image、processed
+  image、corrected fields、group/tag、notes。
+- spec/state-inventory.md S10：`savedBeforeQuit` /
+  `restoredAfterRelaunch`，同一组 5 项保留清单。
+- P10 Notes UI 本 Increment 不实现：Reference 中的备注行不作为新 UI
+  交付；`CardNote` 的持久化往返由仓储单元测试证明。
+
+### 架构映射（frozen Domain/protocol 不改动）
+
+```text
+BusinessCard / PhoneNumber / CardTag / CardNote（frozen，不加 Codable）
+        │  纯 deterministic 映射（init(_:) / func businessCard()）
+        ▼
+BusinessCardSnapshot / PhoneNumberSnapshot / PhoneKindSnapshot /
+CardTagSnapshot / CardNoteSnapshot（Persistence 层私有 Codable DTO）
+        │  JSONEncoder/Decoder（Date = timeIntervalSinceReferenceDate
+        │  Double，无损 Domain round-trip；不用 ISO8601 文本以免截断
+        │  亚毫秒精度）
+        ▼
+cards.json / groups.json（schemaVersion = 1）
+images/<base64url(reference)>.asset（原始字节，atomic write）
+
+BusinessCardRepository（frozen protocol）
+  └─ actor FileBusinessCardRepository（新实例即重新读盘 = T18 证据）
+CardGroupRepository（frozen protocol）
+  └─ actor FileCardGroupRepository（groups.json 是独立权威 catalog）
+ImageAssetStore（frozen protocol，不加删除 API；孤儿资源本轮不 GC）
+  └─ actor FileImageAssetStore（base64url 文件名，slash/unicode 安全）
+```
+
+- 新目录 `SimCamCard/Persistence/` 与
+  `SimCamCardTests/Persistence/` 均经
+  `PBXFileSystemSynchronizedRootGroup` 自动纳入；
+  **不修改 project.pbxproj**。
+- 所有 File 仓储为 `actor`（Swift 6 并发：无 mutable class、无锁、
+  无 @unchecked Sendable）。
+- 变更流程：读快照 → 构造 next 数组 → 编码 → 建父目录 →
+  `Data.write(to:options:.atomic)` → 成功后才提交内存缓存；
+  绝不先截断再写。
+
+### 磁盘布局
+
+```text
+生产：
+<Application Support>/SimCamCard/v1/
+  cards.json    BusinessCardStoreDocument { schemaVersion:1, cards:[…] }
+  groups.json   CardGroupStoreDocument   { schemaVersion:1, groups:[…] }
+  images/       <base64url(reference)>.asset（同一 reference 覆盖）
+
+DEBUG persistent-test（绝不与生产 v1 重叠）：
+<Application Support>/SimCamCard/uitests/<sanitized-namespace>/
+  cards.json / groups.json / images/
+```
+
+### DEBUG launch contract（Release 整体编译移除）
+
+```text
+-SimCamCardStorage ephemeral
+    → 三个 InMemory 实现；-SimCamCardFixture 仅在此模式 seed
+      （mock 数据永不写入生产磁盘）
+-SimCamCardStorage persistent-test
+    + -SimCamCardStorageNamespace <name>
+    + -SimCamCardResetStorage <true|false>（仅 true 的那次启动 wipe）
+    → 独立命名空间下的 File*；第二次启动必须带 false
+无参数 DEBUG 手动启动 / Release：
+    → 真实生产持久化（dev/Release parity），Release 无任何测试 hook
+```
+
+### 实现清单
+
+```text
+生产代码（新增，Persistence/ 经 PBXFileSystemSynchronizedRootGroup 自动纳入）：
+A  SimCamCard/Persistence/PersistencePaths.swift
+   - rootDirectory/cardsFile/groupsFile/imagesDirectory
+   - production（SimCamCard/v1）与 persistentTest（SimCamCard/uitests/<ns>）布局
+A  SimCamCard/Persistence/PersistenceSnapshots.swift
+   - BusinessCardStoreDocument / CardGroupStoreDocument（schemaVersion=1）
+   - BusinessCardSnapshot / PhoneNumberSnapshot / PhoneKindSnapshot /
+     CardTagSnapshot / CardNoteSnapshot（持久化专用 Codable，Domain 不 Codable）
+   - PhoneKind 双向 exhaustive switch（未知 raw 在 Codable 边界失败，不静默 .other）
+   - PersistenceJSON：Date 以 timeIntervalSinceReferenceDate Double
+     持久化（IEEE 754 位级精确往返；ISO8601 文本会截断亚毫秒精度）、
+     sortedKeys/prettyPrinted/withoutEscapingSlashes
+A  SimCamCard/Persistence/FileBusinessCardRepository.swift
+   - actor；init 读盘，缺文件=空；save 同 id replace；delete 缺省 no-op
+   - next→encode→建目录→.atomic write→成功后提交内存
+A  SimCamCard/Persistence/FileCardGroupRepository.swift
+   - actor；groups.json 独立权威 catalog；空分组独立持久化
+A  SimCamCard/Persistence/FileImageAssetStore.swift
+   - actor；Base64URL 文件名（+/= 转义，.asset 后缀，injective 无碰撞）
+   - atomic、懒建目录、缺资源 nil；本轮不做孤儿 GC（协议不加删除 API）
+A  SimCamCard/Persistence/RuntimeStorageConfiguration.swift（#if DEBUG 整体）
+   - 解析 -SimCamCardStorage ephemeral|persistent-test、
+     -SimCamCardStorageNamespace（白名单消毒）、-SimCamCardResetStorage
+M  SimCamCard/App/SimCamCardApp.swift
+   - 存储属性升级为 any BusinessCardRepository / any CardGroupRepository /
+     any ImageAssetStore；File/InMemory 具体类型不泄漏到 View/ViewModel
+   - DEBUG：ephemeral=InMemory+fixture seed；persistent(-test)=共享 root 的 File*
+   - Release：恒为生产 File*，测试 hook 零编译
+
+测试代码：
+A  SimCamCardTests/Persistence/PersistenceTestSupport.swift（临时目录 + max-info card）
+A  SimCamCardTests/Persistence/PersistenceSnapshotTests.swift
+A  SimCamCardTests/Persistence/FileBusinessCardRepositoryTests.swift
+A  SimCamCardTests/Persistence/FileCardGroupRepositoryTests.swift
+A  SimCamCardTests/Persistence/FileImageAssetStoreTests.swift
+A  SimCamCardTests/Persistence/RuntimeStorageConfigurationTests.swift（#if DEBUG）
+A  SimCamCardUITests/UITestAppFactory.swift（launchEphemeral/launchPersistent）
+A  SimCamCardUITests/CardPersistenceUITests.swift
+   （w4i9-t18-persistence：写入→terminate(.notRunning)→reset:false 重启）
+M  现有 10 个 UI 测试文件全部改经 UITestAppFactory（ephemeral），
+   fixture/camera/detection/crop/ocr 参数原样透传，产品行为零改动
+```
+
+### 提交前校准（Date 无损 round-trip，仅编码格式，UI/Domain/协议/schema 均未动）
+
+```text
+变更：PersistenceJSON 的 Date 编解码由 ISO8601 文本（毫秒精度截断）
+  改为 date.timeIntervalSinceReferenceDate JSON Double
+  （decode = Date(timeIntervalSinceReferenceDate:)）——
+  Date 即 IEEE 754 Double，原值位级精确往返。
+测试：fixture 三处日期改为互不相同的非毫秒对齐亚毫秒值
+  （123_456_789.123_456_7 / 765_432_109.246_813_5 / 987_654_321.135_792_4，
+  timeIntervalSinceReferenceDate）；
+  原 ISO8601 毫秒往返测试重写为 subMillisecondDatesSurviveJSON
+  （Domain→Snapshot→JSON→decode→Domain 全链路，断言 restored == original
+  及 createdAt/updatedAt/notes[0].createdAt 三处精确相等，无 round/tolerance，
+  另以 JSONSerialization 钉住 JSON 数值表示）；
+  新增 dateCodecBitExactForArbitraryDoubles（含负区间与远未来区间）。
+  schemaVersion 仍为 1；无已提交生产 v1 数据，无需 migration。
+  三张 T18 UI evidence 不重生成（可见 UI 行为未变）。
+```
+
+### Verification results
+
+```text
+设备：iPhone 18 Pro / iOS 27.0；UI 全程串行（-parallel-testing-enabled NO）。
+主验证轮（编码格式变更前）：
+Unit：PASS — 383 tests in 32 suites, 0 failures
+  （基线 350/27，本 Increment +33 tests、+5 suites）
+  bundle /tmp/w4i9-unit.xcresult；log /tmp/w4i9-unit.log
+UI：PASS — Executed 43 tests, 0 failures (0 unexpected) in 782.171s
+  （基线 42/42 + 新增 CardPersistenceUITests 1 个，= 43/43）
+  bundle /tmp/w4i9-ui.xcresult；log /tmp/w4i9-ui.log
+校准回归轮（Date Double 编码后，最终门控）：
+Unit：PASS — 384 tests in 32 suites, 0 failures（>383 达标，+1 编解码位级测试）
+  bundle /tmp/w4i9c-unit2.xcresult；log /tmp/w4i9c-unit2.log
+UI：PASS — Executed 43 tests, 0 failures (0 unexpected) in 970.923s
+  bundle /tmp/w4i9c-ui.xcresult；log /tmp/w4i9c-ui.log
+  （CardPersistenceUITests passed 71.991s）
+  措辞校准：UI terminate/relaunch proves persisted numeric Date
+  documents can be decoded by a fresh app process. Exact
+  sub-millisecond Date round-trip is proven by persistence unit tests.
+Debug build：** BUILD SUCCEEDED **（exit 0，/tmp/w4i9c-debug.log）
+Release build：** BUILD SUCCEEDED **（exit 0，/tmp/w4i9c-release.log）
+
+Release fixture isolation（Release-iphonesimulator/SimCamCard.app/SimCamCard,
+7.4MB 静态主二进制，bundle 内无 dylib；strings -a | grep -c，8/8 ABSENT）：
+  SimCamCardOCR 0 / DebugOCRProcessor 0 / DebugCameraEnvironment 0 /
+  SimCamCardCamera 0 / SimCamCardDetection 0 / SimCamCardCrop 0 /
+  SimCamCardPhotoImport 0 / DebugCameraFakes 0
+Release storage hooks N/N ABSENT（3/3，同一二进制）：
+  SimCamCardStorage 0 / SimCamCardStorageNamespace 0 / SimCamCardResetStorage 0
+阳性对照（DEBUG 代码位于 SimCamCard.debug.dylib，12MB；
+  主可执行仅 89KB 为 ENABLE_DEBUG_DYLIB 启动桩，故对照扫描 dylib）：
+  SimCamCardOCR=2、SimCamCardStorage=4、SimCamCardStorageNamespace=2、
+  SimCamCardResetStorage=2 —— 证明扫描方法有效，hook 仅 DEBUG 编译。
+生产持久化代码已静态链入 Release（BusinessCard=26、PersistencePaths=2、
+  FileBusinessCardRepository=4 命中）。
+
+磁盘旁证（校准回归轮成功运行后命名空间
+  <App Support>/SimCamCard/uitests/w4i9-t18-persistence/）：
+  cards.json（schemaVersion 1；1 张张伟；jobTitle=
+  高级产品总监 | Senior Product Director；tags=[{id,name=客户}]；
+  createdAt/updatedAt 为 JSON 数值
+  （如 812817699.697366）—— Double 格式落盘实证）；
+  groups.json（schemaVersion 1；独立 catalog 含 客户，group id 与
+  card tags[0].id 一致）；images/ 下 2 个 .asset（原始+处理后）。
+  容器内无 v1 目录 —— 测试数据绝不接触生产路径。
+```
+
+### Evidence（fixture-driven persistent-test evidence）
+
+```text
+全部为 terminate(.notRunning) 后第二次启动（reset:false，全新 App/仓储实例）
+截图；从 /tmp/w4i9-ui.xcresult 按附件名导出，已逐张人工核对：
+ai/validation/2026-10-04-w4i9-persistence-holder-after-relaunch.png
+  名片夹：张伟 / 高级产品总监 | Senior Product Director ·
+  上海智云科技有限公司（修正后职位在重启后保留）。
+ai/validation/2026-10-04-w4i9-persistence-detail-after-relaunch.png
+  名片详情：张伟 + 修正后职位 + 公司；手机 +86 138 0013 8000、
+  工作电话 +86 21 5555 1234、邮箱 wei.zhang@zhiyuntech.com、
+  首页 www.zhiyuntech.com、公司地址 —— 五字段全保留。
+ai/validation/2026-10-04-w4i9-persistence-group-after-relaunch.png
+  分组管理：我的分组 → 客户 (1)（独立 catalog + 成员计数跨重启保留；
+  测试随后点入并断言 group-filter-active、张伟行与 card-row-thumbnail
+  均存在 —— 图像资源同路径恢复，自动断言通过）。
+自动化证据（非截图）：File*Repository 单元测试对临时目录的写入/
+  重新读盘往返；上述容器内 cards.json / groups.json / images/*.asset。
+人工证据：上面 3 张重启后 PNG（已查看核对）。
+```
+
+### Scope audit（冻结面保持无 diff）
+
+```text
+git status --short（最终）
+
+已跟踪文件被修改（14 个，git diff --name-status 全部为 M）：
+  生产（3，仅装配根与 DEBUG 预览支撑）：
+    M SimCamCard/App/SimCamCardApp.swift
+    M SimCamCard/View/PreviewSupport/MockBusinessCards.swift
+    M SimCamCard/View/PreviewSupport/SimCamCardFixture.swift
+  UI 测试（10，仅迁移到 UITestAppFactory 启动契约）：
+    M SimCamCardUITests/CardDeleteUITests.swift
+    M SimCamCardUITests/CardDetailUITests.swift
+    M SimCamCardUITests/CardGroupUITests.swift
+    M SimCamCardUITests/CardHolderEmptyUITests.swift
+    M SimCamCardUITests/CardHolderPopulatedUITests.swift
+    M SimCamCardUITests/CardSearchUITests.swift
+    M SimCamCardUITests/ScanCameraUITests.swift
+    M SimCamCardUITests/ScanEntryUITests.swift
+    M SimCamCardUITests/SimCamCardUITests.swift
+    M SimCamCardUITests/Week2IntegrationUITests.swift
+    M ai/changes.md
+未跟踪新增（17 个）：
+    SimCamCard/Persistence/PersistencePaths.swift
+    SimCamCard/Persistence/PersistenceSnapshots.swift
+    SimCamCard/Persistence/FileBusinessCardRepository.swift
+    SimCamCard/Persistence/FileCardGroupRepository.swift
+    SimCamCard/Persistence/FileImageAssetStore.swift
+    SimCamCard/Persistence/RuntimeStorageConfiguration.swift（#if DEBUG）
+    SimCamCardTests/Persistence/PersistenceTestSupport.swift
+    SimCamCardTests/Persistence/PersistenceSnapshotTests.swift
+    SimCamCardTests/Persistence/FileBusinessCardRepositoryTests.swift
+    SimCamCardTests/Persistence/FileCardGroupRepositoryTests.swift
+    SimCamCardTests/Persistence/FileImageAssetStoreTests.swift
+    SimCamCardTests/Persistence/RuntimeStorageConfigurationTests.swift
+    SimCamCardUITests/UITestAppFactory.swift
+    SimCamCardUITests/CardPersistenceUITests.swift
+    ai/validation/2026-10-04-w4i9-persistence-holder-after-relaunch.png
+    ai/validation/2026-10-04-w4i9-persistence-detail-after-relaunch.png
+    ai/validation/2026-10-04-w4i9-persistence-group-after-relaunch.png
+
+冻结面（git diff --quiet 逐个确认 CLEAN，无任何 diff）：
+  spec/、dataset/、evidence/；
+  SimCamCard/Model/{BusinessCard,PhoneNumber,CardTag,CardNote}.swift；
+  BusinessCardRepository / CardGroupRepository / ImageAssetStore 三协议；
+  Recognition/、Edit/（含 BusinessCardEditDraft）、Search/
+  （含 BusinessCardSearchMatcher）；SimCamCard.xcodeproj/project.pbxproj
+  （3 个 PBXFileSystemSynchronizedRootGroup 自动纳入新目录）。
+未 commit、未 push。
+```
+
+### T18 behavioral acceptance
+
+```text
+T18 Persistence：PASS
+  端到端（CardPersistenceUITests.testSavedCardEditAndGroupSurvive
+  FullTerminateAndRelaunch，43/43 之一）：扫描 OCR → 保存名片 →
+  编辑职位（产品总监 | Product Director →
+  高级产品总监 | Senior Product Director）→ 新建分组「客户」并加入 →
+  terminate(.notRunning) 完整杀掉 → reset:false 重新启动（全新 App/
+  File*Repository 实例，init 即重新读盘）→ 名片夹行、名片详情全字段、
+  分组 catalog 客户 (1)、组过滤下的名片行与缩略图全部恢复。
+  保留项覆盖 S10 五项：original image / processed image
+  （images/ 2 个 .asset，引用不变即同名覆盖恢复）、corrected fields
+  （修正后职位）、group/tag（groups.json 独立 catalog +
+  card.tags 同 id）、notes（BusinessCard.notes 经
+  FileBusinessCardRepository 往返单元测试覆盖）。
+  首跑曾因中文 IME 软键盘吞掉「新建分组」弹窗的首次确认点击失败；
+  根因是测试交互时序（失败时刻 AX 层级显示弹窗仍在、createGroup
+  未执行、磁盘无 groups.json），产品代码无缺陷。修复仅在测试侧：
+  对输入框发回车提交 IME → 重新解析并点击 完成 →
+  waitForNonExistence 显式确认弹窗关闭（含一次保护性重试）。
+  复测单测 83.17s 通过，随后全量 UI 43/43 通过。
+P10 Notes UI：NOT IMPLEMENTED（Reference 备注行不作为新 UI 交付；
+  BusinessCard.notes / CardNote 持久化由仓储单元测试覆盖）
+T19 Export：NOT IMPLEMENTED
+```
+
+### T-status
+
+```text
+T11 PASS
+T12 PASS
+T13 PASS
+T14 PASS
+T15 PASS
+T16 PASS
+T17 PASS
+T18 Persistence：PASS（Unit 384/32（校准后 >383）；UI 43/43；Debug/Release PASS；
+  Release fixture hooks 8/8 + storage hooks 3/3 ABSENT；
+  P10 Notes UI / T19 Export NOT IMPLEMENTED）
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)

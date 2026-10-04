@@ -47,7 +47,6 @@ final class ScanCameraUITests: XCTestCase {
         cropMode: String? = nil,
         ocrMode: String? = nil
     ) -> XCUIApplication {
-        let app = XCUIApplication()
         var args = ["-SimCamCardCamera", cameraMode]
         if let photoImportMode {
             args += ["-SimCamCardPhotoImport", photoImportMode]
@@ -61,8 +60,7 @@ final class ScanCameraUITests: XCTestCase {
         if let ocrMode {
             args += ["-SimCamCardOCR", ocrMode]
         }
-        app.launchArguments = args
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(arguments: args)
 
         XCTAssertTrue(
             app.navigationBars["名片夹"].waitForExistence(timeout: 10),

@@ -43,8 +43,7 @@ final class CardHolderEmptyUITests: XCTestCase {
 
     @MainActor
     func testEmptyCardHolderOnFirstLaunch() throws {
-        let app = XCUIApplication()
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral()
 
         // 1. Card Holder root exists (page identity).
         XCTAssertTrue(

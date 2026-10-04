@@ -33,7 +33,7 @@
 import Foundation
 
 #if DEBUG
-enum SimCamCardFixture {
+nonisolated enum SimCamCardFixture {
 
     /// Launch-argument flag that activates fixture selection.
     /// The "-…" prefix follows XCTest's launch-argument convention so
@@ -70,7 +70,7 @@ enum SimCamCardFixture {
     }
 }
 #else
-enum SimCamCardFixture {
+nonisolated enum SimCamCardFixture {
 
     /// Release build stub. Always returns `[]` — no mock fixture
     /// injection in Release. `MockBusinessCards` is compiled out under

@@ -47,10 +47,11 @@ final class ScanEntryUITests: XCTestCase {
     /// DEBUG authorized-camera fixture, then opens the Scanner via the
     /// holder scan entry.
     @discardableResult
+    @MainActor
     private func launchAndEnterScanner() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = ["-SimCamCardCamera", "authorized"]
-        app.launch()
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: ["-SimCamCardCamera", "authorized"]
+        )
 
         XCTAssertTrue(
             app.navigationBars["名片夹"].waitForExistence(timeout: 10),
