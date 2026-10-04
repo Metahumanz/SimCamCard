@@ -2,16 +2,21 @@
 //  CardDetailView.swift
 //  SimCamCard
 //
-//  Read-only Card Detail page (P07, S06 detailCollapsed / T13 Detail).
+//  Card Detail page (P07, S06 detailCollapsed / T13 Detail) with the
+//  T14 Existing-Card Editing entry.
 //
 //  Spec sources:
 //   - spec/page-inventory.md P07 Card Detail ("View structured data")
 //   - spec/state-inventory.md S06 detailCollapsed
 //   - spec/reference-tests.md T13 Detail ("Saved structured fields are
-//     visible in detail view.")
+//     visible in detail view."), T14 Existing-Card Editing ("edited
+//     title → stored BusinessCard changes → Detail displays corrected
+//     title")
 //   - spec/data-model.md §Multi-value observation, §Missing-field rule
 //   - Evidence: evidence/screenshots/REF-detail-01-collapsed.png,
-//     evidence/screenshots/REF-detail-03-after-edit-expanded.png
+//     evidence/screenshots/REF-detail-03-after-edit-expanded.png,
+//     evidence/screenshots/REF-edit-01-before-change.png,
+//     evidence/screenshots/REF-edit-02-after-title-change.png
 //
 //  Evidence → element mapping (see ai/changes.md for the full table):
 //   - Header name / title / company → header VStack (one Text per present
@@ -20,29 +25,33 @@
 //   - emails[] (邮箱)                → one CardDetailFieldRow EACH
 //   - website (首页)                 → single CardDetailFieldRow if present
 //   - address (公司地址)             → single CardDetailFieldRow if present
+//   - T14 Edit entry                 → teal circular pencil 编辑 action at
+//     the Reference action-strip position (4th slot; the deferred
+//     电话/地址/备注 actions are not faked), presenting CardEditView.
 //
 //  Collapsed/expanded decision (recorded ambiguity):
 //   - The Reference collapsed state (REF-detail-01) shows only the first
 //     phone behind a 「展开」 affordance; the expanded state
 //     (REF-detail-03) shows every phone with its kind label.
-//   - The Increment 5 brief explicitly requires multi-value fields
-//     (phones[]/emails[]) to be displayed without loss. This skeleton
+//   - The earlier brief explicitly requires multi-value fields
+//     (phones[]/emails[]) to be displayed without loss. This view
 //     therefore renders ALL structured fields directly (field content
 //     equivalent to the expanded evidence) and does NOT implement the
 //     展开/收起 interaction. T13 behavioral acceptance is unaffected;
 //     the collapse interaction remains a Reference UI fidelity gap.
 //
-//  Deliberately NOT implemented this increment (no behaviorless control
-//  farm): Edit (T14), Group (T16), Notes (P10), Delete (T17), Export
-//  (T19), phone/email/web invocation (no tel:/URL wiring), favorite star,
-//  more menu, the 电话/地址/备注/编辑 action grid, the 未分组 group row,
-//  the notes row, the bottom 存入通讯录/递名片/分享名片 bar, avatar, card
-//  image (Domain holds String references only — no fabricated thumbnail),
-//  and 展开/收起. No "Coming soon" / "Not implemented" text.
+//  T14 closure: CardEditView saves through CardDetailViewModel, which
+//  replaces the same-id entity in the shared Repository and updates its
+//  own `card` in place — the corrected title is visible immediately when
+//  the sheet dismisses, without returning to the Holder. The Holder
+//  reloads through its existing onAppear path when the user goes back.
 //
-//  State ownership:
-//   - CardDetailViewModel owns the displayed BusinessCard value.
-//   - This View is stateless and reads domain fields directly (no DTO).
+//  Deliberately NOT implemented: Group (T16), Notes (P10), Delete (T17),
+//  Export (T19), phone/email/web invocation (no tel:/URL wiring),
+//  favorite star, the ••• more sheet, the 电话/地址/备注 actions, the
+//  未分组 group row, the notes row, the bottom 存入通讯录/递名片/分享名片
+//  bar, avatar, card image (Domain holds String references only), and
+//  展开/收起. No "Coming soon" / "Not implemented" text.
 //
 
 import SwiftUI
@@ -57,9 +66,8 @@ struct CardDetailView: View {
         List {
             // MARK: Identity header
             //
-            // Week 2 scaffold: plain stacked texts. The Reference dark
-            // header card, avatar and card-image strip are fidelity gaps
-            // (no real image pipeline; avatar styling not replicated).
+            // Plain stacked texts. The Reference dark header card and
+            // avatar are fidelity gaps.
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(card.name ?? "未命名")
@@ -81,6 +89,37 @@ struct CardDetailView: View {
                     }
                 }
                 .padding(.vertical, 6)
+            }
+
+            // MARK: Action strip
+            //
+            // T14: the Reference places four circular actions under the
+            // header (电话 / 地址 / 备注 / 编辑). Only 编辑 is functional
+            // in this increment; it occupies the Reference's trailing
+            // position. The deferred actions are intentionally not
+            // rendered as dead controls.
+            Section {
+                HStack {
+                    Spacer()
+                    Button {
+                        viewModel.beginEditing()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color(red: 0.10, green: 0.62, blue: 0.55))
+                                .clipShape(Circle())
+                            Text("编辑")
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("编辑")
+                    .accessibilityIdentifier("card-detail-edit")
+                }
+                .padding(.vertical, 4)
             }
 
             // MARK: Structured fields
@@ -130,6 +169,23 @@ struct CardDetailView: View {
         .accessibilityIdentifier("card-detail")
         .navigationTitle("名片详情")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: editingSheetBinding) {
+            CardEditView(viewModel: viewModel)
+        }
+    }
+
+    /// The sheet is presented while a draft exists (editing/saving).
+    /// A user-driven dismissal (swipe down) maps to Cancel semantics:
+    /// the draft is discarded and nothing is persisted.
+    private var editingSheetBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.editState != .viewing },
+            set: { presented in
+                if !presented {
+                    viewModel.cancelEditing()
+                }
+            }
+        )
     }
 }
 
@@ -156,15 +212,19 @@ private extension PhoneNumber.Kind {
 
 // MARK: - SwiftUI Previews
 //
-// The Detail receives a complete BusinessCard value (same ownership path
-// as real navigation). No repository or async loading is needed here —
-// the value is passed straight into CardDetailViewModel, exactly as
-// CardHolderView's navigationDestination does.
+// The Detail receives a complete BusinessCard value plus a repository
+// seeded with it, exactly as CardHolderView's navigationDestination
+// constructs it (T14 edits save into that repository).
 
 #Preview("Card Detail — full bilingual card (001)") {
     NavigationStack {
         CardDetailView(
-            viewModel: CardDetailViewModel(card: MockBusinessCards.card001)
+            viewModel: CardDetailViewModel(
+                card: MockBusinessCards.card001,
+                repository: InMemoryBusinessCardRepository(
+                    initialCards: MockBusinessCards.all
+                )
+            )
         )
     }
 }
@@ -172,7 +232,12 @@ private extension PhoneNumber.Kind {
 #Preview("Card Detail — minimal card (004)") {
     NavigationStack {
         CardDetailView(
-            viewModel: CardDetailViewModel(card: MockBusinessCards.card004)
+            viewModel: CardDetailViewModel(
+                card: MockBusinessCards.card004,
+                repository: InMemoryBusinessCardRepository(
+                    initialCards: [MockBusinessCards.card004]
+                )
+            )
         )
     }
 }

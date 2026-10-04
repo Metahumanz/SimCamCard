@@ -2,17 +2,21 @@
 //  CardDetailUITests.swift
 //  SimCamCardUITests
 //
-//  T13 — Card Detail UI tests (XCTest), read-only skeleton.
+//  T13 — Card Detail UI tests (XCTest), read-only skeleton, plus T14
+//  Existing-Card Editing UI tests.
 //
 //  Spec sources:
 //   - spec/page-inventory.md P07 Card Detail
 //   - spec/state-inventory.md S06 detailCollapsed
 //   - spec/reference-tests.md T13 Detail ("Saved structured fields are
-//     visible in detail view.")
+//     visible in detail view."), T14 Existing-Card Editing ("edited title
+//     → stored BusinessCard changes → Detail displays corrected title")
 //   - spec/data-model.md §Multi-value observation (phones[] kinds,
 //     emails[]), §Missing-field rule
 //   - Evidence: evidence/screenshots/REF-detail-01-collapsed.png,
-//     evidence/screenshots/REF-detail-03-after-edit-expanded.png
+//     evidence/screenshots/REF-detail-03-after-edit-expanded.png,
+//     evidence/screenshots/REF-edit-01-before-change.png,
+//     evidence/screenshots/REF-edit-02-after-title-change.png
 //
 //  Real navigation flow under test:
 //   launch populated fixture → locate fixed-UUID holder row → TAP →
@@ -225,5 +229,190 @@ final class CardDetailUITests: XCTestCase {
         attachment.name = "increment5-card-detail-004-minimal"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    // MARK: - T14 Existing-Card Editing
+
+    private let oldTitle = "产品总监 | Product Director"
+    private let newTitle = "高级产品总监 | Senior Product Director"
+    private let card002RowID = "card-row-00000000-0000-0000-0000-000000000002"
+
+    /// Holder row secondary line: "jobTitle · company" (BusinessCardRow).
+    private var holderOldSecondary: String {
+        "\(oldTitle) · 上海智云科技有限公司"
+    }
+    private var holderNewSecondary: String {
+        "\(newTitle) · 上海智云科技有限公司"
+    }
+
+    /// Opens the 编辑名片 sheet from an already-visible card-001 Detail
+    /// and verifies the prefilled form (existing values, stable ids).
+    @MainActor
+    private func openEditForm(_ app: XCUIApplication) {
+        let editButton = app.buttons["card-detail-edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5),
+                      "The Detail must offer the 编辑 entry.")
+        editButton.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["编辑名片"].waitForExistence(timeout: 5),
+            "Tapping 编辑 must present the 编辑名片 page."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-edit"].exists,
+            "The edit page root marker must exist."
+        )
+
+        // Prefilled existing values (no fabricated / lost content).
+        let titleField = app.textFields["card-edit-job-title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertEqual(titleField.value as? String, oldTitle,
+                       "The edit form must prefill the saved title.")
+        XCTAssertEqual(
+            app.textFields["card-edit-phone-10000000-0000-0000-0000-000000000001"].value as? String,
+            "+86 138 0013 8000"
+        )
+        XCTAssertEqual(
+            app.textFields["card-edit-phone-10000000-0000-0000-0000-000000000002"].value as? String,
+            "+86 21 5555 1234"
+        )
+        XCTAssertEqual(app.textFields["card-edit-email-0"].value as? String,
+                       "wei.zhang@zhiyuntech.com")
+        XCTAssertEqual(app.textFields["card-edit-website"].value as? String,
+                       "www.zhiyuntech.com")
+        XCTAssertTrue(app.buttons["card-edit-cancel"].exists)
+        XCTAssertTrue(app.buttons["card-edit-save"].exists)
+    }
+
+    /// Replaces a focused non-empty edit field's full value using the
+    /// Reference-style focus clear (×) affordance, then types.
+    @MainActor
+    private func replaceField(_ app: XCUIApplication, identifier: String, with value: String) {
+        let field = app.textFields[identifier]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        let clearButton = app.buttons["清除"]
+        XCTAssertTrue(clearButton.waitForExistence(timeout: 3),
+                      "A focused non-empty edit field must show its clear button.")
+        clearButton.tap()
+        field.typeText(value)
+        XCTAssertEqual(field.value as? String, value)
+    }
+
+    @MainActor
+    func testExistingCardTitleEditPersistsToDetail() throws {
+        let app = launchPopulated()
+        openDetail(forRow: card001RowID, app: app)
+
+        // BEFORE: Detail shows the original title.
+        XCTAssertTrue(app.staticTexts[oldTitle].exists,
+                      "The Detail must show the original title before edit.")
+        let beforeShot = XCUIScreen.main.screenshot()
+        let beforeAttachment = XCTAttachment(screenshot: beforeShot)
+        beforeAttachment.name = "w4i5-existing-edit-before"
+        beforeAttachment.lifetime = .keepAlways
+        add(beforeAttachment)
+
+        openEditForm(app)
+
+        let formShot = XCUIScreen.main.screenshot()
+        let formAttachment = XCTAttachment(screenshot: formShot)
+        formAttachment.name = "w4i5-existing-edit-form"
+        formAttachment.lifetime = .keepAlways
+        add(formAttachment)
+
+        // Fixed Reference correction.
+        replaceField(app, identifier: "card-edit-job-title", with: newTitle)
+
+        app.buttons["card-edit-save"].tap()
+
+        // Save returns to the same Detail, which must immediately show
+        // the corrected title (no pop to the Holder required).
+        XCTAssertTrue(
+            app.navigationBars["名片详情"].waitForExistence(timeout: 5),
+            "Save must return to the Card Detail."
+        )
+        XCTAssertFalse(
+            app.navigationBars["编辑名片"].exists,
+            "The edit page must be dismissed after save."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-job-title"].waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(
+            app.descendants(matching: .any)["card-detail-job-title"].label,
+            newTitle,
+            "The Detail must display the corrected title immediately."
+        )
+        XCTAssertFalse(app.staticTexts[oldTitle].exists,
+                       "The old title must be gone from the Detail.")
+
+        // Existing phone identities survive — same row ids, same values.
+        XCTAssertTrue(app.descendants(matching: .any)[card001MobileRowID].exists)
+        XCTAssertTrue(app.descendants(matching: .any)[card001OfficeRowID].exists)
+        XCTAssertTrue(app.staticTexts["+86 138 0013 8000"].exists)
+        XCTAssertTrue(app.staticTexts["+86 21 5555 1234"].exists)
+
+        let afterShot = XCUIScreen.main.screenshot()
+        let afterAttachment = XCTAttachment(screenshot: afterShot)
+        afterAttachment.name = "w4i5-existing-edit-after"
+        afterAttachment.lifetime = .keepAlways
+        add(afterAttachment)
+
+        // Back to the Holder: onAppear reload from the same shared
+        // repository shows the corrected row.
+        app.navigationBars["名片详情"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "Back must return to the Card Holder."
+        )
+        let row = app.descendants(matching: .any)[card001RowID].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            row.staticTexts[holderNewSecondary].exists,
+            "The holder row must show the corrected title after reload."
+        )
+        XCTAssertFalse(
+            row.staticTexts[holderOldSecondary].exists,
+            "The holder row must no longer show the old title."
+        )
+
+        // Duplicate regression: editing must not add a card — the other
+        // fixture rows are still present and the edited row keeps its id.
+        XCTAssertTrue(app.descendants(matching: .any)[card002RowID].exists)
+        XCTAssertTrue(app.descendants(matching: .any)[card004RowID].exists)
+    }
+
+    @MainActor
+    func testExistingCardEditCancelDiscardsChanges() throws {
+        let app = launchPopulated()
+        openDetail(forRow: card001RowID, app: app)
+
+        app.buttons["card-detail-edit"].tap()
+        XCTAssertTrue(
+            app.navigationBars["编辑名片"].waitForExistence(timeout: 5)
+        )
+        replaceField(app, identifier: "card-edit-job-title", with: newTitle)
+
+        // Cancel discards the draft — returns to Detail with the
+        // original title.
+        app.buttons["card-edit-cancel"].tap()
+        XCTAssertTrue(
+            app.navigationBars["名片详情"].waitForExistence(timeout: 5),
+            "Cancel must return to the Card Detail."
+        )
+        XCTAssertTrue(app.staticTexts[oldTitle].exists,
+                      "Cancel must restore the original title.")
+        XCTAssertFalse(app.staticTexts[newTitle].exists)
+
+        // Back to the Holder: repository was never touched.
+        app.navigationBars["名片详情"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10)
+        )
+        let row = app.descendants(matching: .any)[card001RowID].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.staticTexts[holderOldSecondary].exists)
+        XCTAssertFalse(row.staticTexts[holderNewSecondary].exists)
     }
 }

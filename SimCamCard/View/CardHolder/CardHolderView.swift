@@ -110,8 +110,17 @@ struct CardHolderView: View {
                 // Resolve the stable id to the complete aggregate this
                 // holder already owns. UUID selection (not index) keeps
                 // navigation independent of unspecified repository order.
+                // T14: forward the shared Repository so Existing-Card
+                // Editing replaces the same-id entity in the store the
+                // Holder lists. Production always injects it; Previews /
+                // throwaway contexts fall back to an isolated repository
+                // seeded with this card.
                 if let card = viewModel.cards.first(where: { $0.id == id }) {
-                    CardDetailView(viewModel: CardDetailViewModel(card: card))
+                    CardDetailView(viewModel: CardDetailViewModel(
+                        card: card,
+                        repository: cardRepository
+                            ?? InMemoryBusinessCardRepository(initialCards: [card])
+                    ))
                 }
                 // A missing id cannot occur via holder row taps; an empty
                 // fallback is sufficient for the typed initializer.

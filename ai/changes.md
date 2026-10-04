@@ -3655,3 +3655,295 @@ concurrency: ImageAssetStore read seam is protocol + async; the in-memory
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+---
+
+## Week 4 Increment 5 — Existing-Card Editing
+
+### Baseline
+
+```text
+branch: week4/structured-recognition
+HEAD:   a54560b (feat(scan): 完成名片保存与结果闭环)
+working tree at start: clean
+regression baseline: Unit 262/262 PASS · UI 33/33 PASS ·
+  Debug PASS · Release PASS · Release fixture isolation 8/8 ABSENT
+```
+
+### Reference observations（frozen evidence，未改动）
+
+- `REF-detail-03-after-edit-expanded.png` — 编辑入口 = 动作条最右侧的青色圆形
+  铅笔图标「编辑」（在「电话 / 地址 / 备注」之后）；保存返回后仍停留在同一名片详情，
+  头部立即显示「张伟 / 高级产品总监 | Senior Product Director /
+  上海智云科技有限公司」，展开区公司块内职位同样为更正后的标题。
+- `REF-edit-01-before-change.png` — 编辑页标题「编辑名片」；左上「取消」、
+  右上青色「保存」；顶部为名片图像条。表单顺序：姓名 → 手机（+8613800138000）→
+  工作电话（+862155551234）→ 添加电话 → 工作邮箱（wel.zhang@zhiyuntech.com）→
+  添加邮箱 → 公司 → 部门 → 职位（产品总监 | Product Director）→ 英文公司/部门行。
+- `REF-edit-02-after-title-change.png` — 职位行已改为
+  「高级产品总监 | Senior Product Director」，聚焦态右侧有内联 × 清除；
+  下方顺序为 首页（www.zhiyuntech.com）→ 公司地址
+  （中国 上海市 浦东新区世纪大道 100号 200120）。
+- Reference 中存在但冻结领域模型没有对应字段、本 Increment 不伪造的内容：
+  部门、英文双语公司/部门行、添加电话/邮箱/URL/地址/公司信息/更多信息/背面、
+  按公司排序行、电话/地址快捷动作、收藏星/更多、未分组/备注（T16）、
+  向对方递名片/分享名片/存入通讯录。
+- T14 固定更正：`产品总监 | Product Director` →
+  `高级产品总监 | Senior Product Director`。
+- 实现形态：编辑表单以 sheet 呈现（Brief §33 允许的 Detail 下最小实现），
+  复刻 Reference 的页标题、取消/保存位置、字段顺序与聚焦 × 清除；
+  表单字段集严格等于冻结 BusinessCard 的可编辑字段：
+  姓名 → 手机/工作电话/工作邮箱 → 公司 → 职位 → 首页 → 公司地址。
+
+### BusinessCardEditDraft 设计（新增 `SimCamCard/Edit/BusinessCardEditDraft.swift`）
+
+- `nonisolated struct BusinessCardEditDraft: Sendable, Equatable`，
+  `let source: BusinessCard` + 7 组可编辑字段（name/company/jobTitle/
+  phones/emails/website/address）。
+- 与 `RecognitionDraft` 刻意分离：`RecognitionDraft.source =
+  StructuredRecognitionResult`；已保存卡重编不应伪造 CardOCRResult /
+  CardCropResult / StructuredRecognitionResult，`BusinessCardEditDraft.source`
+  就是已保存的 BusinessCard aggregate 本身。
+- `PhoneField { let id: UUID; var kind; var value }` 是 Identifiable 行；
+  `id` 直接取自已保存的 `PhoneNumber.id`。
+- 初始化映射：scalar `nil → ""`；邮箱数组原样；手机行保留 id+kind+value。
+- `func updatedCard(timestamp: Date) -> BusinessCard` 为纯 deterministic
+  projection（时钟由编排方注入，内部不调用 `Date()`/`UUID()`）。
+- Blank normalization 与 RecognitionDraft 一致：trim 首尾空白；空 scalar →
+  nil；空手机/邮箱行省略；不生成任何占位内容。
+- `var hasChanges: Bool`：用 `source.updatedAt` 作时间戳投影后比较 7 组可编辑
+  值；`updatedAt` 与所有非编辑元数据不计入变更检测；纯空白编辑视为无变更。
+
+### Aggregate 身份语义（与 Increment 4 的区别不混用）
+
+- Increment 4（新扫描 → 新卡）：final `PhoneNumber.id` 是全新 domain UUID，
+  因为诞生的是新 aggregate。
+- Increment 5（已保存卡编辑）：是同一 BusinessCard aggregate 的原地修改 ——
+  `updatedCard` 保留 `source.id`；每个已存在手机行保留原 `PhoneNumber.id`，
+  仅 value（及投影后的 kind）来自 draft。
+
+### 元数据保持（单测逐项证明）
+
+```text
+BusinessCard.id            保持
+originalImageReference     保持
+processedImageReference    保持
+rawOCRText                 保持（nil 仍为 nil）
+createdAt                  保持
+tags / notes               保持
+updatedAt                  = saveEdits() 注入的新时间戳（必然推进）
+```
+
+ImageAssetStore 本 Increment 未修改：image refs 不变 → 既有资产继续有效。
+
+### CardDetailViewModel 编辑状态机（修改 ViewModel/CardDetailViewModel.swift）
+
+- 由完全 read-only 变为持有必需依赖：
+  `private let repository: any BusinessCardRepository`；
+  production 导航必须传 shared repository（Previews / 无仓库上下文回退到
+  用当前卡种子化的隔离 InMemory 仓储）。
+- `enum EditState: Equatable { viewing / editing(draft) / saving(draft) }`，
+  独立于展示用的 `card` 值（对应扫描侧 RecognitionState/SaveState 的职责分离）。
+- `beginEditing()`：viewing → 以当前 card 建 draft；重复进入保持当前 draft。
+- intents：`updateName/updateCompany/updateJobTitle/updateWebsite/updateAddress/
+  updatePhone(id:value:)/updateEmail(index:value:)`，全部只改 draft；
+  非 editing 态（含 saving）与未知 id/index 一律忽略。View 不持有第二份
+  editable card，Binding 全部经 ViewModel intent。
+- `cancelEditing()`：丢弃 draft → viewing；展示卡与 repository 均不变。
+- `saveEdits() async`：editing(draft) → `draft.updatedCard(timestamp: Date())`
+  → `await repository.save(updated)`（same-UUID save = replace，无重复）→
+  `self.card = updated` → viewing；saving 中重入忽略。
+
+### Repository 替换语义与三层刷新
+
+- 依赖既有契约：同一 UUID 的 `save(_:)` 替换实体，仓储 before count =
+  after count = N，不产生第二张卡。
+- Detail 即时刷新：saveEdits 成功后 ViewModel.card 即更正后的值，保存后仍在
+  Detail，新职位立即可见（T14 核心闭环，不需要先回 Holder）。
+- Holder 刷新：返回时走既有 `.onAppear → loadCards()`，从同一 shared
+  repository 重载；不直接改 CardHolderViewModel.cards[index]。
+- production 组合根 `SimCamCardApp` 的 shared InMemoryBusinessCardRepository
+  经 CardHolderView 透传给 CardDetailViewModel（App 入口本 Increment 无改动；
+  透传链在 Increment 4 已建立，本 Increment 只是接到 Detail）。
+
+### View 改动
+
+- `View/CardDetail/CardDetailView.swift`（修改）：动作条加入 Reference 同款
+  青色圆形铅笔「编辑」入口，稳定 identifier `card-detail-edit`；
+  sheet 绑定 `editState`。
+- `View/CardDetail/CardEditView.swift`（新增）：`编辑名片` 表单 sheet，
+  左上 `card-edit-cancel`（取消）、右上 `card-edit-save`（保存），
+  职位字段 identifier `card-edit-job-title`；其余字段 `card-edit-name /
+  card-edit-company / card-edit-mobile-* / card-edit-office-* /
+  card-edit-email-* / card-edit-website / card-edit-address`；
+  聚焦字段显示「清除」按钮复刻 Reference 的 × affordance。
+- `View/CardHolder/CardHolderView.swift`（修改）：导航构造 Detail 时透传
+  shared repository。
+
+### T14 验证结果
+
+- Unit（Swift Testing，runner 权威行）：
+  `✔ Test run with 289 tests in 25 suites passed after 7.897 seconds.`
+  即 262 → **289/289 PASS**（新增 27：BusinessCardEditDraftTests 19 个
+  全新文件 + CardDetailViewModelTests 新增 8 个 T14 用例），25 suites，
+  0 failures / 0 disabled / 0 skipped。
+  覆盖：BusinessCard→Draft 映射、nil scalar→""、手机 id/kind 保持、
+  职位更正投影、trim/blank→nil、空手机/邮箱省略、卡 id 保持、
+  图像引用保持、rawOCR 保持（含 nil）、createdAt 保持 + updatedAt 用注入
+  时间戳、tags/notes 保持、source 不被修改、hasChanges 三类；
+  ViewModel 侧覆盖建 draft/重入、只改 draft、非 editing 忽略、
+  cancel 不动仓储、save 同 id 替换且 Detail 即时刷新、身份/元数据/手机 id
+  保持 + updatedAt 推进、blank 持久化、saving 外 no-op。
+- UI（XCTest，runner 权威行）：
+  `Executed 35 tests, with 0 failures (0 unexpected) in 661.711 seconds`
+  → **35/35 PASS**（33 → 35；`** TEST EXECUTE SUCCEEDED **`），
+  0 disabled / 0 skipped。
+  - `testExistingCardTitleEditPersistsToDetail`（29.3s）：fixture
+    populated → card 001 Detail 原标题断言 → 编辑表单 → 经
+    `card-edit-job-title` 替换为「高级产品总监 | Senior Product Director」
+    → 保存 → 同页 Detail 立即显示新标题、旧标题消失、两行手机 id/值仍在 →
+    返回 Holder，同一 `card-row-…001` 的副标题已是新标题、旧副标题消失；
+    card 002 / card 004 行仍在（无重复卡回归）。
+  - `testExistingCardEditCancelDiscardsChanges`（26.8s）：改职位后取消 →
+    Detail 保持原标题，仓储无变化。
+- Debug：**TEST BUILD SUCCEEDED**（build-for-testing；289 Unit + 35 UI
+  均在该 Debug 测试构建上执行通过）。
+- Release：**BUILD SUCCEEDED**（`-configuration Release
+  CODE_SIGNING_ALLOWED=NO`，0 errors；Release
+  `SWIFT_ACTIVE_COMPILATION_CONDITIONS` 无 DEBUG）。
+- Release fixture isolation（strings 扫描 Release app binary）：
+  **8/8 ABSENT** — `SimCamCardOCR / DebugOCRProcessor /
+  DebugCameraEnvironment / SimCamCardCamera / SimCamCardDetection /
+  SimCamCardCrop / SimCamCardPhotoImport / DebugCameraFakes` 各 0 匹配。
+
+### Evidence（fixture-driven，非真实相机/OCR 证据）
+
+```text
+ai/validation/2026-10-04-w4i5-existing-edit-before.png  (Detail 原标题)
+ai/validation/2026-10-04-w4i5-existing-edit-form.png    (编辑名片表单)
+ai/validation/2026-10-04-w4i5-existing-edit-after.png   (Detail 更正后标题)
+```
+
+均从全量 UI 运行的 .xcresult 中以 XCTAttachment（.keepAlways）导出；
+人工目检确认：before=「产品总监 | Product Director」、form=职位行原值与
+取消/保存布局、after=「高级产品总监 | Senior Product Director」且两条电话、
+邮箱、首页、公司地址完好。与冻结 `REF-*` 证据分离，未覆盖任何 Reference。
+
+### Audits
+
+```text
+dataset/* diff: empty
+spec/* diff: empty
+evidence/* diff: empty
+SimCamCard/Model/BusinessCard.swift diff: empty
+SimCamCard/Repository/BusinessCardRepository.swift diff: empty
+SimCamCard/Repository/InMemoryBusinessCardRepository.swift diff: empty
+SimCamCard/Repository/ImageAssetStore.swift diff: empty
+RecognitionDraft / BusinessCardMaterializer / CardFieldExtractor diff: empty
+SimCamCard/App/SimCamCardApp.swift diff: empty (透传链 Increment 4 已建立)
+project.pbxproj diff: empty (PBXFileSystemSynchronizedRootGroup
+    自动纳入 3 个新 Swift 文件)
+
+logical scope:
+  production (5):
+    - SimCamCard/Edit/BusinessCardEditDraft.swift (NEW)
+    - SimCamCard/View/CardDetail/CardEditView.swift (NEW)
+    - SimCamCard/ViewModel/CardDetailViewModel.swift (MODIFIED)
+    - SimCamCard/View/CardDetail/CardDetailView.swift (MODIFIED)
+    - SimCamCard/View/CardHolder/CardHolderView.swift (MODIFIED)
+  tests (3):
+    - SimCamCardTests/Edit/BusinessCardEditDraftTests.swift (NEW, 19 tests)
+    - SimCamCardTests/ViewModel/CardDetailViewModelTests.swift (MODIFIED, +8)
+    - SimCamCardUITests/CardDetailUITests.swift (MODIFIED, +2)
+  documentation:
+    - ai/changes.md
+  evidence:
+    - 3 PNGs under ai/validation/
+
+`git status --short`（2026-10-04 final run，唯一权威）:
+  6 tracked modified, 6 untracked entries = 12 working-tree paths
+  untracked physical files: 3 Swift + 3 PNG
+```
+
+### T-status
+
+```text
+T11 structured scan:        PASS (prior increments)
+T12 manual correction:      PASS
+T13 detail:                 PASS
+T14 existing-card edit:     PASS  ← this Increment
+T15 search:                 not this Increment
+T16 group:                  not this Increment
+T17 delete:                 not this Increment
+T18 persistence across relaunch: NOT IMPLEMENTED
+    （T16 Group / P10 Notes 尚未完整实现；待业务数据稳定后再把
+      BusinessCardRepository / ImageAssetStore 换成 disk-backed，
+      避免重复迁移）
+```
+
+### Final fidelity statement
+
+```text
+T14 existing-card edit behavioral acceptance:
+PASS
+
+P07 / Edit Card full Reference fidelity:
+PARTIAL
+```
+
+PARTIAL rationale:
+
+```text
+The T14 persisted-edit workflow is complete, but the full
+Reference Edit Card / Detail surface contains additional UI and
+domain concepts outside this increment, including department
+rows, additional company-information blocks, add-phone/email/URL/
+address affordances, full Detail quick-action surface and other
+deferred features.
+```
+
+T-status remains:
+
+```text
+T11 PASS
+T12 PASS
+T13 PASS
+T14 PASS
+
+T15 not this Increment
+T16 not this Increment
+T17 not this Increment
+T18 NOT IMPLEMENTED
+```
+
+Verification results preserved (not re-run for this review):
+
+```text
+Unit:
+289 / 289 PASS
+25 suites
+0 failed
+0 disabled
+0 skipped
+
+UI:
+35 / 35 PASS
+
+Debug:
+TEST BUILD SUCCEEDED
+
+Release:
+BUILD SUCCEEDED
+
+Release DEBUG fixture isolation:
+8 / 8 ABSENT
+```
+
+Known deferred item (not an Increment 5 blocker): the temporary
+isolated-repository fallback in `CardHolderView` Detail construction is
+left as-is and will be revisited during persistence/composition cleanup.
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)
