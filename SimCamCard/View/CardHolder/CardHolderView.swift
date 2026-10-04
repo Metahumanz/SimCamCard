@@ -22,8 +22,12 @@
 //   - "名片 (0张)" count indicator → ContentUnavailableView title (Week 2
 //                                   scaffold — NOT a verified replica of the
 //                                   Reference empty-state visual)
-//   - Search bar                   → in-scope UI, behavior deferred to a
-//                                   later increment (NOT permanently excluded)
+//   - Search bar (T15)             → tappable rounded bar with magnifier
+//                                   and Reference placeholder
+//                                   "请输入姓名/公司/职位搜索"; pushes the
+//                                   dedicated P08 CardSearchView. The
+//                                   Holder list itself stays on the full
+//                                   repository snapshot.
 //   - Quick Action Grid            → Group Management = in scope, deferred;
 //                                   Contact Map / Analytics = excluded
 //   - Tutorial card                → excluded (promotional content)
@@ -52,8 +56,12 @@
 //     by stable id. UI tests verify membership only, never row position.
 //
 //  Week 2 Increment 6: the toolbar "+" is now a typed NavigationLink to
-//  AppRoute.scan (T02 scan-entry navigation + Scanner UI shell). T15
-//  Search behavior and T16 Group behavior remain deferred.
+//  AppRoute.scan (T02 scan-entry navigation + Scanner UI shell).
+//
+//  Week 4 Increment 6 (T15): a tappable Reference-style search bar above
+//  the list pushes AppRoute.search → CardSearchView (P08). Search is a
+//  presentation-only filter owned by CardHolderViewModel; the Holder
+//  list continues to render the full `cards` snapshot.
 //
 
 import SwiftUI
@@ -103,6 +111,32 @@ struct CardHolderView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // T15 Reference entry (REF-card-holder-02-after-save.png):
+            // a rounded search bar with magnifier + placeholder. Tapping
+            // pushes the dedicated P08 Search Results page; the Holder
+            // list below always renders the full snapshot.
+            NavigationLink(value: AppRoute.search) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                    Text("请输入姓名/公司/职位搜索")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.primary.opacity(0.07))
+                )
+                .contentShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("card-holder-search-entry")
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+        }
         .navigationTitle("名片夹")
         .navigationDestination(for: AppRoute.self) { route in
             switch route {
@@ -130,6 +164,11 @@ struct CardHolderView: View {
                 // final BusinessCard) writes into the same repository this
                 // Holder lists, and stores the card's image assets.
                 ScanEntryView(cardRepository: cardRepository, imageStore: imageStore)
+            case .search:
+                // P08 Search Results (T15). Shares this Holder's
+                // ViewModel (query + visibleCards projection) and reuses
+                // the AppRoute.cardDetail rows/destination above.
+                CardSearchView(viewModel: viewModel, imageStore: imageStore)
             }
         }
         .onAppear {

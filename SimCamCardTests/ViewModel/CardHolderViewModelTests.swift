@@ -163,5 +163,157 @@ struct CardHolderViewModelTests {
                 == Set(MockBusinessCards.all.map(\.id))
         )
     }
+
+    // MARK: - T15 Search projection (MockBusinessCards fixture)
+
+    /// Loads a Holder ViewModel seeded with the deterministic populated
+    /// fixture used by the UI tests.
+    @MainActor
+    private func makeLoadedFixtureViewModel(
+        repository repo: InMemoryBusinessCardRepository = InMemoryBusinessCardRepository(
+            initialCards: MockBusinessCards.all
+        )
+    ) async throws -> (CardHolderViewModel, InMemoryBusinessCardRepository) {
+        let viewModel = CardHolderViewModel(repository: repo)
+        await viewModel.loadCards()
+        return (viewModel, repo)
+    }
+
+    @Test("T15 initial state: empty query, not searching, visibleCards equals cards")
+    func t15InitialSearchStateIsInactive() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        #expect(viewModel.searchQuery == "")
+        #expect(!viewModel.isSearching)
+        #expect(
+            Set(viewModel.visibleCards.map(\.id))
+                == Set(viewModel.cards.map(\.id))
+        )
+        #expect(viewModel.visibleCards.count == 3)
+    }
+
+    @Test("T15 name search returns matching cards by membership")
+    func t15NameSearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "张伟"
+        #expect(viewModel.isSearching)
+        // Fixture: card 001 and card 004 are both named 张伟.
+        #expect(
+            Set(viewModel.visibleCards.map(\.id))
+                == [MockBusinessCards.card001ID, MockBusinessCards.card004ID]
+        )
+    }
+
+    @Test("T15 company search returns matching cards")
+    func t15CompanySearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "智云"
+        #expect(
+            Set(viewModel.visibleCards.map(\.id))
+                == [MockBusinessCards.card001ID, MockBusinessCards.card002ID]
+        )
+    }
+
+    @Test("T15 job-title search hits the bilingual title")
+    func t15JobTitleSearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "Product Director"
+        #expect(Set(viewModel.visibleCards.map(\.id)) == [MockBusinessCards.card001ID])
+    }
+
+    @Test("T15 digits-only phone search hits cards whose stored number is formatted")
+    func t15PhoneSearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        // Stored as "+86 138 0013 8000" on card 001 and card 004.
+        viewModel.searchQuery = "13800138000"
+        #expect(
+            Set(viewModel.visibleCards.map(\.id))
+                == [MockBusinessCards.card001ID, MockBusinessCards.card004ID]
+        )
+    }
+
+    @Test("T15 email local-part search hits the owning card")
+    func t15EmailSearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "wei.zhang"
+        #expect(Set(viewModel.visibleCards.map(\.id)) == [MockBusinessCards.card001ID])
+    }
+
+    @Test("T15 a query with zero hits yields an empty projection while searching")
+    func t15NoResultSearch() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "查无此名片-zzzz"
+        #expect(viewModel.isSearching)
+        #expect(viewModel.visibleCards.isEmpty)
+    }
+
+    @Test("T15 clearing the query restores the full snapshot")
+    func t15ClearRestoresFullCards() async throws {
+        let (viewModel, _) = try await makeLoadedFixtureViewModel()
+
+        viewModel.searchQuery = "智云"
+        #expect(viewModel.visibleCards.count == 2)
+        viewModel.clearSearch()
+        #expect(!viewModel.isSearching)
+        #expect(viewModel.searchQuery == "")
+        #expect(viewModel.visibleCards.count == 3)
+        #expect(
+            Set(viewModel.visibleCards.map(\.id))
+                == Set(MockBusinessCards.all.map(\.id))
+        )
+    }
+
+    @Test("T15 searching never mutates the snapshot or the repository")
+    func t15SearchNeverMutatesSnapshotOrRepository() async throws {
+        let (viewModel, repo) = try await makeLoadedFixtureViewModel()
+
+        let snapshotIDs = Set(viewModel.cards.map(\.id))
+        let snapshotValues = viewModel.cards
+
+        for query in ["张伟", "智云", "Product Director", "13800138000",
+                      "wei.zhang", "查无此名片-zzzz", "   "] {
+            viewModel.searchQuery = query
+            _ = viewModel.visibleCards
+        }
+        viewModel.clearSearch()
+
+        // The owner snapshot is untouched (identity AND values), and the
+        // repository contents are unchanged.
+        #expect(Set(viewModel.cards.map(\.id)) == snapshotIDs)
+        #expect(viewModel.cards == snapshotValues)
+        let stored = await repo.allCards()
+        #expect(Set(stored.map(\.id)) == snapshotIDs)
+        #expect(stored.count == 3)
+    }
+
+    @Test("T15 freshly loaded repository field values participate in search naturally")
+    func t15RepositoryEditsParticipateAfterReload() async throws {
+        // A card saved/edited in the repository and reloaded must be
+        // searchable by its new value — no ViewModel-side cache of
+        // searchable text exists.
+        let repo = InMemoryBusinessCardRepository(initialCards: [])
+        let (viewModel, _) = try await makeLoadedFixtureViewModel(repository: repo)
+        #expect(viewModel.visibleCards.isEmpty)
+
+        let card = BusinessCard(
+            originalImageReference: "o",
+            processedImageReference: "p",
+            name: "新同事",
+            company: "新公司"
+        )
+        await repo.save(card)
+        await viewModel.loadCards()
+
+        viewModel.searchQuery = "新同事"
+        #expect(Set(viewModel.visibleCards.map(\.id)) == [card.id])
+        viewModel.searchQuery = "新公司"
+        #expect(Set(viewModel.visibleCards.map(\.id)) == [card.id])
+    }
     #endif
 }

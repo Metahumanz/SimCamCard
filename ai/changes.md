@@ -3947,3 +3947,286 @@ left as-is and will be revisited during persistence/composition cleanup.
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+---
+
+## Week 4 Increment 6 — T15 Search
+
+### Baseline
+
+```text
+branch: week4/structured-recognition
+HEAD:   46e0783 (feat(card): 实现已保存名片编辑 — Increment 5 accepted)
+working tree at start: clean
+regression baseline: Unit 289/289 PASS · UI 35/35 PASS ·
+  Debug TEST BUILD SUCCEEDED · Release BUILD SUCCEEDED ·
+  Release fixture isolation 8/8 ABSENT
+```
+
+### Reference observations（frozen evidence，未改动）
+
+- `REF-card-holder-02-after-save.png`：Holder 顶部为圆角搜索条，放大镜 +
+  占位文字「请输入姓名/公司/职位搜索」，右侧另有 + 入口；点击搜索条进入
+  独立搜索页（不是列表内联搜索）。
+- `REF-search-01-by-name.png`（query=张伟）：独立 P08 页面 —— 顶部自定义
+  栏：返回 `<` chevron、放大镜+可编辑文本+字段内 × 清除；分段控件
+  综合/名片 1/企业；结果区标题「名片夹名片 1」+「浏览模式」；结果行复用
+  名片行（缩略图 + 张伟 + 命中的第二行）。
+- `REF-search-02-by-company.png`（query=智云）：同结构，结果区
+  「名片夹名片 1」，命中行第二行为公司并高亮命中词。
+- Reference 中本 Increment 不复刻的表面：分段控件（综合/名片/企业，企业无
+  冻结领域对应）、浏览模式、名片缩略图大图、命中词蓝色高亮、异步
+  「正在加载……」（内存快照搜索是同步的）。视觉采用 App 既有浅色体系做
+  结构复刻，非像素级复制 → P08 全 Reference fidelity 视为 PARTIAL
+  （T15 行为 acceptance 为 PASS）。
+- spec 复核：page-inventory P08「Search cards by supported fields,
+  Detail / Back」；state-inventory S01 `searching`（query active）；
+  reference-tests T15 黑盒直接证据仅 name/company，最终实现还必须支持
+  jobTitle/phone/email。
+
+### Search architecture
+
+```text
+SimCamCard/Search/BusinessCardSearchMatcher.swift (NEW)
+  nonisolated struct BusinessCardSearchMatcher: Sendable
+  func matches(card: BusinessCard, query: String) -> Bool
+```
+
+- 纯 deterministic、无副作用：不访问 repository、不修改 BusinessCard、
+  不持有 query；调用方（CardHolderViewModel）拥有 query 与投影。
+- trim query；空/纯空白 → 匹配全部（清空即恢复完整列表，无第二条代码路径）。
+- name / company / jobTitle / 每个 email：`range(of:options:.caseInsensitive)`
+  大小写不敏感子串；nil 字段永不制造命中。
+- phones：存储值与 query 都归一化为 ASCII 数字后做子串匹配，每个号码独立
+  参与。
+- `BusinessCard.swift` 未改动；无新增 Domain 字段。
+
+### Phone normalization
+
+```text
+"+86 138 0013 8000" → digits → "8613800138000"
+query "13800138000"（纯数字）           → 命中
+query "+86 138 0013 8000"（格式化）     → 同样命中
+query "55551234"（第二部座机子串）      → 命中
+```
+
+### CardHolder state ownership（S01 empty/populated/searching）
+
+- `CardHolderViewModel` 继续是 repository snapshot（`cards`）的唯一 owner；
+  新增 `var searchQuery: String`（View 直接 Binding，View 不持第二份）、
+  派生 `var isSearching: Bool`（trim 后非空）、
+  派生 `var visibleCards: [BusinessCard]`（非搜索 = cards；搜索 =
+  cards.filter(matcher)，保持快照成员与顺序，不重新排序）。
+- 搜索是纯 presentation filter：不修改 `cards` / repository / BusinessCard
+  （单测在多轮搜索后断言快照值相等、仓储内容不变）。
+- `clearSearch()`：× 与返回共用；未引入大型状态 enum（empty/populated/
+  searching 全部由 cards + searchQuery + visibleCards 派生）；
+  `groupFiltered` 留给 Increment 7，未来组合为
+  snapshot → group filter → search filter，无需重写 matcher。
+
+### View / navigation
+
+- `AppRoute` 新增 `case search`（AppRoute.swift）；Holder
+  （CardHolderView）顶部以 safeAreaInset 加入 Reference 同款圆角搜索条
+  入口（`card-holder-search-entry`，占位文字完全照搬），点击 push P08；
+  Holder 列表始终渲染完整 `cards` 快照。
+- `SimCamCard/View/Search/CardSearchView.swift`（NEW）：自定义顶栏
+  （返回 chevron `card-search-back` + 胶囊搜索框；TextField
+  `card-holder-search` 自动聚焦、禁用自动大写/纠错；非空时显示 ×
+  `card-holder-search-clear`）；结果 Section header「名片夹名片 N」；
+  结果行复用 `BusinessCardRow` + `NavigationLink(value: .cardDetail(id))`，
+  由 Holder 既有的 navigationDestination 解析 —— 没有第二套 Detail 导航，
+  行 identifier 继续是 `card-row-<UUID>`。
+- 搜索 active 且 0 命中 → `ContentUnavailableView.search`，稳定
+  identifier `card-holder-search-empty`，与 Holder 无卡的
+  `card-holder-empty` 语义严格分开。
+- 返回语义：自定义 chevron 先 clearSearch 再 dismiss；从结果 push Detail
+  再返回时不重置 query（不在 onDisappear 重置，避免 Detail 往返清空）；
+  × 在页内恢复完整快照。
+
+### 各字段结果（populated fixture：card001 张伟/智云/Product Director/
+### +86 138 0013 8000/wei.zhang；card002 李娜/智云/Marketing/139…；
+### card004 张伟 minimal）
+
+```text
+name     "张伟"             → {001, 004}
+company  "智云"             → {001, 002}
+jobTitle "Product Director" → {001}
+phone    "13800138000"      → {001, 004}（存储为 "+86 138 0013 8000"）
+email    "wei.zhang"        → {001}
+no-result "查无此名片…"      → card-holder-search-empty，0 行
+```
+
+- no-result：专用空态，非 holder 空态。
+- clear：× 后同页恢复全部 3 张；再返回 Holder，3 张全部在位。
+- Detail navigation：name 用例点 card001 → 名片详情显示张伟并返回仍保留
+  query；company 用例点 card002 → 名片详情显示李娜。全部按
+  card-row-<UUID> membership 断言，不依赖行位置/节点总数。
+
+### Verification
+
+- Unit（Swift Testing，runner 权威行）：
+  `✔ Test run with 314 tests in 26 suites passed after 7.609 seconds.`
+  289 → **314/314 PASS**（新增 25：BusinessCardSearchMatcherTests 15 +
+  CardHolderViewModelTests T15 段 10），0 failed / 0 disabled / 0 skipped。
+  覆盖：空/纯空白 query、name 精确/部分、company、jobTitle、电话纯数字/
+  格式化/多号码、email 部分/多邮箱、Latin 大小写不敏感、非命中、nil 字段
+  不伪造、trim；VM 侧覆盖初始态、五字段搜索、零命中、清空恢复、快照与仓储
+  不被修改、reload 后新值自然参与搜索。
+- UI（XCTest，runner 权威行）：
+  `Executed 38 tests, with 0 failures (0 unexpected) in 659.839 seconds`
+  → **38/38 PASS**（35 → 38；`** TEST EXECUTE SUCCEEDED **`），
+  0 disabled / 0 skipped。
+  - `testSearchByNameOpensExpectedCard`（19.6s）
+  - `testSearchByCompanyReturnsExpectedCard`（17.1s）
+  - `testSearchAcrossJobTitlePhoneEmailNoResultAndClear`（20.6s，
+    单 launch 连续覆盖 jobTitle/phone/email/no-result/clear/back）
+- Debug：**TEST BUILD SUCCEEDED**（314 Unit + 38 UI 均在该测试构建执行）。
+- Release：**BUILD SUCCEEDED**（`-configuration Release
+  CODE_SIGNING_ALLOWED=NO`，0 errors）。
+- Release DEBUG fixture isolation（Release app binary strings）：
+  **8/8 ABSENT** — SimCamCardOCR / DebugOCRProcessor /
+  DebugCameraEnvironment / SimCamCardCamera / SimCamCardDetection /
+  SimCamCardCrop / SimCamCardPhotoImport / DebugCameraFakes 各 0 匹配。
+
+### Evidence（fixture-driven，非真实相机/OCR 证据）
+
+```text
+ai/validation/2026-10-04-w4i6-search-name.png     (query 张伟 → 名片夹名片 2)
+ai/validation/2026-10-04-w4i6-search-company.png  (query 智云 → 名片夹名片 2)
+```
+
+从全量 UI 运行的 .xcresult 以 XCTAttachment（.keepAlways）导出；人工目检：
+name 图为张伟全卡 + 张伟 minimal 两行；company 图为张伟 + 李娜两行；
+顶栏 chevron/放大镜/query/× 与「名片夹名片 2」分区清晰。与冻结 REF-*
+证据分离，未覆盖任何 Reference。
+
+### Audits
+
+```text
+dataset/* diff: empty
+spec/* diff: empty
+evidence/* diff: empty
+SimCamCard/Model/BusinessCard.swift diff: empty
+SimCamCard/Repository/* diff: empty
+SimCamCard/Repository/ImageAssetStore.swift diff: empty
+SimCamCard/Recognition/* diff: empty
+SimCamCard/Edit/BusinessCardEditDraft.swift diff: empty
+SimCamCard/App/SimCamCardApp.swift diff: empty
+project.pbxproj diff: empty (PBXFileSystemSynchronizedRootGroup
+    自动纳入 2 个新 Swift 源文件 + 1 个新测试文件)
+
+logical scope:
+  production (5):
+    - SimCamCard/Search/BusinessCardSearchMatcher.swift (NEW)
+    - SimCamCard/View/Search/CardSearchView.swift (NEW)
+    - SimCamCard/App/AppRoute.swift (MODIFIED, +case search)
+    - SimCamCard/ViewModel/CardHolderViewModel.swift (MODIFIED)
+    - SimCamCard/View/CardHolder/CardHolderView.swift (MODIFIED)
+  tests (3):
+    - SimCamCardTests/Search/BusinessCardSearchMatcherTests.swift (NEW, 15)
+    - SimCamCardTests/ViewModel/CardHolderViewModelTests.swift (MODIFIED, +10)
+    - SimCamCardUITests/CardSearchUITests.swift (NEW, 3)
+  documentation:
+    - ai/changes.md
+  evidence:
+    - 2 PNGs under ai/validation/
+
+`git status --short`（2026-10-04 final run，唯一权威）:
+  5 tracked modified, 6 untracked entries = 11 working-tree paths
+  untracked physical files: 4 Swift + 2 PNG
+  4 new Swift:
+    - SimCamCard/Search/BusinessCardSearchMatcher.swift
+    - SimCamCard/View/Search/CardSearchView.swift
+    - SimCamCardTests/Search/BusinessCardSearchMatcherTests.swift
+    - SimCamCardUITests/CardSearchUITests.swift
+  2 PNG:
+    - ai/validation/2026-10-04-w4i6-search-name.png
+    - ai/validation/2026-10-04-w4i6-search-company.png
+  （AppRoute 为新增路由的最小必要改动；未触碰组合根与持久化接缝。
+   Increment 5 记录的 CardHolderView temporary repository fallback
+   仍按评审结论保留，留待 persistence/composition cleanup。）
+```
+
+### T-status
+
+```text
+T11 structured scan:        PASS
+T12 manual correction:      PASS
+T13 detail:                 PASS
+T14 existing-card edit:     PASS
+T15 search:                 PASS  ← this Increment
+T16 group:                  not this Increment
+T17 delete:                 not this Increment
+T18 persistence across relaunch: NOT IMPLEMENTED
+```
+
+### Final fidelity statement
+
+```text
+T15 Search behavioral acceptance:
+PASS
+
+P08 full Reference fidelity:
+PARTIAL
+```
+
+PARTIAL rationale:
+
+```text
+Reference-specific segmented 综合/名片/企业 surface,
+browse-mode affordance, match highlighting and other non-core
+search presentation details are not fully replicated.
+```
+
+T-status remains:
+
+```text
+T11 PASS
+T12 PASS
+T13 PASS
+T14 PASS
+
+T15 Search behavioral acceptance:
+PASS
+
+P08 full Reference fidelity:
+PARTIAL
+
+T16:
+not this Increment
+
+T17:
+not this Increment
+
+T18:
+NOT IMPLEMENTED
+```
+
+Verification results preserved (not re-run for this review):
+
+```text
+Unit:
+314 / 314 PASS
+26 suites
+0 failed
+0 disabled
+0 skipped
+
+UI:
+38 / 38 PASS
+
+Debug:
+TEST BUILD SUCCEEDED
+
+Release:
+BUILD SUCCEEDED
+
+Release fixture isolation:
+8 / 8 ABSENT
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-04 (human review)

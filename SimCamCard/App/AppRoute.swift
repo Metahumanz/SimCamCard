@@ -41,4 +41,10 @@ enum AppRoute: Hashable {
     /// entry. This is a read-only navigation target in Week 2: no live
     /// camera, permission, capture, import or recognition behavior.
     case scan
+
+    /// Pushes the P08 Search Results page from the Card Holder search
+    /// entry (T15). The page binds the shared CardHolderViewModel's
+    /// search query; result rows reuse the `.cardDetail` route — there is
+    /// no second Detail navigation path.
+    case search
 }
