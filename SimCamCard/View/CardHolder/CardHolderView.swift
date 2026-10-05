@@ -81,14 +81,23 @@ struct CardHolderView: View {
     let cardRepository: (any BusinessCardRepository)?
     let imageStore: (any ImageAssetStore)?
 
+    /// T19 shared contact-export service forwarded into every
+    /// CardDetailViewModel opened from this Holder. Required from the
+    /// composition root (one shared SystemContactExporter for the app);
+    /// DEBUG Previews pass a scripted DebugContactExporter so they never
+    /// touch the real CNContactStore.
+    let contactExporter: any ContactExporting
+
     init(
         viewModel: CardHolderViewModel,
         cardRepository: (any BusinessCardRepository)? = nil,
-        imageStore: (any ImageAssetStore)? = nil
+        imageStore: (any ImageAssetStore)? = nil,
+        contactExporter: any ContactExporting
     ) {
         self.viewModel = viewModel
         self.cardRepository = cardRepository
         self.imageStore = imageStore
+        self.contactExporter = contactExporter
     }
 
     var body: some View {
@@ -171,7 +180,8 @@ struct CardHolderView: View {
                         viewModel: CardDetailViewModel(
                             card: card,
                             repository: cardRepository
-                                ?? InMemoryBusinessCardRepository(initialCards: [card])
+                                ?? InMemoryBusinessCardRepository(initialCards: [card]),
+                            contactExporter: contactExporter
                         ),
                         onDeleted: {
                             await viewModel.loadHolderData()
@@ -280,7 +290,8 @@ struct CardHolderView: View {
             viewModel: CardHolderViewModel(
                 repository: InMemoryBusinessCardRepository(),
                 groupRepository: InMemoryCardGroupRepository()
-            )
+            ),
+            contactExporter: DebugContactExporter(mode: .allowed)
         )
     }
 }
@@ -293,8 +304,11 @@ struct CardHolderView: View {
         groupRepository: InMemoryCardGroupRepository()
     )
     return NavigationStack {
-        CardHolderView(viewModel: viewModel)
-            .task { await viewModel.loadHolderData() }
+        CardHolderView(
+            viewModel: viewModel,
+            contactExporter: DebugContactExporter(mode: .allowed)
+        )
+        .task { await viewModel.loadHolderData() }
     }
 }
 

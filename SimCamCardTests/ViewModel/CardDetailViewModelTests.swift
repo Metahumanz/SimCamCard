@@ -60,7 +60,11 @@ struct CardDetailViewModelTests {
         )
         let repository = InMemoryBusinessCardRepository(initialCards: [card])
 
-        let viewModel = CardDetailViewModel(card: card, repository: repository)
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: repository,
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
+        )
         let displayed = viewModel.card
 
         #expect(displayed.id == id)
@@ -118,7 +122,14 @@ struct CardDetailViewModelTests {
     ) -> (CardDetailViewModel, InMemoryBusinessCardRepository, BusinessCard) {
         let card = makeP10Card(existingNotes: existingNotes)
         let repository = InMemoryBusinessCardRepository(initialCards: [card])
-        return (CardDetailViewModel(card: card, repository: repository), repository, card)
+        return (
+            CardDetailViewModel(
+                card: card,
+                repository: repository,
+                contactExporter: ScriptedContactExporter(behavior: .allowed)
+            ),
+            repository, card
+        )
     }
 
     @Test("P10 initial state exposes historyVisible and projects card.notes")
@@ -285,7 +296,11 @@ struct CardDetailViewModelTests {
     func p10SavingWindowIsGuardedAndAppendsExactlyOnce() async {
         let card = makeP10Card()
         let gate = GatedSaveRepository(initialCards: [card])
-        let viewModel = CardDetailViewModel(card: card, repository: gate)
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: gate,
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
+        )
         let noteID = UUID(uuidString: "F0000003-0000-0000-0000-000000000001")!
         let otherID = UUID(uuidString: "F0000003-0000-0000-0000-000000000002")!
         let savedAt = Date(timeIntervalSince1970: 1_790_500_000)
@@ -381,6 +396,255 @@ struct CardDetailViewModelTests {
         Issue.record("\(failureMessage)")
     }
 
+    // MARK: - T19 Contact Export (S09)
+    //
+    // Export is an external side effect: these tests assert the
+    // ExportState lifecycle, authorization mapping behavior, payload
+    // content delivered to the injected exporter, single-write re-entrancy
+    // and cross-workflow exclusion — and that success/failure NEVER
+    // mutates the BusinessCard, the repository or updatedAt.
+
+    private func makeExportViewModel(
+        behavior: ScriptedContactExporter.Behavior,
+        existingNotes: [CardNote] = []
+    ) -> (CardDetailViewModel, InMemoryBusinessCardRepository, BusinessCard, ScriptedContactExporter) {
+        let card = makeP10Card(existingNotes: existingNotes)
+        let repository = InMemoryBusinessCardRepository(initialCards: [card])
+        let exporter = ScriptedContactExporter(behavior: behavior)
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: repository,
+            contactExporter: exporter
+        )
+        return (viewModel, repository, card, exporter)
+    }
+
+    @Test("T19 initial exportState is idle and no export has occurred")
+    func t19InitialStateIsIdle() async {
+        let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowed)
+        #expect(viewModel.exportState == .idle)
+        #expect(await exporter.exportCount() == 0)
+    }
+
+    @Test("T19 authorized: one export with the mapped payload → succeeded; card/repo/updatedAt unchanged")
+    func t19AuthorizedSucceedsWithoutTouchingCard() async {
+        let (viewModel, repository, original, exporter) = makeExportViewModel(behavior: .allowed)
+
+        await viewModel.exportToContacts()
+
+        #expect(viewModel.exportState == .exportSucceeded)
+        #expect(await exporter.exportCount() == 1)
+        #expect(await exporter.requestAccessCount() == 0)
+
+        let payload = await exporter.lastPayload()
+        #expect(payload?.name == original.name)
+        #expect(payload?.company == original.company)
+        #expect(payload?.jobTitle == original.jobTitle)
+        #expect(payload?.phones.map(\.value) == original.phones.map(\.value))
+        #expect(payload?.phones.map(\.kind) == original.phones.map(\.kind))
+        #expect(payload?.emails == original.emails)
+        #expect(payload?.address == original.address)
+
+        // Export is not a card edit.
+        #expect(viewModel.card == original)
+        #expect(viewModel.card.updatedAt == original.updatedAt)
+        #expect(await repository.card(id: p10CardID) == original)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("T19 notDetermined + allow: requests once, exports once, succeeds")
+    func t19NotDeterminedAllowFlow() async {
+        let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowOnRequest)
+
+        await viewModel.exportToContacts()
+
+        #expect(await exporter.requestAccessCount() == 1)
+        #expect(await exporter.exportCount() == 1)
+        #expect(viewModel.exportState == .exportSucceeded)
+    }
+
+    @Test("T19 notDetermined + deny: requests once, exports zero, permissionDenied")
+    func t19NotDeterminedDenyFlow() async {
+        let (viewModel, repository, original, exporter) =
+            makeExportViewModel(behavior: .denyOnRequest)
+
+        await viewModel.exportToContacts()
+
+        #expect(await exporter.requestAccessCount() == 1)
+        #expect(await exporter.exportCount() == 0)
+        #expect(viewModel.exportState == .permissionDenied)
+        // No card side effect of any kind.
+        #expect(viewModel.card == original)
+        #expect(await repository.card(id: p10CardID) == original)
+    }
+
+    @Test("T19 already denied: no prompt, no export, permissionDenied")
+    func t19AlreadyDeniedFlow() async {
+        let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .denied)
+
+        await viewModel.exportToContacts()
+
+        #expect(await exporter.requestAccessCount() == 0)
+        #expect(await exporter.exportCount() == 0)
+        #expect(viewModel.exportState == .permissionDenied)
+    }
+
+    @Test("T19 export failure → exportFailed and the card stays exactly unchanged")
+    func t19ExportFailureSurfacesFailedWithoutCardChange() async {
+        let (viewModel, repository, original, exporter) = makeExportViewModel(behavior: .failure)
+
+        await viewModel.exportToContacts()
+
+        #expect(viewModel.exportState == .exportFailed)
+        #expect(await exporter.attemptCount() == 1)
+        #expect(await exporter.exportCount() == 0)
+        #expect(viewModel.card == original)
+        #expect(viewModel.card.updatedAt == original.updatedAt)
+        #expect(await repository.card(id: p10CardID) == original)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("T19 a double tap while exporting performs exactly one system write")
+    func t19DoubleTapDuringExportWritesOnce() async {
+        let card = makeP10Card()
+        let repository = InMemoryBusinessCardRepository(initialCards: [card])
+        let gate = GatedContactExporter()
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: repository,
+            contactExporter: gate
+        )
+
+        let exportTask = Task { @MainActor in
+            await viewModel.exportToContacts()
+        }
+
+        await t19WaitUntilExportEntered(gate)
+        #expect(viewModel.exportState == .exporting)
+
+        // Re-entrant tap while the write is in flight is rejected.
+        await viewModel.exportToContacts()
+        #expect(await gate.exportCallCount == 1)
+
+        await gate.release()
+        await exportTask.value
+
+        #expect(viewModel.exportState == .exportSucceeded)
+        #expect(await gate.exportCallCount == 1)
+        #expect(viewModel.card == card)
+    }
+
+    @Test("T19 export is ignored while editing, while note adding and while delete confirming")
+    func t19ExportBlockedByOtherWorkflows() async {
+        // Editing.
+        do {
+            let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowed)
+            viewModel.beginEditing()
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .idle)
+            #expect(await exporter.exportCount() == 0)
+            viewModel.cancelEditing()
+        }
+
+        // Note adding.
+        do {
+            let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowed)
+            viewModel.beginAddingNote()
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .idle)
+            #expect(await exporter.exportCount() == 0)
+            viewModel.cancelAddingNote()
+        }
+
+        // Delete confirming.
+        do {
+            let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowed)
+            viewModel.requestDelete()
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .idle)
+            #expect(await exporter.exportCount() == 0)
+        }
+    }
+
+    @Test("T19 edit/delete/note entry points are ignored while an export is in flight")
+    func t19OtherWorkflowsBlockedDuringExport() async {
+        let card = makeP10Card()
+        let repository = InMemoryBusinessCardRepository(initialCards: [card])
+        let gate = GatedContactExporter()
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: repository,
+            contactExporter: gate
+        )
+
+        let exportTask = Task { @MainActor in
+            await viewModel.exportToContacts()
+        }
+        await t19WaitUntilExportEntered(gate)
+
+        viewModel.beginEditing()
+        viewModel.requestDelete()
+        viewModel.beginAddingNote()
+        #expect(viewModel.editState == .viewing)
+        #expect(viewModel.deleteState == .idle)
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.exportState == .exporting)
+
+        await gate.release()
+        await exportTask.value
+
+        // After completion the other workflows become available again.
+        viewModel.beginEditing()
+        #expect(viewModel.editState != .viewing)
+    }
+
+    @Test("T19 dismissExportResult clears terminal surfaces to idle and never rewrites")
+    func t19DismissResults() async {
+        // Success → idle; dismissing success must not write again.
+        do {
+            let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .allowed)
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .exportSucceeded)
+            viewModel.dismissExportResult()
+            #expect(viewModel.exportState == .idle)
+            #expect(await exporter.exportCount() == 1)
+        }
+
+        // Denied → idle.
+        do {
+            let (viewModel, _, _, exporter) = makeExportViewModel(behavior: .denied)
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .permissionDenied)
+            viewModel.dismissExportResult()
+            #expect(viewModel.exportState == .idle)
+            #expect(await exporter.exportCount() == 0)
+        }
+
+        // Failed → idle.
+        do {
+            let (viewModel, _, _, _) = makeExportViewModel(behavior: .failure)
+            await viewModel.exportToContacts()
+            #expect(viewModel.exportState == .exportFailed)
+            viewModel.dismissExportResult()
+            #expect(viewModel.exportState == .idle)
+        }
+
+        // Dismissing from idle/transient states is a safe no-op.
+        do {
+            let (viewModel, _, _, _) = makeExportViewModel(behavior: .allowed)
+            viewModel.dismissExportResult()
+            #expect(viewModel.exportState == .idle)
+        }
+    }
+
+    private func t19WaitUntilExportEntered(_ gate: GatedContactExporter) async {
+        for _ in 0..<200 {
+            if await gate.exportCallCount == 1 { return }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        Issue.record("gated contact export never entered")
+    }
+
     // MARK: - Deterministic fixtures (DEBUG-only; MockBusinessCards is
     // compiled out of Release)
 
@@ -390,7 +654,8 @@ struct CardDetailViewModelTests {
     func fullFixtureExposesAllStructuredValues() {
         let viewModel = CardDetailViewModel(
             card: MockBusinessCards.card001,
-            repository: InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all)
+            repository: InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all),
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
         )
         let card = viewModel.card
 
@@ -420,7 +685,8 @@ struct CardDetailViewModelTests {
     func minimalFixtureDoesNotFabricateMissingFields() {
         let viewModel = CardDetailViewModel(
             card: MockBusinessCards.card004,
-            repository: InMemoryBusinessCardRepository(initialCards: [MockBusinessCards.card004])
+            repository: InMemoryBusinessCardRepository(initialCards: [MockBusinessCards.card004]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
         )
         let card = viewModel.card
 
@@ -453,7 +719,8 @@ struct CardDetailViewModelTests {
         let repository = InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all)
         let viewModel = CardDetailViewModel(
             card: MockBusinessCards.card001,
-            repository: repository
+            repository: repository,
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
         )
         return (viewModel, repository)
     }
@@ -650,7 +917,8 @@ struct CardDetailViewModelTests {
         let repository = InMemoryBusinessCardRepository(initialCards: MockBusinessCards.all)
         let viewModel = CardDetailViewModel(
             card: MockBusinessCards.card001,
-            repository: repository
+            repository: repository,
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
         )
         return (viewModel, repository)
     }
@@ -846,6 +1114,103 @@ private actor GatedSaveRepository: BusinessCardRepository {
 
     /// Resumes exactly one gated save.
     func releaseSave() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+/// Test-only deterministic ContactExporting fake (always compiled — no
+/// dependency on the DEBUG-only DebugContactExporter). Scripts the
+/// authorization answer and write success/failure, and records every
+/// request/payload.
+private actor ScriptedContactExporter: ContactExporting {
+
+    enum Behavior {
+        case allowed
+        case denied
+        case allowOnRequest
+        case denyOnRequest
+        case failure
+    }
+
+    private let behavior: Behavior
+    private var currentStatus: ContactAuthorizationState
+    private(set) var exportedPayloads: [ContactExportPayload] = []
+    private(set) var exportAttempts = 0
+    private(set) var requestAccessCalls = 0
+
+    init(behavior: Behavior) {
+        self.behavior = behavior
+        switch behavior {
+        case .allowed, .failure:
+            currentStatus = .allowed
+        case .denied:
+            currentStatus = .denied
+        case .allowOnRequest, .denyOnRequest:
+            currentStatus = .notDetermined
+        }
+    }
+
+    func authorizationState() -> ContactAuthorizationState { currentStatus }
+
+    func requestAccess() -> ContactAuthorizationState {
+        requestAccessCalls += 1
+        switch behavior {
+        case .allowOnRequest, .allowed:
+            currentStatus = .allowed
+        case .denyOnRequest, .denied:
+            currentStatus = .denied
+        case .failure:
+            currentStatus = .allowed
+        }
+        return currentStatus
+    }
+
+    func export(_ payload: ContactExportPayload) async throws -> ContactExportReceipt {
+        exportAttempts += 1
+        switch behavior {
+        case .allowed, .allowOnRequest:
+            exportedPayloads.append(payload)
+            return ContactExportReceipt(systemIdentifier: "scripted-\(exportedPayloads.count)")
+        case .failure, .denied, .denyOnRequest:
+            throw ScriptedContactExportError.failureSimulated
+        }
+    }
+
+    // Observation API.
+    func exportCount() -> Int { exportedPayloads.count }
+    func attemptCount() -> Int { exportAttempts }
+    func lastPayload() -> ContactExportPayload? { exportedPayloads.last }
+    func requestAccessCount() -> Int { requestAccessCalls }
+}
+
+private enum ScriptedContactExportError: Error {
+    case failureSimulated
+}
+
+/// Test-only exporter whose `export` suspends until released, making the
+/// VM `.exporting` window and re-entrant-tap guard deterministically
+/// observable (mirrors GatedSaveRepository for the note flow).
+private actor GatedContactExporter: ContactExporting {
+
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var exportCallCount = 0
+
+    init() {}
+
+    func authorizationState() -> ContactAuthorizationState { .allowed }
+    func requestAccess() -> ContactAuthorizationState { .allowed }
+
+    func export(_ payload: ContactExportPayload) async throws -> ContactExportReceipt {
+        exportCallCount += 1
+        await withCheckedContinuation {
+            (continuation: CheckedContinuation<Void, Never>) in
+            self.continuation = continuation
+        }
+        return ContactExportReceipt(systemIdentifier: "gated-\(exportCallCount)")
+    }
+
+    func release() {
         continuation?.resume()
         continuation = nil
     }

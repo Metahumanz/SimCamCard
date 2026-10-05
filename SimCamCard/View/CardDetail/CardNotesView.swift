@@ -257,7 +257,8 @@ struct CardNotesView: View {
                 card: MockBusinessCards.card001,
                 repository: InMemoryBusinessCardRepository(
                     initialCards: MockBusinessCards.all
-                )
+                ),
+                contactExporter: DebugContactExporter(mode: .allowed)
             )
         )
     }
@@ -292,7 +293,8 @@ struct CardNotesView: View {
         CardNotesView(
             viewModel: CardDetailViewModel(
                 card: noted,
-                repository: InMemoryBusinessCardRepository(initialCards: [noted])
+                repository: InMemoryBusinessCardRepository(initialCards: [noted]),
+                contactExporter: DebugContactExporter(mode: .allowed)
             )
         )
     }

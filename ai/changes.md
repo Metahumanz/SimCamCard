@@ -5447,3 +5447,454 @@ T20 Final exception/fidelity sweep：NOT IMPLEMENTED
 
 Human Decision:
 Accepted — 2026-10-05 (human review)
+
+---
+
+## Week 4 Increment 11 — T19 Contact Export
+
+### Baseline
+
+```text
+branch: week4/structured-recognition
+HEAD: 68c10ca71d5c62390056699b714ea94b8ad37142
+      feat(notes): 实现名片备注管理
+working tree: clean（git pull --ff-only: Already up to date）
+
+Regression baseline (W4I10 accepted):
+Unit 392/392 PASS，32 suites
+UI 46/46 PASS，0 failures，0 unexpected
+Debug PASS / Release PASS
+Release fixture isolation 8/8 ABSENT
+Release storage-hook isolation 3/3 ABSENT
+```
+
+### Reference first — REF-export-01..05 + REF-detail-01/04
+
+```text
+REF 环境：参考 App「名片全能王」(CamCard_zh_lite.app) 运行在
+macOS / Mac Catalyst 风格环境（窗口红绿灯、Contacts for Mac）。
+我们的目标是 iOS 27 真机/模拟器，因此只抽取行为与字段语义，不复制
+macOS 专有的账号选择器等控件。
+
+REF-export-01-contacts-permission.png
+  - 触发：名片详情（张伟卡）。
+  - 弹框是【系统】通讯录授权弹窗（带 Contacts 图标+手掌 badge），
+    不是 App 自绘框。
+    标题：允许"CamCard_zh_lite.app"访问你的联系人?
+    正文：我们需要获取您的通讯录权限读取导入通讯录联系人信息以及
+          将名片信息保存到通讯录
+    按钮：不允许 / 允许
+  - 底层 Detail 底部栏可见：左下「存入通讯录」卡片图标按钮，
+    中间「向对方递名片」，右侧绿色「分享名片」。
+
+REF-export-02-permission-denied.png
+  - 一个标题为「保存到通讯录」的模态页面：左上「取消」，居中标题，
+    无右上确认按钮。
+  - 灰色说明行：无法保存名片到通讯录
+  - 白色可点行：点击设置通讯录权限（→ 系统 Settings）
+  - 即 denied state 有独立 UI 面（不是 toast），提供 Settings 跳转
+    和取消。
+
+REF-export-03-contact-destination.png
+  - 同一个「保存到通讯录」模态（取消 / 右上确认），内容是
+    【系统 Contacts 账号/目的地选择器】：多个 iPad 分组/账号行
+    （单选 radio，一行已勾选）+ Mac 行。
+  - 结论：这是参考环境（macOS Contacts 多账号：iCloud/Google/
+    On My Mac 等）的系统目的地选择页，属于 verification-only
+    evidence，不是参考 App 自己的页面。
+  - iOS 只有单一默认 Contacts 账号，CNContactStore+CNSaveRequest
+    直接写入默认账号，不呈现该选择器；本 Increment 不制造对应页面。
+
+REF-export-04-contacts-app-summary.png（陈晨卡，即 card-003 形态）
+  系统 Contacts App 中新建联系人可见：
+  - 姓名：陈晨（完整名作为联系人显示名，单一字段呈现）
+  - 职位+公司连排：商务拓展经理 Business Development Manager·
+    上海智云科技有限公司 Shanghai Zhiyun Tech Co., Ltd.
+  - 手机  +86 136 8888 1024
+  - 工作  +86 (21) 5666 7788
+  - 工作传真 +86 (21) 5666 7799
+  - 工作  chen.chen@zhiyuntech.com
+  - 工作  地址（下沿露出：中国/上海市/徐汇区漕溪北路398号/200030）
+
+REF-export-05-contacts-app-fields.png（继续向下滚动）
+  - 三条电话 label：手机 / 工作 / 工作传真（值与 04 一致）
+  - email label：工作
+  - 地址 label：工作；多行：中国 / 上海市 / 徐汇区漕溪北路398号 /
+    200030（参考 App 把结构化地址分行；Domain 只有单 String）
+  - 第二个「工作」地址块露出残字（参考数据自身异常，不采纳）
+  - 主页：http://www.zhiyuntech.com  ← website 确实被保存
+  - 备注：空块
+  - 系统行：共享联系人 / 屏蔽联系人
+
+REF-detail-01-collapsed.png
+  - 底部栏左下确有「存入通讯录」独立入口（通讯录+人像图标）。
+
+REF-detail-04-more-actions.png
+  - 底部••• 网格第一行第一格：保存到通讯录（绿色通讯录图标）；
+    同行：编辑、邀请使用名片全能王；
+    第二行：分组 / 备注 / 提醒 / 删除。
+  - 展开态字段小字 label 旁证：手机 / 工作电话 / 工作邮箱 /
+    公司地址。
+
+P11/S09/T19 解读：
+  - P11 = App + System：权限由系统弹；denied 是 App 内结果面；
+    成功目的地是系统 Contacts（无独立 App 页面）。
+  - S09 四态：contactsPermissionUnknown / Denied / Allowed /
+    exportSucceeded；requesting/exporting/failed 为运行期瞬态。
+  - T19 frozen acceptance：name/company/jobTitle/phone/email/
+    address 六组字段进入系统 Contact；多电话多邮箱不丢失；
+    缺失字段不伪造。
+  - website 观察（REF-05 主页）：记录为 Reference observation，
+    本 Increment 不映射（frozen T19 不含 website；§3 明确禁止
+    擅自扩大）。
+  - email/地址 label「工作」：REF 明确可见，但 frozen spec T19
+    只要求 value survive、未要求 label；按计划 §10 的保守原则，
+    email 不凭空声称 work/home，使用 CNLabelOther；地址同样使用
+    CNLabelOther。REF label 差异记为 fidelity gap。
+  - name：不拆中文姓名，完整字符串放入单个 CN 姓名属性
+    （givenName 承载完整串，Contact 显示名即完整姓名）。
+```
+
+### Export entry / UI 面规划
+
+```text
+入口（两处，同一 workflow）：
+  1) Detail ••• more-actions：新增「保存到通讯录」
+     id=card-detail-more-export（置于备注之前，对齐 REF 网格首位）
+  2) Detail 底部：「存入通讯录」底部按钮
+     id=card-detail-export（对齐 REF-detail-01 底部栏左下入口；
+     递名片/分享不属于本 App，不造）
+结果面（App 内）：
+  - requestingPermission/exporting：按钮内 ProgressView + 禁用，
+    不新增页面。
+  - permissionDenied：alert，id=contact-export-denied
+    标题「无法保存名片到通讯录」（对齐 REF-02 文案），
+    「点击设置通讯录权限」→ UIApplication.openSettingsURLString
+    （REF-02 明确有 Settings 入口），「取消」回到 idle。
+  - exportSucceeded：alert「已保存到通讯录」，单个「好」。
+  - exportFailed：alert「保存到通讯录失败」+「好」。
+```
+
+### Architecture
+
+```text
+SimCamCard/Export/（新增，随 PBXFileSystemSynchronizedRootGroup 自动入 target）
+  ContactExporting.swift     — ContactAuthorizationState /
+                               ContactExportReceipt / ContactExporting
+  ContactExportPayload.swift — Payload + ContactExportPhone（Sendable）
+  BusinessCardContactMapper.swift — 纯函数 BusinessCard→Payload
+  SystemContactMapper.swift  — 纯函数 Payload→CNMutableContact
+  SystemContactExporter.swift— actor，CNContactStore + CNSaveRequest
+  Debug/DebugContactExporter.swift — #if DEBUG 可编程 fake
+  Debug/ContactExportLaunchMode.swift — #if DEBUG -SimCamCardContactExportMode
+
+权限状态映射：
+  notDetermined → notDetermined
+  denied/restricted/@unknown → denied
+  authorized/limited → allowed（limited 不当 error）
+电话 label：
+  mobile→CNLabelPhoneNumberMobile；office→CNLabelWork；
+  fax→CNLabelPhoneNumberWorkFax；other→CNLabelOther
+email：全部 CNLabelOther（Domain 无 email kind，见上）
+地址：完整单 String → CNMutablePostalAddress.street（不拆城市/邮编），
+      label CNLabelOther
+姓名：完整 name → CNMutableContact.givenName 单一属性
+```
+
+### Verification results
+
+```text
+环境：iPhone 18 Pro / iOS 27.0 模拟器（UDID 5B32D815-…），
+串行 xcodebuild（-parallel-testing-enabled NO）。
+
+Unit（SimCamCardTests）：
+  423/423 PASS，34 suites（基线 392 + T19 新增 31）
+  新增分布：
+    BusinessCardContactMapperTests 10（全字段/最小/全 nil/
+      website 与 tag/note/OCR 排除/幂等确定性）
+    SystemContactMapperTests 11（CNMutableContact 逐字段精确断言：
+      givenName 单属性、organizationName、jobTitle、三电话 label、
+      email CNLabelOther、postalAddress.street 全串 CNLabelOther；
+      SystemContactExporter.map 五种 CNAuthorizationStatus 映射）
+    CardDetailViewModelTests T19 块 10（allowed/denied/
+      allowOnRequest/denyOnRequest/failure 五脚本、双击只写一次、
+      与编辑/删除/备注互斥、终态 dismiss 回 idle 不重写、
+      卡片与仓储零变更）
+
+UI（SimCamCardUITests）：
+  53/53 PASS，0 failures，0 unexpected（基线 46 + 新增 7）
+  日志：/tmp/w4i11-ui-full.log（1121.5s）
+  bundle：/tmp/w4i11-ui-full.xcresult
+  新增 CardContactExportUITests：
+    A fake allowed + more 入口(card-detail-more-export) → 成功 alert
+    B fake allow-on-request + 底部入口(card-detail-export) → 成功
+      （两个入口同一 workflow 的双入口证明）
+    C fake deny-on-request → denied 面（设置/取消齐全，
+      不出现成功面；取消后再点仍 denied，零写入）
+    D fake denied → 直接 denied 面，无请求 prompt
+    E fake failure → 失败面，「好」可关闭
+    F System01 真实系统授权（resetAuthorizationStatus →
+      真实系统面 → 允许 → 真实 CNSaveRequest 成功）
+    G System02 预授权真实 CNContactStore.execute 成功
+
+真实系统集成（非 fake，关键证据）：
+  - iOS 27 模拟器真实流程呈现的是系统联系人共享管理面
+    「你要如何共享联系人？」全屏页面（不是传统双按钮 alert）：
+    选择联系人 / 共享所有 N 位联系人，由系统进程承载
+    （SpringBoard AX 树的普通 Window 内，非 Alert 节点）。
+    测试对该管理面与经典 alert 两种形态都做了处理。
+  - On this iOS 27 simulator, the real Contacts flow presented
+    the system contact-sharing management surface
+    “你要如何共享联系人？”. The run did not separately instrument
+    and record the exact CNAuthorizationStatus at that moment,
+    so no broader simctl-grant-equals-limited claim is made.
+    （测试运行前用过 simctl privacy grant/reset contacts 协调，
+    但未在呈现管理面的时刻单独记录精确的
+    CNAuthorizationStatus；点「共享所有 N 位联系人」后，
+    挂起的真实写入继续完成。）
+  - 真实写入后系统联系人数量 6 → 7（6 个模拟器种子联系人 +
+    张伟），并打开系统 Contacts（com.apple.MobileAddressBook）
+    人工核对张伟详情（见 evidence w4i11-contacts-fields.png）。
+  - real hard-denied TCC path was not obtained reliably on this
+    iOS 27 simulator（simctl privacy revoke contacts 后真实写入
+    仍成功，未稳定复现 hard-denied）；denied 业务行为由
+    unit tests + deterministic UI fake 证明
+    （ScriptedContactExporter 五脚本、CNAuthorizationStatus
+    状态映射单测、UI C/D 用例）。
+
+构建：
+  Debug build PASS（/tmp/w4i11-debug-build.log）
+  Release -sdk iphonesimulator build PASS
+  （/tmp/w4i11-release-build.log）
+  两配置产物 Info.plist 均含
+  NSContactsUsageDescription=需要访问通讯录以保存名片联系人。
+
+Release isolation（主二进制 8,312,016B，Release-iphonesimulator）：
+  fixture 8 符号 0/0/0/0/0/0/0/0（8/8 ABSENT）
+  storage 3 符号 0/0/0（3/3 ABSENT）
+  T19 新增 2 符号 SimCamCardContactExportMode /
+    DebugContactExporter = 0/0（2/2 ABSENT）
+  合计 13/13 ABSENT。
+Debug 阳性对照（新鲜构建 SimCamCard.debug.dylib 6,382,088B）：
+  上述 13 个符号全部 >0（其中新符号 1/2），扫描机制有效。
+```
+
+### Evidence
+
+```text
+全部从真实测试运行的 xcresult 导出（XCTAttachment.keepAlways，
+非手工摆拍），存入 ai/validation/。provenance 逐张标注：
+
+2026-10-05-w4i11-contact-permission.png
+  PROVENANCE: REAL iOS system Contacts permission/sharing surface
+  来源：System01（/tmp/w4i11-sys01.xcresult）。
+  系统全屏联系人共享管理面「你要如何共享联系人？」，可见
+  「选择联系人」「共享所有7位联系人」与系统通讯录头像墙
+  （含已被前序真实写入保存的张伟头像）——真实系统权限/共享面，
+  非 App 自绘、非 Debug fake。
+
+2026-10-05-w4i11-contact-export-success.png
+  PROVENANCE: REAL SystemContactExporter + real CNSaveRequest success
+  来源：System02（/tmp/w4i11-sys02c.xcresult）。
+  真实 CNContactStore.execute(CNSaveRequest) 成功后 App 呈现
+  alert「已保存到通讯录 / 联系人已保存到系统通讯录。」+「好」。
+  背景 Detail 可见名片含「首页 www.zhiyuntech.com」行，
+  而系统联系人详情无 URL 行（website 排除的反向佐证）。
+
+2026-10-05-w4i11-contacts-fields.png
+  PROVENANCE: REAL Contacts.app verification
+  来源：真实写入后打开系统 Contacts App
+  （com.apple.MobileAddressBook）的张伟详情页
+  （/tmp/w4i11-verify2.xcresult，一次性 scratch 测试取证后
+  已删除，无残留文件）。逐字段核对：
+    张伟（完整姓名单字段）
+    产品总监 | Product Director · 上海智云科技有限公司
+      （jobTitle · organizationName 连排）
+    手机 +86 138 0013 8000（CNLabelPhoneNumberMobile）
+    工作 +86 (21) 5555 1234（CNLabelWork）
+    其他 wei.zhang@zhiyuntech.com（CNLabelOther）
+    其他 上海市浦东新区世纪大道100号 200120
+      （完整地址单串在 street，CNLabelOther）
+    无 URL 行、备注为空；无 tag/note/OCR/图片。
+
+2026-10-05-w4i11-contact-denied.png
+  PROVENANCE: DEBUG scripted denied-state UI evidence
+  来源：DEBUG-only DebugContactExporter 的 deny-on-request
+  脚本（UI C，/tmp/w4i11-uifake3.xcresult），不是真实 TCC
+  hard-denied 截图。
+  明确：real hard-denied TCC path was not obtained reliably on
+  this iOS 27 simulator；denied 业务行为由 unit tests +
+  deterministic UI fake 证明，App 自绘结果面（S09 Denied 态在
+  两种授权来源下 UI 完全一致）：标题「无法保存名片到通讯录」、
+  「点击设置通讯录权限」、「取消」，对齐 REF-export-02 文案
+  与结构（页面 vs alert 的 surface 差异见 P11 PARTIAL）。
+```
+
+### Scope audit
+
+```text
+git diff --name-status（tracked，8 个）：
+M  SimCamCard.xcodeproj/project.pbxproj
+M  SimCamCard/App/SimCamCardApp.swift
+M  SimCamCard/View/CardDetail/CardDetailView.swift
+M  SimCamCard/View/CardDetail/CardNotesView.swift（仅 #Preview 构造注入）
+M  SimCamCard/View/CardHolder/CardHolderView.swift
+M  SimCamCard/ViewModel/CardDetailViewModel.swift
+M  SimCamCardTests/ViewModel/CardDetailViewModelTests.swift
+M  ai/changes.md
+Untracked（新增）：
+?? SimCamCard/Export/（7 文件：
+     ContactExportPayload.swift / ContactExporting.swift /
+     BusinessCardContactMapper.swift / SystemContactMapper.swift /
+     SystemContactExporter.swift /
+     Debug/ContactExportLaunchMode.swift /
+     Debug/DebugContactExporter.swift）
+?? SimCamCardTests/Export/（2 文件：
+     BusinessCardContactMapperTests.swift /
+     SystemContactMapperTests.swift）
+?? SimCamCardUITests/CardContactExportUITests.swift
+?? ai/validation/2026-10-05-w4i11-contact-permission.png
+?? ai/validation/2026-10-05-w4i11-contact-export-success.png
+?? ai/validation/2026-10-05-w4i11-contact-denied.png
+?? ai/validation/2026-10-05-w4i11-contacts-fields.png
+
+冻结面 git status 复查全部 CLEAN：
+SimCamCard/Model（BusinessCard/PhoneNumber/CardTag/CardNote
+  无 CNContact、无 Codable、无 contactIdentifier/exported 标记）、
+SimCamCard/Persistence、SimCamCard/Repository（schemaVersion=1
+  未动）、SimCamCard/Recognition、SimCamCard/Edit、SimCamCard/Search、
+spec/、dataset/、evidence/。
+导出是外部副作用：BusinessCard 不新增任何持久化状态，
+写入系统通讯录只经 SystemContactExporter.export 一次。
+取证用一次性 scratch UI 测试已删除，工作树无 Scratch 残留。
+未 commit、未 push、未创建分支。
+```
+
+### pbxproj audit
+
+```text
+git diff SimCamCard.xcodeproj/project.pbxproj 仅两行新增
+（Debug 与 Release app target 各一，均在 NSCamera 行之后）：
++ INFOPLIST_KEY_NSContactsUsageDescription =
++   "需要访问通讯录以保存名片联系人。";
+无 build phase、framework、文件 membership 变更
+（新文件由 PBXFileSystemSynchronizedRootGroup 自动入 target；
+Contacts.framework 由 import Contacts 自动链接）。
+两配置构建产物 Info.plist 已实测含该 key。
+```
+
+### T19 behavioral acceptance
+
+```text
+T19 behavioral acceptance: PASS
+
+frozen T19 六类字段全部正确导出（真实系统联系人 + Unit 双重证明）：
+1. name    PASS 完整姓名入 CNMutableContact 单一姓名属性
+              （givenName 承载全串），不拆分中文名；系统联系人
+              显示名即「张伟」。
+2. company PASS organizationName=上海智云科技有限公司。
+3. jobTitle PASS jobTitle=产品总监 | Product Director；
+              系统联系人头部连排「职位 · 公司」。
+4. phones  PASS 全部电话逐条保留，label 按 Domain PhoneNumber.Kind：
+              mobile→手机(CNLabelPhoneNumberMobile)
+              office→工作(CNLabelWork)
+              fax→工作传真(CNLabelPhoneNumberWorkFax)
+              other→其他(CNLabelOther)
+              multiple phones 有 Unit 覆盖（真实卡 001 两部
+              手机+工作系统核对一致；三电话含传真由
+              SystemContactMapperTests 精确断言）。
+              号码原样保留，不做破坏性归一化（系统自身加 +86 间距
+              格式化属系统展示行为）。
+5. emails  PASS 全部邮箱逐条 CNLabeledValue 保留（multiple emails
+              有 Unit 双值断言；真实卡 001 单邮箱
+              wei.zhang@zhiyuntech.com 系统可见）。
+6. address PASS 地址完整单串入 CNMutablePostalAddress.street，
+              不拆城市/省份/邮编、不补造 country；系统联系人完整显示
+              「上海市浦东新区世纪大道100号 200120」。
+
+missing optional fields：最小卡（仅姓名+手机）映射单测证明
+company/jobTitle/emails/address 全部 nil，不伪造；空 payload
+全 nil 安全。
+real CNContactStore / CNSaveRequest：已成功（System02）。
+real Contacts.app：exported values 已人工核对
+（w4i11-contacts-fields.png）。
+冻结排除项：website（REF-05 主页）、tags、notes、OCR 图片均不映射，
+有专门排除单测；真实系统联系人详情确认无 URL 行、备注为空。
+互斥与状态机：requestingPermission/exporting 期间底部按钮
+ProgressView+禁用；编辑/删除/备注入口与导出互斥（双向单测）；
+双击仅一次系统写入（GatedContactExporter 计数断言）。
+denied/cancel/dismiss：取消关闭结果面回 idle 可重试；
+「点击设置通讯录权限」跳系统 Settings（UI 断言按钮存在）。
+失败面：写入抛错 → exportFailed + 卡片/仓储零变更 + 尝试计数=1、
+成功计数=0。
+```
+
+### P11 full Reference fidelity
+
+```text
+P11 full Reference fidelity: PARTIAL
+
+说明：以下是「实现 vs Reference 完整表面」的差异清单，不是 T19
+failure。T19 frozen required behavior 已全部满足并判定 PASS；
+PARTIAL 仅表示与参考 App（CamCard_zh_lite，macOS / Mac Catalyst
+环境）的完整 surface 仍有差异，且其中包含平台自身差异。
+
+frozen T19 要求且已验证为真：
+  - 六类字段 name / company / jobTitle / phones / emails /
+    address 全部正确导出；
+  - multiple phones / multiple emails / missing optional fields
+    已有 Unit 覆盖；
+  - real CNContactStore / CNSaveRequest 已成功；
+  - real Contacts.app 已验证 exported values。
+
+full Reference surface 的差异（PARTIAL 原因）：
+  diff-1 REF-export-02 的 denied 是一个独立的「保存到通讯录」
+         页面（左上取消 + 居中标题 + 设置行）；当前实现使用
+         native SwiftUI alert 呈现同一 denied 信息与动作
+         （标题/设置跳转/取消一致，承载 surface 不同）。
+  diff-2 REF-export-03 有 destination/account selector
+         （macOS Contacts 多账号选择器）；iOS 27 当前系统流程
+         没有对应的 App-controlled surface，故未实现该选择页。
+  diff-3 REF 中 email / address label = 工作；当前按 frozen
+         Domain（无 email/address kind）保守映射为「其他」
+         （CNLabelOther），不伪造语义标签。
+  diff-4 REF-export-05 观察到 website（主页）被保存；
+         frozen T19 acceptance 不要求 website，当前故意未导出。
+  diff-5 Reference 运行于 macOS / Mac Catalyst，其系统 Contacts
+         UI 与 iOS 27 system Contacts UI 本身存在平台差异
+         （含上述账号选择器、地址多行排版等），不全部可迁移。
+```
+
+### T-status
+
+```text
+T11–T18 PASS（全量回归未受影响：Unit 423/423、UI 53/53）
+P10 Notes: PASS
+T19 Contact Export: PASS
+  六类 frozen 字段真实系统写入并人工核对；五授权/失败脚本 +
+  真实系统权限/共享面 + 真实 CNSaveRequest 全覆盖。
+P11 full Reference fidelity: PARTIAL（5 项 surface 差异见上；
+  这些差异不构成 T19 failure）。
+T20 Final sweep: NOT IMPLEMENTED
+```
+
+### T20 note (non-blocking, carried forward)
+
+```text
+Real Contacts integration mutates the simulator Contacts store
+and repeated runs can create duplicate exported fixture contacts.
+本次 W4I11 验证中已观察到种子联系人数量随真实写入变化
+（6 → 7，张伟）；重复执行 System01/System02 会继续追加同名
+联系人。
+At T20:
+  - either keep real Contacts validation as targeted integration
+    （保留为定点集成测试，不进入每次全量门禁），
+  - or clean up the created test contact after validation
+    （验证后按 receipt.systemIdentifier 删除本次创建的联系人）。
+Do not broaden W4I11 for this now（本 Increment 不为此扩大范围）。
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-05 (human review)

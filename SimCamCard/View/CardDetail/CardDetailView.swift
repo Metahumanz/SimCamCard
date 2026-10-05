@@ -63,13 +63,19 @@
 //  is not implemented — it previews a typed system save record that the
 //  frozen CardNote domain cannot represent (fidelity difference).
 //
-//  Deliberately NOT implemented: Export (T19), phone/email/web
-//  invocation (no tel:/URL wiring), favorite star, the deferred
-//  more-sheet entries (保存到通讯录/分组/提醒/邀请使用名片), the
-//  电话/地址 action-strip entries, the 未分组 group row, the inline
-//  notes-summary row, the bottom 存入通讯录/递名片/分享名片 bar,
-//  avatar, card image (Domain holds String references only), and
-//  展开/收起.
+//  T19 closure: BOTH Reference export entries (REF-detail-01 bottom-left
+//  存入通讯录 + REF-detail-04 more-grid 保存到通讯录) call the single
+//  viewModel.exportToContacts() workflow. The system permission prompt is
+//  the real iOS alert (never recreated in-app); the denied result surface
+//  mirrors REF-export-02 (无法保存名片到通讯录 + Settings entry + 取消);
+//  success/failure are App alerts. REF-export-03 (macOS Contacts account
+//  picker) has no iPhone counterpart and is intentionally not built.
+//
+//  Deliberately NOT implemented: phone/email/web invocation (no tel:/URL
+//  wiring), favorite star, the deferred more-sheet entries (邀请使用名片/
+//  提醒), the 电话/地址 action-strip entries, the 未分组 group row, the
+//  inline notes-summary row, the bottom 递名片/分享名片 bar, avatar, card
+//  image (Domain holds String references only), and 展开/收起.
 //  No "Coming soon" / "Not implemented" text.
 //
 //  T17 closure: the trailing ••• (card-detail-more) opens a native
@@ -262,6 +268,15 @@ struct CardDetailView: View {
             isPresented: $showMoreActions,
             titleVisibility: .visible
         ) {
+            // 保存到通讯录 (T19): REF-detail-04 grid position 1. Runs the
+            // SAME single export workflow as the bottom 存入通讯录 entry.
+            Button {
+                Task { await viewModel.exportToContacts() }
+            } label: {
+                Label("保存到通讯录", systemImage: "person.crop.circle.badge.plus")
+            }
+            .accessibilityIdentifier("card-detail-more-export")
+
             // 备注 (P10): push the same Notes page as the action-strip
             // entry (REF-detail-04 row 2).
             Button {
@@ -312,6 +327,121 @@ struct CardDetailView: View {
         .navigationDestination(isPresented: $showNotes) {
             CardNotesView(viewModel: viewModel)
         }
+        // MARK: T19 Contact export entries + result surfaces
+        //
+        // The bottom 存入通讯录 entry (REF-detail-01 bottom-left) shares
+        // the exact workflow with the more-actions 保存到通讯录 entry.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                Task { await viewModel.exportToContacts() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isExportBusy {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "person.crop.circle.badge.plus")
+                    }
+                    Text("存入通讯录")
+                        .font(.body.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isExportBusy)
+            .accessibilityLabel("存入通讯录")
+            .accessibilityIdentifier("card-detail-export")
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            .background(.bar)
+        }
+        // Permission denied (REF-export-02): result surface with a
+        // Settings deep link and 取消. The system prompt itself is never
+        // recreated in-app.
+        .alert("无法保存名片到通讯录", isPresented: deniedAlertBinding) {
+            Button {
+                openSystemSettings()
+                viewModel.dismissExportResult()
+            } label: {
+                Text("点击设置通讯录权限")
+            }
+            .accessibilityIdentifier("contact-export-settings")
+
+            Button("取消", role: .cancel) {
+                viewModel.dismissExportResult()
+            }
+            .accessibilityIdentifier("contact-export-denied-cancel")
+        } message: {
+            Text("请在系统设置中允许访问通讯录后重试。")
+                .accessibilityIdentifier("contact-export-denied")
+        }
+        // CNSaveRequest succeeded.
+        .alert("已保存到通讯录", isPresented: succeededAlertBinding) {
+            Button("好", role: .cancel) {
+                viewModel.dismissExportResult()
+            }
+            .accessibilityIdentifier("contact-export-success-ok")
+        } message: {
+            Text("联系人已保存到系统通讯录。")
+                .accessibilityIdentifier("contact-export-success")
+        }
+        // Contacts write threw (never swallowed by the exporter).
+        .alert("保存到通讯录失败", isPresented: failedAlertBinding) {
+            Button("好", role: .cancel) {
+                viewModel.dismissExportResult()
+            }
+            .accessibilityIdentifier("contact-export-failed-ok")
+        } message: {
+            Text("联系人未能保存，请稍后重试。")
+                .accessibilityIdentifier("contact-export-failed")
+        }
+    }
+
+    /// True while the real system permission prompt or the Contacts
+    /// write is in flight — entries are disabled then, preventing a
+    /// second workflow from entering.
+    private var isExportBusy: Bool {
+        switch viewModel.exportState {
+        case .requestingPermission, .exporting:
+            return true
+        case .idle, .permissionDenied, .exportSucceeded, .exportFailed:
+            return false
+        }
+    }
+
+    private var deniedAlertBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.exportState == .permissionDenied },
+            set: { presented in
+                if !presented { viewModel.dismissExportResult() }
+            }
+        )
+    }
+
+    private var succeededAlertBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.exportState == .exportSucceeded },
+            set: { presented in
+                if !presented { viewModel.dismissExportResult() }
+            }
+        )
+    }
+
+    private var failedAlertBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.exportState == .exportFailed },
+            set: { presented in
+                if !presented { viewModel.dismissExportResult() }
+            }
+        )
+    }
+
+    /// Opens the system Settings page for this app (REF-export-02
+    /// 「点击设置通讯录权限」).
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     /// The sheet is presented while a draft exists (editing/saving).
@@ -363,7 +493,8 @@ private extension PhoneNumber.Kind {
                 card: MockBusinessCards.card001,
                 repository: InMemoryBusinessCardRepository(
                     initialCards: MockBusinessCards.all
-                )
+                ),
+                contactExporter: DebugContactExporter(mode: .allowed)
             ),
             onDeleted: {}
         )
@@ -377,7 +508,8 @@ private extension PhoneNumber.Kind {
                 card: MockBusinessCards.card004,
                 repository: InMemoryBusinessCardRepository(
                     initialCards: [MockBusinessCards.card004]
-                )
+                ),
+                contactExporter: DebugContactExporter(mode: .denied)
             ),
             onDeleted: {}
         )

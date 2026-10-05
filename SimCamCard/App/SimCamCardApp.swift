@@ -42,6 +42,12 @@ struct SimCamCardApp: App {
     /// also survives terminate/relaunch).
     private let imageStore: any ImageAssetStore
 
+    /// The shared T19 contact-export service (real CNContactStore backed
+    /// in production; DEBUG launch arguments may substitute a scripted
+    /// fake). App-lifetime singleton shared through the Holder into each
+    /// CardDetailViewModel.
+    private let contactExporter: any ContactExporting
+
     /// Holds the Card Holder ViewModel for the app's lifetime. `@State`
     /// (not `@StateObject`) is the standard holder for `@Observable`.
     @State private var viewModel: CardHolderViewModel
@@ -53,6 +59,7 @@ struct SimCamCardApp: App {
         self.cardRepository = stores.cardRepository
         self.groupRepository = stores.groupRepository
         self.imageStore = stores.imageStore
+        self.contactExporter = Self.makeContactExporter()
         _viewModel = State(initialValue: CardHolderViewModel(
             repository: stores.cardRepository,
             groupRepository: stores.groupRepository
@@ -65,7 +72,8 @@ struct SimCamCardApp: App {
                 CardHolderView(
                     viewModel: viewModel,
                     cardRepository: cardRepository,
-                    imageStore: imageStore
+                    imageStore: imageStore,
+                    contactExporter: contactExporter
                 )
             }
             .task {
@@ -118,6 +126,23 @@ struct SimCamCardApp: App {
         let appSupport = PersistencePaths.defaultApplicationSupportDirectory()
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         return fileStores(paths: .production(applicationSupportDirectory: appSupport))
+    }
+    #endif
+
+    // MARK: - Contact export composition
+
+    #if DEBUG
+    /// DEBUG: honor the -SimCamCardContactExportMode launch contract
+    /// (scripted fake / system exporter; absent → real SystemContact-
+    /// Exporter for manual-launch parity).
+    private static func makeContactExporter() -> any ContactExporting {
+        ContactExportLaunchMode.makeExporter()
+    }
+    #else
+    /// Release: always the real system Contacts exporter; no debug hooks
+    /// or fake types exist in this binary.
+    private static func makeContactExporter() -> any ContactExporting {
+        SystemContactExporter()
     }
     #endif
 }

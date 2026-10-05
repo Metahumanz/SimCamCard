@@ -97,6 +97,29 @@ final class CardDetailViewModel {
         case saving(String)
     }
 
+    /// Contact-export workflow state for T19 (S09). A fourth independent
+    /// state family: exporting is an EXTERNAL SIDE EFFECT and never
+    /// mutates the displayed BusinessCard, the repository or updatedAt.
+    ///
+    /// Maps onto the frozen S09 states as follows:
+    /// - idle / requestingPermission / exporting: runtime progress
+    ///   (`contactsPermissionUnknown` is the pre-prompt condition);
+    /// - permissionDenied: `contactsPermissionDenied` (system prompt
+    ///   rejected, or the store was already denied/restricted);
+    /// - exportSucceeded: `exportSucceeded` after a real CNSaveRequest;
+    /// - exportFailed: the write threw; the card is untouched.
+    ///
+    /// Terminal states (denied/succeeded/failed) are App result surfaces
+    /// cleared by `dismissExportResult()`.
+    enum ExportState: Equatable {
+        case idle
+        case requestingPermission
+        case permissionDenied
+        case exporting
+        case exportSucceeded
+        case exportFailed
+    }
+
     /// The saved card whose structured fields are displayed. Updated
     /// IN PLACE (same aggregate id) after a successful T14 edit save.
     private(set) var card: BusinessCard
@@ -106,6 +129,12 @@ final class CardDetailViewModel {
     /// tests supply an InMemory repository seeded with the card.
     private let repository: any BusinessCardRepository
 
+    /// T19: the App-lifetime ContactExporting service injected from the
+    /// composition root (production: real SystemContactExporter; DEBUG
+    /// UI tests: scripted DebugContactExporter). The ViewModel never
+    /// imports Contacts and never builds a CNContactStore itself.
+    private let contactExporter: any ContactExporting
+
     private(set) var editState: EditState = .viewing
 
     /// T17 delete workflow state (see DeleteState).
@@ -114,13 +143,21 @@ final class CardDetailViewModel {
     /// P10 notes workflow state (see NoteState).
     private(set) var noteState: NoteState = .historyVisible
 
+    /// T19 contact-export workflow state (see ExportState).
+    private(set) var exportState: ExportState = .idle
+
     /// Note history projected from the single owning BusinessCard
     /// aggregate. The View reads this directly; there is no second copy.
     var notes: [CardNote] { card.notes }
 
-    init(card: BusinessCard, repository: any BusinessCardRepository) {
+    init(
+        card: BusinessCard,
+        repository: any BusinessCardRepository,
+        contactExporter: any ContactExporting
+    ) {
         self.card = card
         self.repository = repository
+        self.contactExporter = contactExporter
     }
 
     // MARK: - Editing lifecycle
@@ -132,7 +169,9 @@ final class CardDetailViewModel {
     func beginEditing() {
         switch editState {
         case .viewing:
-            guard noteState == .historyVisible else { return }
+            guard noteState == .historyVisible,
+                  !Self.exportBlocksOtherWorkflows(exportState)
+            else { return }
             editState = .editing(BusinessCardEditDraft(source: card))
         case .editing, .saving:
             break
@@ -177,7 +216,8 @@ final class CardDetailViewModel {
     /// (`.idle`), and no P10 Notes workflow is active; no-op during
     /// editing/saving, note adding/saving, and once deleting/deleted.
     func requestDelete() {
-        guard editState == .viewing, deleteState == .idle, noteState == .historyVisible
+        guard editState == .viewing, deleteState == .idle, noteState == .historyVisible,
+              !Self.exportBlocksOtherWorkflows(exportState)
         else { return }
         deleteState = .confirming
     }
@@ -216,7 +256,8 @@ final class CardDetailViewModel {
     func beginAddingNote() {
         guard noteState == .historyVisible,
               editState == .viewing,
-              deleteState == .idle
+              deleteState == .idle,
+              !Self.exportBlocksOtherWorkflows(exportState)
         else { return }
         noteState = .addingNote("")
     }
@@ -291,6 +332,87 @@ final class CardDetailViewModel {
             createdAt: card.createdAt,
             updatedAt: updatedAt
         )
+    }
+
+    // MARK: - Contact export lifecycle (T19, S09)
+    //
+    // Export is an external side effect on the SYSTEM Contacts store.
+    // It never mutates `card`, never calls the card repository and never
+    // advances updatedAt — a successfully exported card is byte-identical
+    // before and after. Both Detail entries (more-actions and the bottom
+    // 存入通讯录 button) call this single intents; there is no second
+    // export path.
+
+    /// True while the system permission request or the Contacts write is
+    /// in flight: every other workflow (edit/delete/note) is locked out,
+    /// and a second export tap cannot enter the flow.
+    private static func exportBlocksOtherWorkflows(_ state: ExportState) -> Bool {
+        state == .requestingPermission || state == .exporting
+    }
+
+    /// Detail → 保存到通讯录 / 存入通讯录.
+    ///
+    /// 1. Map the FINAL CORRECTED card deterministically (mapper never
+    ///    fabricates missing fields).
+    /// 2. Read current Contacts authorization without prompting:
+    ///    - already denied → `.permissionDenied` result surface;
+    ///    - allowed → write directly;
+    ///    - notDetermined → `.requestingPermission`, then the REAL system
+    ///      prompt runs; allow → write, deny → `.permissionDenied`.
+    /// 3. `.exporting` → exporter.export (CNSaveRequest). Success →
+    ///    `.exportSucceeded`; a thrown Contacts error → `.exportFailed`.
+    ///
+    /// Re-entrant calls (double tap) while requesting/exporting, and
+    /// calls while edit/delete/note workflows are active, are stable
+    /// no-ops — the system contact is created at most once per tap flow.
+    func exportToContacts() async {
+        guard editState == .viewing,
+              deleteState == .idle,
+              noteState == .historyVisible,
+              !Self.exportBlocksOtherWorkflows(exportState)
+        else { return }
+
+        let payload = BusinessCardContactMapper.map(card)
+
+        switch await contactExporter.authorizationState() {
+        case .denied:
+            exportState = .permissionDenied
+        case .allowed:
+            await performExport(payload)
+        case .notDetermined:
+            exportState = .requestingPermission
+            switch await contactExporter.requestAccess() {
+            case .allowed:
+                await performExport(payload)
+            case .denied, .notDetermined:
+                exportState = .permissionDenied
+            }
+        }
+    }
+
+    /// Runs the system write from an authorized state. All Contacts
+    /// errors surface as `.exportFailed` (the real error is not
+    /// swallowed inside the exporter); the card stays untouched.
+    private func performExport(_ payload: ContactExportPayload) async {
+        exportState = .exporting
+        do {
+            _ = try await contactExporter.export(payload)
+            exportState = .exportSucceeded
+        } catch {
+            exportState = .exportFailed
+        }
+    }
+
+    /// Clears a terminal export result surface (denied/succeeded/failed)
+    /// back to `.idle`. Never re-runs the write: dismissing a success
+    /// does not create a second contact. No-op in transient states.
+    func dismissExportResult() {
+        switch exportState {
+        case .permissionDenied, .exportSucceeded, .exportFailed:
+            exportState = .idle
+        case .idle, .requestingPermission, .exporting:
+            break
+        }
     }
 
     // MARK: - Draft intents
