@@ -5186,3 +5186,264 @@ T18 Persistence：PASS（Unit 384/32（校准后 >383）；UI 43/43；Debug/Rele
 
 Human Decision:
 Accepted — 2026-10-04 (human review)
+
+## Week 4 Increment 10 — P10 Notes
+
+### Baseline
+
+```text
+分支：week4/structured-recognition
+Baseline HEAD：e8af2b4（feat(persistence): 实现名片本地持久化，已 push）
+working tree clean；git pull --ff-only = Already up to date。
+基线回归：Unit 384/384（32 suites）、UI 43/43、Debug PASS、Release PASS、
+fixture isolation 8/8 ABSENT、storage-hook isolation 3/3 ABSENT。
+设备：iPhone 18 Pro / iOS 27.0（platform=iOS Simulator,name=iPhone 18 Pro）。
+```
+
+### Reference 观察（Reference first，编码前完成）
+
+亲自查看 evidence/screenshots/REF-notes-01-page.png，并复查
+REF-detail-01-collapsed.png / REF-detail-04-more-actions.png：
+
+- **页面性质**：独立 push 页面。导航栏居中标题「备注」，左上 < 返回
+  chevron（Back → Detail），不是 alert/sheet。
+- **历史行视觉结构（页面内唯一一条）**：
+  - 第一行：左侧粗体标题「名片保存」，右侧同一行时间戳
+    「2026-09-28 22:52」；
+  - 第二行：灰色「来源：拍名片保存」。
+  - 这是 Reference App 在拍名片保存时生成的**系统记录型条目**
+    （带标题 + 来源类型），不是用户自由文本备注。冻结 Domain
+    CardNote 只有 { id, text, createdAt }，无法也不应伪造
+    noteTitle/noteType；本 Increment 历史行只渲染 text + createdAt。
+- **Add Note 入口**：页面底部一条通栏亮蓝色圆角按钮
+  「+ 新增备注」——是页面级底部按钮，不是导航栏 + 号。
+- **Add Note 编辑器呈现：Reference 未捕获**（state-inventory S08
+  明确：addingNote entry observed; saved custom note not yet
+  captured）。编辑器形态、placeholder、保存/取消按钮属于
+  SimCamCard completion behavior，不声称 Reference pixel fidelity。
+- **空历史态：Reference 无证据**。使用中性文案「暂无备注」
+  （identifier card-notes-empty），记录为 completion behavior。
+- **时间戳格式**（REF 唯一可见事实）：`yyyy-MM-dd HH:mm`
+  （2026-09-28 22:52，无秒）。
+- **历史排序**：Reference 仅一条，无法证明排序规则；保持 Domain
+  notes 数组现有顺序（新 note append 到末尾），不擅自按 createdAt
+  reverse —— fidelity ambiguity。
+- **Detail 入口（REF-detail-01）**：头部 action strip 四个圆形按钮
+  电话(蓝)/地址(琥珀)/备注(绿色圆底白色文档线条图标)/编辑(青底铅笔)。
+  本 Increment 只把「备注」做成真实功能（card-detail-notes，SF Symbol
+  note.text 最接近 REF 图标，绿色为近似值）；电话/地址仍是不渲染的
+  deferred 项，不造死按钮。REF 中另有一条内联行
+  「备注: 2026-09-28 拍名片保存」带 chevron —— 该内联摘要依赖系统
+  保存记录语义（标题/来源），本 Increment 不实现，记录为 fidelity
+  difference（两个 Notes entry 按计划为 strip + More Actions）。
+- **More Actions 入口（REF-detail-04）**：底部 action grid 第二行含
+  分组/备注/提醒/删除，第一行含 保存到通讯录/编辑/邀请使用名片全能王。
+  当前 confirmationDialog 只有删除；现新增「备注」
+  （card-detail-more-notes）与删除并列。保存到通讯录留 T19；
+  分组/提醒/邀请 无完整 live path，不渲染。
+- **S08 解释边界**：historyVisible / addingNote 两态有 Reference 依据；
+  「自定义备注保存后的样式」Reference 未捕获，可工作的 Add Note 保存
+  是 assignment core-behavior completion，不是未观察到的 Reference 事实。
+
+### 冻结面（本 Increment 无 diff）
+
+```text
+Domain：BusinessCard.swift / CardNote.swift / PhoneNumber.swift /
+  CardTag.swift 不动；CardNote 不加 Codable、不加 title/type/status/
+  updatedAt/HTML/attachment。
+Persistence：BusinessCardRepository 协议、FileBusinessCardRepository、
+  PersistenceSnapshots/PersistencePaths、schemaVersion=1 全部不动。
+  Notes 保存只走 repository.save(updatedCard) 既有能力。
+不新增第二个 owning ViewModel；不使用/改造 BusinessCardEditDraft。
+spec/ dataset/ evidence/ project.pbxproj 无 diff。
+```
+
+### NoteState 设计与状态所有权
+
+- CardDetailViewModel 内新增**第三个独立状态族** NoteState
+  （historyVisible / addingNote(String) / saving(String)），与
+  EditState、DeleteState 并列；不新增 ViewModel、不新增聚合类型、
+  不经 BusinessCardEditDraft。
+- 唯一事实源：`private(set) var card: BusinessCard`；`var notes:
+  [CardNote] { card.notes }` 只是投影。CardNotesView 不持有
+  [CardNote] 副本，不持有 repository，草稿 String 也只存在
+  noteState 关联值里，经 updateNoteDraft(_:) 进出。
+- 保存语义：trim → 构造 CardNote（注入式 id/createdAt 默认值，测试可
+  固定）→ `private nonisolated static func appending(note:to:updatedAt:)`
+  纯函数生成同 id 新聚合（其余字段逐项原样搬运，notes = old + [note]，
+  updatedAt = 保存时刻）→ 既有 `repository.save(updatedCard)` 同 id
+  replace → `self.card = updated` → historyVisible。历史行立即出现。
+- 取消：仅 `.addingNote → .historyVisible`，丢弃草稿，card/repository
+  不动；`.saving` 中取消为 no-op。空白 trim 草稿留在 .addingNote
+  （View 层 Save 同时禁用，双保险）。
+- 互斥：beginAddingNote 要求 historyVisible + viewing + idle；
+  beginEditing / requestDelete 在 note 工作流激活时 stable no-op；
+  saving 窗口内 cancel/draft/edit/delete/重入 save 全部忽略。
+  gate actor 单测确定性地观测了 saving 窗口。
+- 排序：保持 Domain notes 数组顺序（追加在末尾），不按时间翻转
+  （Reference 仅一条，无法证明规则）。
+
+### 实现清单
+
+```text
+SimCamCard/ViewModel/CardDetailViewModel.swift（M）
+  - NoteState 枚举、noteState、notes 投影
+  - beginAddingNote / updateNoteDraft / cancelAddingNote / saveNote
+  - appending(note:to:updatedAt:) 纯函数
+  - beginEditing / requestDelete 增加 noteState 互斥守卫
+SimCamCard/View/CardDetail/CardNotesView.swift（新增）
+  - push 页面 card-notes，标题「备注」；card-notes-history
+  - 行 card-note-<uuid>：text + yyyy-MM-dd HH:mm
+  - 空态 card-notes-empty「暂无备注」（无 REF 证据，completion）
+  - 底部蓝色通栏 card-notes-add「+ 新增备注」
+  - 同页编辑器 card-note-editor
+    （TextEditor，多行，placeholder 为 completion）
+  - card-note-cancel / card-note-save（trim 非空才可点，
+    saving 时禁用全部控件并显示 ProgressView）
+  - 所有状态 marker（card-notes / card-notes-history）挂在无子节点的
+    背景/overlay 层，避免 SwiftUI 容器 accessibilityIdentifier 向子
+    Button 传播覆盖子控件自身 id（同 ScanEntryView 记录的坑）
+SimCamCard/View/CardDetail/CardDetailView.swift（M）
+  - action strip 绿色 note.text「备注」card-detail-notes（3rd slot）
+  - more-actions dialog 新增 card-detail-more-notes
+  - @State showNotes + navigationDestination(isPresented:) push
+  - strip 两个 Button 显式 .buttonStyle(.plain)：修复一个真实缺陷——
+    List 同一行内多个默认（.automatic）样式 Button 会各自退化为整行
+    action，一次 tap 同时触发「备注」push 与「编辑」sheet（P10 首轮
+    UI 回归 5 个失败的共同根因，经临时探针 record='notes;edit;' 证实）
+SimCamCardTests/ViewModel/CardDetailViewModelTests.swift（M，+8 tests）
+SimCamCardUITests/CardNotesUITests.swift（新增，3 tests）
+SimCamCardUITests/CardPersistenceUITests.swift（M）
+  - 重命名 testSavedCardEditGroupAndNoteSurviveFullTerminateAndRelaunch
+  - launch1 终止前真实走 Detail→Notes→新增「跟进客户」
+  - launch2 Detail→Notes 断言备注存在 + w4i10-note-after-relaunch
+```
+
+### Verification results
+
+```text
+设备：iPhone 18 Pro / iOS 27.0，全部 xcodebuild 串行
+（-parallel-testing-enabled NO）。
+
+Unit：392 tests / 32 suites 全部 PASS，exit 0
+（/tmp/w4i10-unit2.xcresult，含 P10 新增 8 例）。
+Final authoritative full UI gate: 46 / 46 PASS，
+0 failures，0 unexpected（/tmp/w4i10-ui5.xcresult，1130.6s）。
+Earlier diagnostic runs exposed:
+  - SwiftUI List-row dual Button action
+  - transient confirmationDialog AX timing
+Both were resolved before the final clean gate.
+CardNotesUITests additionally passed: 9 / 9 across 3 repeated
+iterations（-test-iterations 3，/tmp/w4i10-notes3.xcresult）。
+Debug build（iphonesimulator）：PASS，0 error。
+Release build（iphonesimulator）：PASS，0 error。
+Fixture isolation（Release 主二进制 7,996,944B，无 dylib）：
+  SimCamCardOCR/DebugOCRProcessor/DebugCameraEnvironment/
+  SimCamCardCamera/SimCamCardDetection/SimCamCardCrop/
+  SimCamCardPhotoImport/DebugCameraFakes = 0/0/0/0/0/0/0/0（8/8 ABSENT）
+Storage hooks：SimCamCardStorage/SimCamCardStorageNamespace/
+  SimCamCardResetStorage = 0/0/0（3/3 ABSENT）
+Debug 阳性对照（SimCamCard.debug.dylib）：上述 11 个符号全部 >0，
+扫描机制有效。
+
+回归中发现并修复的真实产品缺陷（非测试问题）：
+  Detail action strip 是 List 同一行内两个默认样式 Button；
+  .automatic 样式在 List row 中使每个 Button 退化为整行 action，
+  一次点击同时执行「备注」与「编辑」两个闭包（临时跨页记录探针实测
+  record='notes;edit;'）。现象：点备注 push 备注页的同时编辑 sheet
+  盖在上面，导致 card-notes-add 命中点 {-1,-1} 不可点；点编辑保存/
+  取消后落到备注页而非详情页——首轮 UI 5 个失败同源。修复：两个
+  Button 显式 .buttonStyle(.plain)，修复后探针实测
+  点备注 record='notes;'（仅备注页）、点编辑 record='edit;'
+  （仅 sheet）。
+```
+
+### Evidence
+
+```text
+以下 3 张均由 /tmp/w4i10-ui5.xcresult 导出并逐张人工核对，
+全部 fixture-driven（populated fixture / w4i9-t18-persistence
+ephemeral namespace），非手工摆拍：
+
+ai/validation/2026-10-05-w4i10-notes-history.png
+  备注 push 页：居中标题「备注」+ 左上 chevron；空态卡片
+  「暂无备注」；底部亮蓝通栏「+ 新增备注」。页面/标题/返回/
+  蓝色入口与 REF-notes-01 同构（REF 首条为系统记录行，本图为空态）。
+ai/validation/2026-10-05-w4i10-note-added.png
+  新增并保存「跟进客户」后历史立即出现该行，caption 时间戳
+  2026-10-05 03:40（yyyy-MM-dd HH:mm），空态消失。
+ai/validation/2026-10-05-w4i10-note-after-relaunch.png
+  terminate app → 重新启动（状态栏 03:42）→ Detail→备注，
+  「跟进客户」仍在（时间戳 03:41 为第一次启动保存时刻），
+  证明 FileBusinessCardRepository 跨进程持久化。
+```
+
+### Scope audit
+
+```text
+git diff --name-status（tracked，5 个）：
+M  SimCamCard/View/CardDetail/CardDetailView.swift
+M  SimCamCard/ViewModel/CardDetailViewModel.swift
+M  SimCamCardTests/ViewModel/CardDetailViewModelTests.swift
+M  SimCamCardUITests/CardPersistenceUITests.swift
+M  ai/changes.md
+Untracked（5 个）：
+?? SimCamCard/View/CardDetail/CardNotesView.swift
+?? SimCamCardUITests/CardNotesUITests.swift
+?? ai/validation/2026-10-05-w4i10-notes-history.png
+?? ai/validation/2026-10-05-w4i10-note-added.png
+?? ai/validation/2026-10-05-w4i10-note-after-relaunch.png
+
+冻结面 git status 复查全部 CLEAN：
+SimCamCard/Model、SimCamCard/Persistence、SimCamCard/Repository、
+SimCamCard/Recognition、SimCamCard/Edit、SimCamCard/Search、
+spec/、dataset/、evidence/、SimCamCard.xcodeproj
+（PBXFileSystemSynchronizedRootGroup 自动收纳新增文件）。
+无第二个 ViewModel、无第二份 [CardNote] 副本、无第二个 draft
+String；备注保存只经 BusinessCard → repository.save(updatedCard)。
+调试期临时探针文件（DiagTEMP.swift / DiagnosticTEMPUITests.swift）
+已全部删除，产物中无 DIAG 残留符号。
+未 commit、未 push、未创建分支。
+```
+
+### P10 behavioral acceptance
+
+```text
+P10 required-scope behavior：PASS
+  - Detail→备注 push（action strip 与 more-actions 两个入口等价）。
+  - 空历史显示「暂无备注」；新增→输入→保存→行立即进入历史；
+    时间戳 yyyy-MM-dd HH:mm。
+  - 取消不落库（重开仍为空）；纯空白保存被拒（trim 守卫 + 按钮禁用）。
+  - 离开/重开备注仍在（同一 BusinessCard 聚合，无 View 副本）。
+  - terminate app → 重新启动后备注仍在（真实 E2E，T18 升级）。
+  - 备注/编辑/删除三状态族互斥有单测与 UI 覆盖。
+P10 full Reference fidelity：PARTIAL（按计划记录的差距，非缺陷）
+  一致：push 页形态、居中「备注」标题、plain back chevron、
+    历史行 text+时间戳同行、底部亮蓝「+ 新增备注」通栏按钮。
+  差距：
+    1) REF 首条是系统记录型「名片保存 / 来源：拍名片保存」，
+       冻结 CardNote{id,text,createdAt} 无 title/type，不仿造；
+    2) Add-note 编辑器 REF 未捕获（S08 completion behavior）；
+    3) 空历史态 REF 无证据（completion behavior）；
+    4) Detail 内联备注摘要行「备注: 2026-09-28 拍名片保存」
+       依赖系统记录语义，本 Increment 不实现；
+    5) 历史排序保持数组 append 顺序，REF 仅一条无法证明规则。
+T19 Contact Export：NOT IMPLEMENTED
+T20 Final sweep：NOT IMPLEMENTED
+```
+
+### T-status
+
+```text
+T11–T18 PASS（全量 46 UI + 392 Unit 回归）
+P10 Notes required behavior：PASS（Reference fidelity PARTIAL，差距如上）
+T19 Contact Export：NOT IMPLEMENTED
+T20 Final exception/fidelity sweep：NOT IMPLEMENTED
+额外修复：action strip 同行双 Button 的 List-row action 误触发缺陷
+（见 Verification results），T14 编辑入口因此也更健壮。
+```
+
+### Human Decision
+
+Human Decision:
+Accepted — 2026-10-05 (human review)

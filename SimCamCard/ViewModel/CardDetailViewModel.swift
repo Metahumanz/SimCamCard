@@ -78,6 +78,25 @@ final class CardDetailViewModel {
         case deleted
     }
 
+    /// Notes workflow state for the P10 Notes page (S08). A third
+    /// independent state family: the displayed BusinessCard remains the
+    /// single source of truth for the note history (`card.notes`), and
+    /// only `saveNote` mutates that aggregate — through the same
+    /// `repository.save(_:)` same-id replace path as T14 edits. The View
+    /// never owns a second `[CardNote]` copy.
+    ///
+    /// - historyVisible: the Notes history is shown.
+    /// - addingNote: the multiline editor holds a live draft String;
+    ///   intents mutate only it; cancel discards it without touching the
+    ///   card or repository.
+    /// - saving: the trimmed note is being persisted; editor intents and
+    ///   re-entrant saves are ignored.
+    enum NoteState: Equatable {
+        case historyVisible
+        case addingNote(String)
+        case saving(String)
+    }
+
     /// The saved card whose structured fields are displayed. Updated
     /// IN PLACE (same aggregate id) after a successful T14 edit save.
     private(set) var card: BusinessCard
@@ -92,6 +111,13 @@ final class CardDetailViewModel {
     /// T17 delete workflow state (see DeleteState).
     private(set) var deleteState: DeleteState = .idle
 
+    /// P10 notes workflow state (see NoteState).
+    private(set) var noteState: NoteState = .historyVisible
+
+    /// Note history projected from the single owning BusinessCard
+    /// aggregate. The View reads this directly; there is no second copy.
+    var notes: [CardNote] { card.notes }
+
     init(card: BusinessCard, repository: any BusinessCardRepository) {
         self.card = card
         self.repository = repository
@@ -100,10 +126,13 @@ final class CardDetailViewModel {
     // MARK: - Editing lifecycle
 
     /// Detail → 编辑. Re-entering while already editing/saving keeps the
-    /// current draft (stable no-op).
+    /// current draft (stable no-op). While the P10 Notes workflow is
+    /// active (`.addingNote`/`.saving`) editing cannot start — the
+    /// displayed aggregate must not have two mutating families live.
     func beginEditing() {
         switch editState {
         case .viewing:
+            guard noteState == .historyVisible else { return }
             editState = .editing(BusinessCardEditDraft(source: card))
         case .editing, .saving:
             break
@@ -144,10 +173,12 @@ final class CardDetailViewModel {
     // throws today, so there is no fabricated failed state.
 
     /// More → 删除: open the native confirmation. Allowed only while the
-    /// Detail is read-only (`.viewing`) and no delete flow is active
-    /// (`.idle`); no-op during editing/saving and once deleting/deleted.
+    /// Detail is read-only (`.viewing`), no delete flow is active
+    /// (`.idle`), and no P10 Notes workflow is active; no-op during
+    /// editing/saving, note adding/saving, and once deleting/deleted.
     func requestDelete() {
-        guard editState == .viewing, deleteState == .idle else { return }
+        guard editState == .viewing, deleteState == .idle, noteState == .historyVisible
+        else { return }
         deleteState = .confirming
     }
 
@@ -169,6 +200,97 @@ final class CardDetailViewModel {
         await repository.delete(id: card.id)
         deleteState = .deleted
         return true
+    }
+
+    // MARK: - Notes lifecycle (P10, S08)
+    //
+    // The Notes page is a push page that reads the history directly from
+    // `card.notes`. Adding a note appends to that SAME BusinessCard
+    // aggregate (every other field byte-identical) and persists it with
+    // the existing repository.save path — there is no draft aggregate and
+    // no second owning store. Cancel discards only the in-flight String.
+
+    /// 新增备注: enter the editor with an empty draft. Allowed only while
+    /// the history is visible and no edit/delete workflow is active;
+    /// re-entrant calls and calls during `.saving` are stable no-ops.
+    func beginAddingNote() {
+        guard noteState == .historyVisible,
+              editState == .viewing,
+              deleteState == .idle
+        else { return }
+        noteState = .addingNote("")
+    }
+
+    /// Updates the live note draft only while `.addingNote`. The View
+    /// routes the TextEditor Binding through this — it never holds the
+    /// draft String. No-op in `.historyVisible`/`.saving`.
+    func updateNoteDraft(_ value: String) {
+        guard case .addingNote = noteState else { return }
+        noteState = .addingNote(value)
+    }
+
+    /// 取消: discard the draft and return to the history. The displayed
+    /// BusinessCard and the repository stay unchanged. No-op outside
+    /// `.addingNote` (in particular during `.saving`).
+    func cancelAddingNote() {
+        guard case .addingNote = noteState else { return }
+        noteState = .historyVisible
+    }
+
+    /// 保存: trim the draft, append a CardNote to the same-id aggregate,
+    /// persist it via `repository.save(_:)`, update the displayed card,
+    /// and return to the history (which immediately contains the new
+    /// note). Whitespace-only drafts remain in `.addingNote`; the View
+    /// also disables the button, so this is a defensive guard.
+    ///
+    /// Re-entrant calls and calls outside `.addingNote` (including a
+    /// double-tap that lands in `.saving`) are ignored — the note is
+    /// appended exactly once.
+    @discardableResult
+    func saveNote(id: UUID = UUID(), createdAt: Date = Date()) async -> Bool {
+        guard case .addingNote(let draft) = noteState else { return false }
+
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return false }
+
+        noteState = .saving(trimmed)
+
+        let note = CardNote(id: id, text: trimmed, createdAt: createdAt)
+        let updated = Self.appending(note: note, to: card, updatedAt: createdAt)
+        await repository.save(updated)
+
+        self.card = updated
+        noteState = .historyVisible
+        return true
+    }
+
+    /// Builds the updated aggregate with `note` appended. Every other
+    /// field is carried over unchanged: identity, both image references,
+    /// raw OCR text, structured fields, the same PhoneNumber ids, emails,
+    /// tags, existing notes (same ids/order), and the original
+    /// `createdAt`. Only `updatedAt` advances to the save instant.
+    private nonisolated static func appending(
+        note: CardNote,
+        to card: BusinessCard,
+        updatedAt: Date
+    ) -> BusinessCard {
+        BusinessCard(
+            id: card.id,
+            originalImageReference: card.originalImageReference,
+            processedImageReference: card.processedImageReference,
+            rawOCRText: card.rawOCRText,
+            name: card.name,
+            company: card.company,
+            jobTitle: card.jobTitle,
+            website: card.website,
+            address: card.address,
+            phones: card.phones,
+            emails: card.emails,
+            tags: card.tags,
+            notes: card.notes + [note],
+            createdAt: card.createdAt,
+            updatedAt: updatedAt
+        )
     }
 
     // MARK: - Draft intents

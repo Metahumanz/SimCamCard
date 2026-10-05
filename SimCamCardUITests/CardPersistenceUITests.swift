@@ -2,7 +2,9 @@
 //  CardPersistenceUITests.swift
 //  SimCamCardUITests
 //
-//  T18 Persistence end-to-end UI test (Week 4 Increment 9).
+//  T18 Persistence end-to-end UI test (Week 4 Increment 9), extended in
+//  Week 4 Increment 10 to also prove the P10 user note survives a full
+//  terminate/relaunch.
 //
 //  Spec sources:
 //   - spec/reference-tests.md T18: "After a full quit and relaunch,
@@ -12,6 +14,7 @@
 //   - spec/state-inventory.md S10: savedBeforeQuit /
 //     restoredAfterRelaunch; preserve original image, processed image,
 //     corrected fields, group/tag, notes.
+//   - spec/page-inventory.md P10 Notes (W4I10 user-workflow proof).
 //
 //  Proof model:
 //   - LAUNCH 1: real File repositories under the isolated DEBUG
@@ -19,23 +22,25 @@
 //     fixture-driven scanner (authorized camera / auto crop / success
 //     OCR) capture → confirm → save ONE card; then correct its job
 //     title via the saved-card Edit flow (T14); then create group
-//     客户 and assign the card (T16). The store now holds card +
-//     corrected fields + group/tag + original/processed image bytes.
+//     客户 and assign the card (T16); then open the P10 Notes page
+//     and add the user note 跟进客户. The store now holds card +
+//     corrected fields + group/tag + user note + original/processed
+//     image bytes.
 //   - XCUIApplication.terminate() and wait for the process to
 //     actually reach .notRunning (a still-live process would prove
 //     nothing about disk persistence).
 //   - LAUNCH 2: a BRAND-NEW XCUIApplication with the SAME namespace
 //     and reset:FALSE (must not wipe) and NO camera arguments. The app
 //     builds brand-new File repositories from disk. Assertions verify
-//     the card, corrected title, group catalog/membership and the
-//     resolved card image all survived the full terminate/relaunch.
+//     the card, corrected title, group catalog/membership, the user
+//     note and the resolved card image all survived the full
+//     terminate/relaunch.
 //
 //  NON-CLAIMS:
 //   - Fixture-driven: DEBUG fakes drive camera/crop/OCR; this is not
 //     real camera/Vision verification (unchanged from W3/W4 tests).
-//   - Notes (P10 UI) are not created here; CardNote persistence is
-//     covered by the repository unit tests.
-//   - Evidence screenshots are taken ONLY after the second launch.
+//   - Evidence screenshots are taken ONLY after the second launch
+//     (plus the pre-terminate note workflow asserts no screenshot).
 //
 
 import XCTest
@@ -60,13 +65,16 @@ final class CardPersistenceUITests: XCTestCase {
     private let website = "www.zhiyuntech.com"
     private let groupName = "客户"
 
+    /// P10 user note added before termination (W4I10 extension).
+    private let noteText = "跟进客户"
+
     private let createAlertTitle = "新建分组"
     private let namePlaceholder = "请输入分组名称"
 
     // MARK: - Test
 
     @MainActor
-    func testSavedCardEditAndGroupSurviveFullTerminateAndRelaunch() throws {
+    func testSavedCardEditGroupAndNoteSurviveFullTerminateAndRelaunch() throws {
         // ============ LAUNCH 1: write the full state ============
         let app = UITestAppFactory.launchPersistent(
             namespace: namespace,
@@ -222,6 +230,45 @@ final class CardPersistenceUITests: XCTestCase {
             "Group 客户 should show member count (1)."
         )
 
+        // 5. P10: back to the Holder → open the saved card's Detail →
+        //    Notes → add a user note (W4I10). This exercises the real
+        //    user workflow against the same File repository the group
+        //    assignment just used.
+        app.navigationBars["分组"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "Back should return to the Holder before adding the note."
+        )
+        app.staticTexts[cardName].tap()
+        XCTAssertTrue(
+            app.navigationBars["名片详情"].waitForExistence(timeout: 10),
+            "Saved card Detail should open for the note step."
+        )
+        app.buttons["card-detail-notes"].tap()
+        XCTAssertTrue(
+            app.navigationBars["备注"].waitForExistence(timeout: 5),
+            "备注 should push the Notes page."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-notes-empty"].waitForExistence(timeout: 5),
+            "A freshly saved card starts with an empty notes history."
+        )
+        let noteAddButton = app.buttons["card-notes-add"]
+        XCTAssertTrue(
+            noteAddButton.waitForExistence(timeout: 5),
+            "The Notes page should show the 新增备注 entry."
+        )
+        noteAddButton.tap()
+        let noteEditor = app.textViews["card-note-editor"]
+        XCTAssertTrue(noteEditor.waitForExistence(timeout: 5))
+        noteEditor.tap()
+        noteEditor.typeText(noteText)
+        tapNoteSaveCommittingIME(app)
+        XCTAssertTrue(
+            app.staticTexts[noteText].waitForExistence(timeout: 5),
+            "The user note must be visible in the history before termination."
+        )
+
         // ============ FULL TERMINATION ============
         app.terminate()
         XCTAssertTrue(
@@ -302,6 +349,35 @@ final class CardPersistenceUITests: XCTestCase {
             name: "w4i9-persistence-detail-after-relaunch"
         )
 
+        // P10 note after relaunch: Detail → Notes shows the user note
+        // that was added immediately before terminate (W4I10 upgrade
+        // of T18 — real add → terminate → relaunch persistence).
+        relaunched.buttons["card-detail-notes"].tap()
+        XCTAssertTrue(
+            relaunched.navigationBars["备注"].waitForExistence(timeout: 5),
+            "The Notes page should open after relaunch."
+        )
+        XCTAssertTrue(
+            relaunched.staticTexts[noteText].waitForExistence(timeout: 5),
+            "The user note 跟进客户 must survive the full terminate/relaunch."
+        )
+        XCTAssertFalse(
+            relaunched.descendants(matching: .any)["card-notes-empty"].exists,
+            "The restored history must not show the empty state."
+        )
+
+        // Evidence 3 (W4I10): the restored note, taken AFTER the
+        // second launch.
+        attachScreenshot(
+            relaunched,
+            name: "w4i10-note-after-relaunch"
+        )
+
+        relaunched.navigationBars["备注"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            relaunched.navigationBars["名片详情"].waitForExistence(timeout: 5)
+        )
+
         // Group catalog after relaunch: 客户 still exists, count 1.
         relaunched.navigationBars["名片详情"].buttons.element(boundBy: 0).tap()
         XCTAssertTrue(
@@ -347,6 +423,28 @@ final class CardPersistenceUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Taps the note editor 保存 button, re-tapping once if the first
+    /// tap was consumed by the Chinese IME committing marked text.
+    ///
+    /// Same software-keyboard quirk as `confirmGroupCreateAlert`, but for
+    /// a MULTILINE TextEditor a Return keystroke must never be faked
+    /// (it would insert a literal newline into the note) — the remedy
+    /// here is purely a guarded second tap.
+    @MainActor
+    private func tapNoteSaveCommittingIME(_ app: XCUIApplication) {
+        let saveButton = app.buttons["card-note-save"]
+        let editor = app.textViews["card-note-editor"]
+
+        saveButton.tap()
+        if editor.waitForExistence(timeout: 2) {
+            saveButton.tap()
+        }
+        XCTAssertTrue(
+            editor.waitForNonExistence(timeout: 5),
+            "保存 should leave the note editor after the committed second tap."
+        )
+    }
 
     @MainActor
     private func attachScreenshot(_ app: XCUIApplication, name: String) {

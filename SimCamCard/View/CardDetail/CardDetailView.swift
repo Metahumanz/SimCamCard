@@ -3,7 +3,8 @@
 //  SimCamCard
 //
 //  Card Detail page (P07, S06 detailCollapsed / T13 Detail) with the
-//  T14 Existing-Card Editing entry and the T17 Delete flow.
+//  T14 Existing-Card Editing entry, the P10 Notes entry, and the T17
+//  Delete flow.
 //
 //  Spec sources:
 //   - spec/page-inventory.md P07 Card Detail ("View structured data")
@@ -30,9 +31,12 @@
 //   - emails[] (邮箱)                → one CardDetailFieldRow EACH
 //   - website (首页)                 → single CardDetailFieldRow if present
 //   - address (公司地址)             → single CardDetailFieldRow if present
-//   - T14 Edit entry                 → teal circular pencil 编辑 action at
-//     the Reference action-strip position (4th slot; the deferred
-//     电话/地址/备注 actions are not faked), presenting CardEditView.
+//   - P10 Notes entry                → green circular note.text 备注
+//     action (3rd slot) plus a 备注 row in the more-actions dialog,
+//     both pushing CardNotesView.
+//   - T14 Edit entry                 → teal circular pencil 编辑 action
+//     at the Reference action-strip position (4th slot), presenting
+//     CardEditView; the deferred 电话/地址 actions are not faked.
 //
 //  Collapsed/expanded decision (recorded ambiguity):
 //   - The Reference collapsed state (REF-detail-01) shows only the first
@@ -51,17 +55,27 @@
 //  the sheet dismisses, without returning to the Holder. The Holder
 //  reloads through its existing onAppear path when the user goes back.
 //
-//  Deliberately NOT implemented: Notes (P10), Export (T19),
-//  phone/email/web invocation (no tel:/URL wiring), favorite star, the
-//  deferred more-sheet entries (保存到通讯录/分组/备注/提醒/邀请使用名片),
-//  the 电话/地址 action-strip entries, the 未分组 group row, the notes
-//  row, the bottom 存入通讯录/递名片/分享名片 bar, avatar, card image
-//  (Domain holds String references only), and 展开/收起.
+//  P10 closure: both 备注 entries push CardNotesView with the SAME view
+//  model, so a saved note appends to this same BusinessCard aggregate
+//  (repository.save same-id replace) and is visible immediately; the
+//  pushed page pops back to an already-consistent Detail. The
+//  Reference's inline notes-summary row (「备注: 2026-09-28 拍名片保存」)
+//  is not implemented — it previews a typed system save record that the
+//  frozen CardNote domain cannot represent (fidelity difference).
+//
+//  Deliberately NOT implemented: Export (T19), phone/email/web
+//  invocation (no tel:/URL wiring), favorite star, the deferred
+//  more-sheet entries (保存到通讯录/分组/提醒/邀请使用名片), the
+//  电话/地址 action-strip entries, the 未分组 group row, the inline
+//  notes-summary row, the bottom 存入通讯录/递名片/分享名片 bar,
+//  avatar, card image (Domain holds String references only), and
+//  展开/收起.
 //  No "Coming soon" / "Not implemented" text.
 //
 //  T17 closure: the trailing ••• (card-detail-more) opens a native
-//  confirmationDialog whose only live action is 删除 (card-detail-delete);
-//  that presents the native 「提示」 alert. Confirm runs repository delete
+//  confirmationDialog whose live actions are 备注 (P10) and 删除
+//  (card-detail-delete); 删除 presents the native 「提示」 alert.
+//  Confirm runs repository delete
 //  → Holder onDeleted reload → dismiss; 取消 leaves the card untouched.
 //
 
@@ -85,6 +99,10 @@ struct CardDetailView: View {
 
     /// Presents the native 「提示」 delete confirmation alert.
     @State private var showDeleteAlert = false
+
+    /// Pushes the P10 Notes page (both the action-strip 备注 entry and
+    /// the more-actions 备注 entry share this single pushed page).
+    @State private var showNotes = false
 
     private var card: BusinessCard { viewModel.card }
 
@@ -119,14 +137,41 @@ struct CardDetailView: View {
 
             // MARK: Action strip
             //
-            // T14: the Reference places four circular actions under the
-            // header (电话 / 地址 / 备注 / 编辑). Only 编辑 is functional
-            // in this increment; it occupies the Reference's trailing
-            // position. The deferred actions are intentionally not
-            // rendered as dead controls.
+            // T14/P10: the Reference places four circular actions under
+            // the header (电话 / 地址 / 备注 / 编辑). 备注 and 编辑 are
+            // functional; they occupy the Reference's trailing pair
+            // (3rd/4th slots). The deferred 电话/地址 actions are
+            // intentionally not rendered as dead controls.
+            //
+            // Both buttons MUST carry an explicit PlainButtonStyle.
+            // With the List-row default `.automatic` style, multiple
+            // Buttons sharing one List row are each treated as a row
+            // action: a single tap then runs EVERY button's action in
+            // the row (observed: tapping 备注 also opened the edit
+            // sheet). `.plain` makes each Button a standalone control.
             Section {
-                HStack {
+                HStack(spacing: 28) {
                     Spacer()
+
+                    Button {
+                        showNotes = true
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "note.text")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color(red: 0.55, green: 0.76, blue: 0.20))
+                                .clipShape(Circle())
+                            Text("备注")
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("备注")
+                    .accessibilityIdentifier("card-detail-notes")
+
                     Button {
                         viewModel.beginEditing()
                     } label: {
@@ -142,6 +187,7 @@ struct CardDetailView: View {
                         }
                     }
                     .foregroundStyle(.primary)
+                    .buttonStyle(.plain)
                     .accessibilityLabel("编辑")
                     .accessibilityIdentifier("card-detail-edit")
                 }
@@ -196,11 +242,11 @@ struct CardDetailView: View {
         .navigationTitle("名片详情")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // T17 Reference entry (REF-detail-04): the trailing ••• opens
-            // the native more-actions surface. Only the functional 删除
-            // action is rendered this Increment — the Reference's other
-            // grid entries (保存到通讯录/分组/备注/提醒/邀请) are deferred
-            // and never faked as dead buttons.
+            // T17/P10 Reference entries (REF-detail-04): the trailing •••
+            // opens the native more-actions surface. 备注 pushes the
+            // Notes page and 删除 runs the T17 flow; the Reference's
+            // other grid entries (保存到通讯录/分组/提醒/邀请) are
+            // deferred and never faked as dead buttons.
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showMoreActions = true
@@ -216,6 +262,15 @@ struct CardDetailView: View {
             isPresented: $showMoreActions,
             titleVisibility: .visible
         ) {
+            // 备注 (P10): push the same Notes page as the action-strip
+            // entry (REF-detail-04 row 2).
+            Button {
+                showNotes = true
+            } label: {
+                Label("备注", systemImage: "note.text")
+            }
+            .accessibilityIdentifier("card-detail-more-notes")
+
             // 删除 → request confirmation (T17). The destructive action
             // moves the ViewModel to .confirming and presents the alert.
             Button(role: .destructive) {
@@ -253,6 +308,9 @@ struct CardDetailView: View {
         }
         .sheet(isPresented: editingSheetBinding) {
             CardEditView(viewModel: viewModel)
+        }
+        .navigationDestination(isPresented: $showNotes) {
+            CardNotesView(viewModel: viewModel)
         }
     }
 

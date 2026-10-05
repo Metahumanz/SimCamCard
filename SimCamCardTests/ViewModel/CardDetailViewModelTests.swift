@@ -22,6 +22,11 @@
 //   - T14: begin/intent/cancel/save workflow, same-id repository replace
 //     (count unchanged), Detail in-place refresh, existing phone ids
 //     preserved, metadata preserved, updatedAt advanced.
+//   - P10: note history projection, begin/update/cancel/save workflow,
+//     trimming + injected id/timestamp, same-id append (count unchanged),
+//     immediate Detail refresh, identity/metadata/existing-note
+//     preservation, .saving re-entrancy and cross-family mutual
+//     exclusion with edit/delete.
 //
 
 import Testing
@@ -66,6 +71,314 @@ struct CardDetailViewModelTests {
         ])
         #expect(displayed.emails == ["one@example.com", "two@example.com"])
         #expect(await repository.allCards().count == 1)
+    }
+
+    // MARK: - P10 Notes (S08)
+    //
+    // Synthetic BusinessCard fixtures (no DEBUG-only MockBusinessCards
+    // dependency) so the notes workflow is covered in every build
+    // configuration. CardDetailViewModel is the sole state owner; the
+    // tests cover state transitions, trimming, the single
+    // repository.save same-id append, identity/metadata/existing-note
+    // preservation, the .saving re-entrancy window, and cross-family
+    // mutual exclusion with the T14 edit and T17 delete families.
+
+    private let p10CardID = UUID(uuidString: "B0000001-0000-0000-0000-000000000001")!
+    private let p10ExistingNoteID = UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!
+    private let p10PhoneIDMobile = UUID(uuidString: "D0000001-0000-0000-0000-000000000001")!
+    private let p10PhoneIDOffice = UUID(uuidString: "D0000001-0000-0000-0000-000000000002")!
+    private let p10TagID = UUID(uuidString: "E0000001-0000-0000-0000-000000000001")!
+    private let p10CardEpoch = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private func makeP10Card(existingNotes: [CardNote] = []) -> BusinessCard {
+        BusinessCard(
+            id: p10CardID,
+            originalImageReference: "p10-original",
+            processedImageReference: "p10-processed",
+            rawOCRText: "RAW-OCR-TEXT",
+            name: "备注客户",
+            company: "备注科技有限公司",
+            jobTitle: "客户总监",
+            website: "notes.example.com",
+            address: "备注路 88 号",
+            phones: [
+                PhoneNumber(id: p10PhoneIDMobile, kind: .mobile, value: "13800001111"),
+                PhoneNumber(id: p10PhoneIDOffice, kind: .office, value: "02122223333"),
+            ],
+            emails: ["notes@example.com"],
+            tags: [CardTag(id: p10TagID, name: "客户")],
+            notes: existingNotes,
+            createdAt: p10CardEpoch,
+            updatedAt: p10CardEpoch
+        )
+    }
+
+    private func makeNotesViewModel(
+        existingNotes: [CardNote] = []
+    ) -> (CardDetailViewModel, InMemoryBusinessCardRepository, BusinessCard) {
+        let card = makeP10Card(existingNotes: existingNotes)
+        let repository = InMemoryBusinessCardRepository(initialCards: [card])
+        return (CardDetailViewModel(card: card, repository: repository), repository, card)
+    }
+
+    @Test("P10 initial state exposes historyVisible and projects card.notes")
+    func p10InitialStateProjectsCardNotes() {
+        let existing = CardNote(id: p10ExistingNoteID, text: "老备注", createdAt: p10CardEpoch)
+        let (viewModel, _, _) = makeNotesViewModel(existingNotes: [existing])
+
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.notes == [existing])
+        #expect(viewModel.notes[0].id == p10ExistingNoteID)
+    }
+
+    @Test("P10 begin/update/re-entry keep the draft; cancel discards it without persisting")
+    func p10DraftLifecycleAndCancel() async {
+        let (viewModel, repository, original) = makeNotesViewModel()
+
+        viewModel.beginAddingNote()
+        #expect(viewModel.noteState == .addingNote(""))
+
+        viewModel.updateNoteDraft("草稿内容")
+        #expect(viewModel.noteState == .addingNote("草稿内容"))
+
+        // Re-entering while adding keeps the live draft (stable no-op).
+        viewModel.beginAddingNote()
+        #expect(viewModel.noteState == .addingNote("草稿内容"))
+
+        viewModel.cancelAddingNote()
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.notes == [])
+        #expect(viewModel.card == original)
+        let stored = await repository.card(id: p10CardID)
+        #expect(stored == original)
+        #expect(await repository.allCards().count == 1)
+
+        // Cancel from historyVisible and draft updates outside adding are
+        // safe no-ops.
+        viewModel.cancelAddingNote()
+        #expect(viewModel.noteState == .historyVisible)
+        viewModel.updateNoteDraft("不应生效")
+        #expect(viewModel.noteState == .historyVisible)
+    }
+
+    @Test("P10 a whitespace-only draft cannot be saved; state and storage stay unchanged")
+    func p10BlankDraftIsRejected() async {
+        let (viewModel, repository, original) = makeNotesViewModel()
+
+        viewModel.beginAddingNote()
+        viewModel.updateNoteDraft("  \n\t ")
+        let saved = await viewModel.saveNote()
+
+        #expect(saved == false)
+        // The defensive guard keeps the editor open with the original
+        // draft (the View also disables the Save button).
+        #expect(viewModel.noteState == .addingNote("  \n\t "))
+        #expect(viewModel.notes == [])
+        #expect(viewModel.card == original)
+        #expect(await repository.card(id: p10CardID) == original)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("P10 saveNote outside addingNote is a stable no-op returning false")
+    func p10SaveFromHistoryIsNoOp() async {
+        let (viewModel, repository, original) = makeNotesViewModel()
+
+        let saved = await viewModel.saveNote(id: UUID(), createdAt: Date())
+        #expect(saved == false)
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.card == original)
+        #expect(await repository.card(id: p10CardID) == original)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("P10 save appends the trimmed note with injected id/timestamp and refreshes immediately")
+    func p10SaveAppendsNoteAndRefreshesImmediately() async {
+        let (viewModel, repository, _) = makeNotesViewModel()
+        let noteID = UUID(uuidString: "F0000001-0000-0000-0000-000000000001")!
+        let savedAt = Date(timeIntervalSince1970: 1_790_500_000)
+
+        viewModel.beginAddingNote()
+        viewModel.updateNoteDraft("  跟进客户\n")
+        let saved = await viewModel.saveNote(id: noteID, createdAt: savedAt)
+
+        #expect(saved == true)
+        #expect(viewModel.noteState == .historyVisible)
+        // The history projection reflects the appended note immediately,
+        // without a pop/reload round trip.
+        #expect(viewModel.notes.count == 1)
+        #expect(viewModel.notes[0].id == noteID)
+        #expect(viewModel.notes[0].text == "跟进客户")
+        #expect(viewModel.notes[0].createdAt == savedAt)
+        #expect(viewModel.card.updatedAt == savedAt)
+        #expect(viewModel.card.id == p10CardID)
+
+        // Repository: SAME id replaced — no duplicate.
+        let stored = await repository.card(id: p10CardID)
+        #expect(stored == viewModel.card)
+        #expect(stored?.notes.count == 1)
+        #expect(await repository.allCards().count == 1)
+
+        // After completion a second call cannot append again.
+        let second = await viewModel.saveNote(
+            id: UUID(uuidString: "F0000001-0000-0000-0000-000000000002")!,
+            createdAt: Date(timeIntervalSince1970: 1_790_600_000)
+        )
+        #expect(second == false)
+        #expect(viewModel.notes.map(\.id) == [noteID])
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("P10 save preserves identity, every other field, existing notes and phone/tag ids")
+    func p10SavePreservesAllOtherFieldsAndExistingNotes() async {
+        let existing = CardNote(
+            id: p10ExistingNoteID,
+            text: "老备注",
+            createdAt: Date(timeIntervalSince1970: 1_600_000_000)
+        )
+        let (viewModel, repository, original) = makeNotesViewModel(existingNotes: [existing])
+        let newNoteID = UUID(uuidString: "F0000002-0000-0000-0000-000000000001")!
+        let savedAt = Date(timeIntervalSince1970: 1_790_500_000)
+
+        viewModel.beginAddingNote()
+        viewModel.updateNoteDraft("新备注：下周电话沟通")
+        _ = await viewModel.saveNote(id: newNoteID, createdAt: savedAt)
+
+        let updated = viewModel.card
+
+        // Existing note keeps identity, payload, timestamp and position;
+        // the new note is appended after it (Domain array order; the
+        // Reference cannot prove a sort rule with its single entry).
+        #expect(updated.notes.count == 2)
+        #expect(updated.notes[0] == existing)
+        #expect(updated.notes[1].id == newNoteID)
+        #expect(updated.notes[1].text == "新备注：下周电话沟通")
+        #expect(updated.notes[1].createdAt == savedAt)
+
+        // Identity and creation metadata.
+        #expect(updated.id == original.id)
+        #expect(updated.createdAt == original.createdAt)
+        #expect(updated.updatedAt == savedAt)
+        // Both image references and raw OCR text untouched.
+        #expect(updated.originalImageReference == original.originalImageReference)
+        #expect(updated.processedImageReference == original.processedImageReference)
+        #expect(updated.rawOCRText == original.rawOCRText)
+        // Structured scalars untouched.
+        #expect(updated.name == original.name)
+        #expect(updated.company == original.company)
+        #expect(updated.jobTitle == original.jobTitle)
+        #expect(updated.website == original.website)
+        #expect(updated.address == original.address)
+        // Phone identities/kinds, emails and tags untouched.
+        #expect(updated.phones == original.phones)
+        #expect(updated.phones.map(\.id) == [p10PhoneIDMobile, p10PhoneIDOffice])
+        #expect(updated.phones.map(\.kind) == original.phones.map(\.kind))
+        #expect(updated.emails == original.emails)
+        #expect(updated.tags == original.tags)
+        #expect(updated.tags[0].id == p10TagID)
+
+        // The repository stores exactly that aggregate.
+        #expect(await repository.card(id: p10CardID) == updated)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    @Test("P10 during .saving cancel/edit/delete/draft intents and a re-entrant save are ignored")
+    func p10SavingWindowIsGuardedAndAppendsExactlyOnce() async {
+        let card = makeP10Card()
+        let gate = GatedSaveRepository(initialCards: [card])
+        let viewModel = CardDetailViewModel(card: card, repository: gate)
+        let noteID = UUID(uuidString: "F0000003-0000-0000-0000-000000000001")!
+        let otherID = UUID(uuidString: "F0000003-0000-0000-0000-000000000002")!
+        let savedAt = Date(timeIntervalSince1970: 1_790_500_000)
+
+        viewModel.beginAddingNote()
+        viewModel.updateNoteDraft("第一条")
+        let saveTask = Task { @MainActor () -> Bool in
+            await viewModel.saveNote(id: noteID, createdAt: savedAt)
+        }
+
+        // Wait until the repository has ENTERED the gated save, i.e. the
+        // view model is observably in .saving with the write in flight.
+        await p10WaitUntil("gated save never entered") {
+            await gate.saveCallCount == 1
+        }
+        #expect(viewModel.noteState == .saving("第一条"))
+        #expect(viewModel.notes.isEmpty)
+
+        // Cross-family entry points stay locked while saving.
+        viewModel.beginEditing()
+        viewModel.requestDelete()
+        #expect(viewModel.editState == .viewing)
+        #expect(viewModel.deleteState == .idle)
+        // Cancel/draft intents cannot disturb the in-flight save.
+        viewModel.cancelAddingNote()
+        viewModel.updateNoteDraft("被忽略的草稿")
+        #expect(viewModel.noteState == .saving("第一条"))
+        // A re-entrant double-tap is rejected before the gate opens.
+        let reentrant = await viewModel.saveNote(id: otherID, createdAt: savedAt)
+        #expect(reentrant == false)
+        #expect(await gate.saveCallCount == 1)
+
+        await gate.releaseSave()
+        #expect(await saveTask.value == true)
+
+        // Exactly one append, exactly one write, with the first identity.
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.notes.map(\.id) == [noteID])
+        #expect(await gate.saveCallCount == 1)
+        #expect(await gate.card(id: p10CardID)?.notes.map(\.id) == [noteID])
+        #expect(await gate.allCards().count == 1)
+    }
+
+    @Test("P10 note workflow is mutually exclusive with the edit and delete families")
+    func p10CrossFamilyMutualExclusion() async {
+        let (viewModel, repository, original) = makeNotesViewModel()
+
+        // beginAddingNote is ignored while an edit draft is live.
+        viewModel.beginEditing()
+        viewModel.beginAddingNote()
+        #expect(viewModel.noteState == .historyVisible)
+        guard case .editing = viewModel.editState else {
+            Issue.record("Edit workflow must remain active.")
+            return
+        }
+        viewModel.cancelEditing()
+
+        // beginAddingNote is ignored while the delete confirmation is up.
+        viewModel.requestDelete()
+        viewModel.beginAddingNote()
+        #expect(viewModel.noteState == .historyVisible)
+        #expect(viewModel.deleteState == .confirming)
+        viewModel.cancelDelete()
+
+        // Once adding is active, edit and delete entry points are ignored.
+        viewModel.beginAddingNote()
+        viewModel.beginEditing()
+        viewModel.requestDelete()
+        #expect(viewModel.noteState == .addingNote(""))
+        #expect(viewModel.editState == .viewing)
+        #expect(viewModel.deleteState == .idle)
+
+        // Discarding the note restores normal family access, and nothing
+        // was ever persisted.
+        viewModel.cancelAddingNote()
+        viewModel.beginEditing()
+        guard case .editing = viewModel.editState else {
+            Issue.record("Editing must be possible after the note flow is cancelled.")
+            return
+        }
+        #expect(await repository.card(id: p10CardID) == original)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    private func p10WaitUntil(
+        _ failureMessage: String,
+        condition: () async -> Bool
+    ) async {
+        for _ in 0..<200 {
+            if await condition() { return }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        Issue.record("\(failureMessage)")
     }
 
     // MARK: - Deterministic fixtures (DEBUG-only; MockBusinessCards is
@@ -491,4 +804,49 @@ struct CardDetailViewModelTests {
     }
 
     #endif
+}
+
+/// Test-only repository whose `save` suspends inside the actor until the
+/// test releases it, so the P10 `.saving` window (cancel/draft/edit/
+/// delete guards and re-entrant save) is observable deterministically.
+private actor GatedSaveRepository: BusinessCardRepository {
+
+    private var cards: [BusinessCard]
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var saveCallCount = 0
+
+    init(initialCards: [BusinessCard]) {
+        self.cards = initialCards
+    }
+
+    func allCards() async -> [BusinessCard] { cards }
+
+    func card(id: UUID) async -> BusinessCard? {
+        cards.first { $0.id == id }
+    }
+
+    func save(_ card: BusinessCard) async {
+        saveCallCount += 1
+        // Suspends WITHOUT holding the actor across the wait (actor
+        // reentrancy lets the test poll saveCallCount / release).
+        await withCheckedContinuation {
+            (continuation: CheckedContinuation<Void, Never>) in
+            self.continuation = continuation
+        }
+        if let index = cards.firstIndex(where: { $0.id == card.id }) {
+            cards[index] = card
+        } else {
+            cards.append(card)
+        }
+    }
+
+    func delete(id: UUID) async {
+        cards.removeAll { $0.id == id }
+    }
+
+    /// Resumes exactly one gated save.
+    func releaseSave() {
+        continuation?.resume()
+        continuation = nil
+    }
 }
