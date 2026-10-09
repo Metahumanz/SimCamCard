@@ -191,6 +191,10 @@ final class ScanCameraUITests: XCTestCase {
         attachment.name = "w3i1-scan-permission-denied-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
+        let w4i12Attachment = XCTAttachment(screenshot: screenshot)
+        w4i12Attachment.name = "w4i12-camera-denied"
+        w4i12Attachment.lifetime = .keepAlways
+        add(w4i12Attachment)
 
         closeScanner(app)
     }
@@ -644,10 +648,21 @@ final class ScanCameraUITests: XCTestCase {
                        "Empty is a valid result, not a failure.")
         XCTAssertFalse(app.descendants(matching: .any)["scan-recognition-raw-text"].exists,
                        "P05 must not present the old raw-text block.")
-        // Saving an empty result is a legitimate settled-state save; the
-        // no-fabrication claim is about field VALUES (checked below).
-        XCTAssertTrue(app.buttons["scan-recognition-save"].exists,
-                      "The empty-result P05 form still offers 保存.")
+        // T20 (E07): the empty-result form keeps the 保存 affordance
+        // visible (REF-exception-02 shows it) but it is DISABLED — a
+        // zero-field result must never materialize a blank BusinessCard;
+        // tapping it is a no-op. The no-fabrication claim covers both
+        // field VALUES (checked below) and the save side effect.
+        let saveButton = app.buttons["scan-recognition-save"]
+        XCTAssertTrue(saveButton.exists,
+                      "The empty-result P05 form still presents 保存.")
+        XCTAssertFalse(saveButton.isEnabled,
+                       "保存 must be disabled for a zero-field (non-card) result.")
+        saveButton.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["scan-save-success"].exists,
+                       "Tapping disabled 保存 must not enter the P06 save result.")
+        XCTAssertTrue(app.descendants(matching: .any)["scan-recognition-empty"].exists,
+                      "The form must stay on the nonCardEmptyResult state.")
 
         // Fixed structural scalar rows stay present with empty values.
         let name = app.descendants(matching: .any)["scan-field-name"]

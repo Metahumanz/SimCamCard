@@ -5898,3 +5898,335 @@ Do not broaden W4I11 for this now（本 Increment 不为此扩大范围）。
 
 Human Decision:
 Accepted — 2026-10-05 (human review)
+
+---
+
+## Week 4 Increment 12 — T20 Exception Handling + Final Acceptance Sweep
+
+Baseline: branch `week4/structured-recognition`, HEAD `5ec0803`
+（feat(contacts): 实现名片通讯录导出），tree clean。基线门禁：
+Unit 423/423 PASS（34 suites）、UI 53/53 PASS（0 failures / 0
+unexpected）、Debug build PASS、Release build PASS、Release hook
+isolation 13/13 ABSENT + fresh Debug 13/13 PRESENT。T01–T19
+behavioral acceptance PASS；T20 NOT IMPLEMENTED。
+
+### T20 Exception Matrix（先审计，后改码）
+
+列：Spec source / Existing implementation / Existing automated proof /
+Missing proof / Behavior status / Reference fidelity status。
+
+| ID | 场景 | Spec source | 现有实现 | 现有自动化证据 | 缺失证据 | Behavior | Ref fidelity |
+|---|---|---|---|---|---|---|---|
+| E01 | 相机已拒绝 | S02 permissionDenied；T03；REF-permission-01 | ScanViewModel denied→permissionFallback（scan-permission-denied），无 session/无快门，✕=scan-close dismiss | UI ScanCameraUITests.testDeniedShowsStableFallbackWithoutSessionUI；Unit ScanViewModelTests denied/restricted 用例 | 无 | PASS | 自定义 denied fallback（frozen REF 仅记录系统弹窗，无自绘拒绝页）→ deferred cosmetic surface |
+| E02 | unknown→拒绝 | S02；T03 | notDetermined→requestVideoAccess→denied | UI testNotDeterminedDeniedResolvesToFallback（+close→Holder）；Unit | 无 | PASS | 同上（系统弹窗本身不模拟） |
+| E03 | Scanner 取消/返回 | P02 exits=Back；T02 | scan-close→dismiss；onDisappear stop session + invalidate recognition | UI testCloseReturnsToCardHolderWithStateUnchanged、Week2 nav skeleton | 无 | PASS | PASS（✕ 与 REF X 同义） |
+| E04 | 相册取消 | S03 cancelled；T05 | handleImportCancel：flag 清除→restartPreview→photoImport=.idle（终态顺序保证），无 crop/OCR/draft | UI testPhotoImportCancelReturnsToPreview（DEBUG cancel fixture）；Unit import-cancel 顺序用例 | 真实系统 PhotosPicker 取消（不稳定，按 §8 分列） | PASS（fixture）；系统 picker 取消 NOT INDEPENDENTLY VERIFIED | fixture 级 PASS |
+| E05 | Crop 取消/返回 | S04 retakeRequested；P04 exits | CardCropView 取消=scan-crop-retake→retake()：generation+1、cancel task、清 crop/import、restart preview | UI testCaptureShowsCapturedPhotoFixture（retake→preview）；Unit retake 系列 3 例（含 import、inactive no-op） | 无 | PASS | PASS |
+| E06 | 识别失败 | S05 failed；T20 §10 | OCRError→.failed；failedContent 有重拍；无 Save | UI testOCRFailureShowsStableRecoveryAndRetake；Unit failedRecognitionSettlesFailed | failed 页只有重拍、无直接取消出口（§10 要求 Retake/Cancel）→ **最小修复：失败页加取消→Holder** | 修复后 PASS | 失败页为 minimal fallback（无 REF 失败页截图）→ deferred surface |
+| E07 | 非卡片/零文本 | t20-negative-001-expected.json；S05 nonCardEmptyResult；REF-exception-02 | 零行/零结构化字段→.nonCardEmptyResult→P05 空表单、无失败弹窗、可重拍 | UI testStructuredEmptyFixtureShowsEmptyP05WithoutFailure；Unit emptyRecognitionSettlesEmptyResult、#5/#6 | **空表单保存按钮当前可点 → 可存出全空卡（§4「Save 成功产生假卡」禁止、§27-B「cannot fabricate/save」）→ 最小修复：VM guard + Save disabled；旧 UI 断言同步翻转** | 修复后 PASS | REF 保存按钮可见但 CamCard 空结果点按行为未观测；保留按钮但禁用，差异如实分类 deferred surface |
+| E08 | 极简名片 card004 | REF-exception-01；data-model missing-field 规则 | extractor：bare +86 1[3-9]…→.mobile；nil 字段不伪造；固定标量行保留空行 | Unit card004 真实 Vision smoke、VM #4、Materializer、card004 Detail UI；OCR fixture 无 minimal 模式 | recognition 全链路 UI 组合（fixture 级）→ 新增 OCRFixtureMode.minimal（复用 -SimCamCardOCR hook，无新 hook 字符串）+ composite C | PASS | 手机展示格式 REF 为 +8613800138000 连写、我方为分段（cosmetic，记录） |
+| E09 | 识别后手动编辑取消 | S05 manualEditing；T11 | retake() 丢弃 draft；source StructuredRecognitionResult/raw OCR 不可变 | UI testManualEditingRetakeReturnsToScannerPreview、testManualCorrectionUpdatesRecognitionDraft；Unit T11 11/12/15、extra | 无 | PASS | PASS |
+| E10 | 已有卡片编辑取消 | T14 | cancelEditing 仅 .editing 有效；card/repo 不变 | UI testExistingCardEditCancelDiscardsChanges；Unit T14 cancel | updatedAt 断言已含于 Unit | PASS | PASS |
+| E11 | 删除取消 | T17 | cancelDelete：confirming→idle | UI testDeleteCancelLeavesCardUnchanged；Unit T17 cancel 系列 | 无 | PASS | PASS |
+| E12 | 建组取消/删组保卡 | T16 | 建组 alert 取消仅清 pendingGroupName；选择页取消 clearGroupCardSelection；createGroup 仅在完成时调用；删组删 tag 保卡（Unit） | Unit T16 全套（含 delete keeps cards）；UI testGroupFullFlow/testGroupDeleteFlow | 建组流程输入后取消→catalog/tags 不变的直接 UI 证据缺 → 补 1 个 targeted UI | 补证后 PASS | PASS |
+| E13 | 备注取消 | P10；S08 | cancelAddingNote 仅 .addingNote 有效；draft 不留存 | UI testAddNoteCancelPersistsNothing；Unit P10 cancel/re-entry | 无 | PASS | PASS |
+| E14 | 搜索清空/返回/组过滤 | T15；T16 | 空结果 ContentUnavailableView；×=clearSearch；返回先 clear 再 pop；组过滤独立保留 | UI testSearchAcrossJobTitlePhoneEmailNoResultAndClear；Unit T15 空/clear/不变异 + T16 group+search compose | 无 | PASS | PARTIAL（综合/名片/企业 segmented 等排除面） |
+| E15 | 通讯录权限拒绝 | S09；T19 | denied→permissionDenied surface，零 export 调用 | UI testFakeAlreadyDenied…/testFakeDenyOnRequest…；Unit T19 deny 系列 | 无（真实系统弹窗为 W4I11 System01 targeted） | PASS | PARTIAL（denied 承载页差异 diff-1） |
+| E16 | 通讯录导出失败 | T19 | exportFailed；card/repo/updatedAt 不变；dismiss→idle | UI testFakeFailureShowsFailureSurface；Unit T19 failure/double/dismiss | 无 | PASS | PASS（alert 承载差异同 diff-1） |
+| E17 | 持久化首启缺文件 | T20 §20 | absent JSON→空 store、不建文件；images 目录惰性创建 | Unit FileBusinessCardRepositoryTests「absent file」、FileCardGroupRepositoryTests、FileImageAssetStoreTests lazy dir | 无 | PASS | N/A 内部机制 |
+| E18 | 删除缺失 UUID 稳定 no-op | T20 §20 | repo.delete 缺席 id 安全 no-op；缺图引用→nil | Unit「absent delete is a safe no-op」（card + group）、「missing reference reads nil」 | 无 | PASS | N/A |
+| E19 | 搜索无结果空状态 | T15 | card-holder-search-empty 独立空态 | 同 E14 | 无 | PASS | PARTIAL（排除面同上） |
+| E20 | 重入/连击单副作用 | T20 §21 | capture/crop/save/editSave/delete/note/export 全有 guard（isCaptureInFlight/isCropInFlight/isSaveInFlight/EditState.saving/DeleteState.deleting/NoteState.saving/exportBlocksOtherWorkflows） | Unit doubleConfirm、T12 9/11、T14 save no-op、T17 re-entrant、P10 .saving、T19 double-write；UI 保存链路 | 空结果保存 guard（并入 E07 修复） | 修复后 PASS | N/A |
+
+审计结论：只有两处真正 behavioral mismatch 需要最小修复——
+
+1. E07：nonCardEmptyResult 可保存出全空 BusinessCard（违反 §4/§27-B）。
+2. E06：识别失败页缺直接 Cancel 出口（§10 要求 Retake/Cancel）。
+
+另有一处 fixture 能力缺口（E08 全链路 minimal UI）与一处 UI 证据缺口
+（E12 建组取消）。stale async（§11）已有 3 个定向 Unit（retake /
+disappear / A-B 两代），只审计不重复造。
+
+（修复记录、测试与门禁结果在本章节后续小节追加。）
+
+### 实际修复（仅两处 behavioral fix + 一处 fixture 能力）
+
+1. **E07 空结果不可保存（`ScanViewModel.swift`）**
+   - 新增 `var canSaveCurrentCard: Bool`：inactive/processing/failed
+     恒 false；settled 态检查 `result.fields`；manualEditing 检查
+     `draft.correctedFields`；判定经私有静态
+     `hasAnyCanonicalField(_:)`（name/company/jobTitle/任一 phone/
+     任一 email/website/address 任一非空）。
+   - `saveCurrentCard()` 在 draft 解析之后、任何存储副作用之前加
+     `guard Self.hasAnyCanonicalField(draft.correctedFields) else { return }`
+     —— VM 级不变量，不依赖 View。
+   - `RecognitionView.swift` P05 顶栏保存：
+     `.disabled(viewModel.isSaveInFlight || !viewModel.canSaveCurrentCard)`。
+     保存按钮仍可见（对齐 REF-exception-02），但零字段时禁用。
+2. **E06 识别失败双出口（`RecognitionView.swift`）**
+   - `failedContent` 改为 HStack：`取消`（id
+     `scan-recognition-cancel`）→ Holder `dismiss()`；`重拍`（id
+     `scan-recognition-retake`，行为不变）。失败页无 Save。
+3. **E08 minimal fixture（`DebugCameraFakes.swift`）**
+   - DEBUG `OCRFixtureMode` 新增 `.minimal`：两行
+     `张伟` / `+86 138 0013 8000`（bare +86 自动判 mobile）。
+   - 复用既有 `-SimCamCardOCR` launch hook，**未引入任何新 hook
+     字符串**，Release 隔离清单仍为 13 个。
+
+Frozen Domain、repository 协议、persistence schema、spec/*、
+dataset/*、evidence/*、project.pbxproj 全部零改动。
+
+### 新增自动化证据
+
+**UI（XCTest，SimCamCardUITests）**
+
+- 新文件 `ExceptionHandlingUITests.swift`（3 例，全部 fixture
+  驱动、非真机非真实 Vision）：
+  - `testCompositeBNonCardEmptyCannotSaveThenCancel`：empty fixture
+    → P05 空表单、`scan-recognition-empty`、无 failed 弹窗；保存
+    按钮存在但 `isEnabled == false`，点按无 P06；无
+    未命名/网站/手机/email 捏造；重拍→✕→空 Holder 无任何
+    card-row。
+  - `testCompositeCMinimalCardShowsOnlyExistingFields`：minimal
+    全链路 → missingFields；仅 姓名=张伟、手机-0=
+    `+86 138 0013 8000`；无 office/fax/email/website 行；
+    company/title 结构行保留为空值；保存按钮 enabled（真实字段
+    可存）；重拍丢弃后 Holder 仍空。
+  - `testOCRFailureCancelReturnsDirectlyToHolder`：failure →
+    失败页同时有取消/重拍、无保存；取消后 scan-entry-view 移除、
+    直达名片夹、无残留失败面。
+- `CardGroupUITests.swift` 新增
+  `testCreateGroupCancelLeavesCatalogAndCardsUnchanged`（E12）：
+  选择页工具栏取消 → 回列表仍 group-empty；再次进入选卡→alert
+  输入「临时客户」→alert 取消（返回选卡阶段，不建组）→工具栏
+  取消 → group-empty、无「临时客户」、回 Holder 无筛选横幅、
+  3 张卡全在。
+- `ScanCameraUITests.swift`
+  - 翻转旧断言
+    `testStructuredEmptyFixtureShowsEmptyP05WithoutFailure`：保存
+    按钮存在但 disabled、点按 no-op（原为「保存不存在」的错误
+    预期）。
+  - denied 用例加挂 `w4i12-camera-denied` keepAlways 附件。
+
+**Unit（Swift Testing，SimCamCardTests）**
+
+- `ScanViewModelTests.swift` 新增 T20 E07 三例：
+  - empty 结果：`canSaveCurrentCard == false`；save 后 idle、
+    repo 零卡、image store 零资产、状态保持 nonCardEmptyResult；
+  - manualEditing 清空全部字段 → 不可保存/空操作；补一个真实
+    姓名后恢复可保存且存出仅含 name 的卡；
+  - failed 识别不可保存、saveState 保持 idle。
+- 新文件 `Recognition/StructuredGroundTruthRegressionTests.swift`
+  （§28/§29，5 个 @Test）：见下节。
+
+### §28 34-card GT-level 结构化回归（诚实层级标注）
+
+`StructuredGroundTruthRegressionTests` 从 `dataset/ground-truth/
+card-001..034.json` 读取冻结 GT，按 GT 字段合成「完美识别器应输出
+的 OCR token 行」（typed 字段用双语标签，语义字段裸行），直喂纯
+函数 `CardFieldExtractor`，再逐字段对比 GT。**层级明确：这是
+GT-level 结构化回归，不是真实 Vision OCR；禁止表述为 34 张真实
+Vision 全部识别成功。** 真实 Vision 层仍为 cards 001–004 anchor
+smoke + 定向真实管线门禁。
+
+首轮诚实运行结果（已把 2 个语义层偏差钉入测试内
+`knownSemanticExceptions` 注册表并附原因，类型层零容忍）：
+
+```text
+LEVEL: GT-derived synthetic OCR lines → CardFieldExtractor (NOT Vision)
+total business cards: 34
+typed-layer exact (mobile/office/fax/email/website/address): 34/34
+full exact (typed + name/company/title): 32/34
+missing-field false positives (fabrications): 0
+multi-phone cards correct: 23/23
+pinned semantic parser exceptions: 2
+  card-019 jobTitle マネージャー — 片假名职称，无 CJK/拉丁关键词
+  card-030 jobTitle "UX Researcher" — Researcher 不在拉丁职称表
+independent exception fixtures: 1（t20-negative-001；不计入 34）
+```
+
+§29：测试同时解码
+`dataset/exception-samples/t20-negative-001-expected.json`
+（observedBehavior：无失败弹窗、进入编辑页、structuredContactFields
+=empty、可返回/重拍），并断言零 OCR 行 → extractor 零规范字段。
+34 张 business card 与 1 个 exception fixture 独立计数。未修改 GT。
+
+注意：§28/§29 是 GT-derived synthetic OCR lines → 纯 extractor 的
+parser 层回归，它证明「零 OCR 行 → 零规范字段」，但**不是**实际
+PNG 经过真实 Vision 的 proof，禁止据此声称 actual-PNG proof。
+
+### Human Review proof blocker 闭合：实际 non-card PNG 真实 Vision 集成（targeted, scratch 已删）
+
+针对 human review 指出的唯一 proof blocker，新增一个**临时**
+scratch test（`SimCamCardTests/ScratchT20NegativeVisionTests.swift`，
+env `TEST_RUNNER_SCRATCH_T20_RUN=1` 门控，默认全量套件 skip；targeted
+跑完后文件已删除，**不进入** 431 确定性基线，不留在仓库）。
+
+直接复用真实 dataset smoke pipeline，加载冻结真实文件
+`dataset/exception-samples/t20-negative-001-non-card.png`，实际执行：
+
+```text
+PNG Data → CapturedPhoto(photoLibrary)
+→ CardCropProcessor.prepare（真实 Vision 矩形检测）
+→ CardCropProcessor.perspectiveCorrect（Core Image 透视校正 upright PNG）
+→ CardOCRProcessor.recognize（真实 Swift-native Vision OCR）
+→ CardFieldExtractor.extract（确定性解析）
+```
+
+Targeted run 实测输出（2026-10-09 执行，门禁基线日期仍为 2026-10-07）：
+
+```text
+wasDetected=false
+  （Vision 在该风景照中未检测到卡片边界；未据此 fail，
+    按 production no-detection 语义走 inset fallback region
+    0.06–0.94，non-card 本就可能没有 card boundary）
+sourcePixelSize=725x597
+processedPixelSize=638x526
+ocrLineCount=0
+ocrRawText=（空）
+canonical.name=nil
+canonical.company=nil
+canonical.jobTitle=nil
+canonical.phones=[]
+canonical.emails=[]
+canonical.website=nil
+canonical.address=nil
+unclassifiedText=[]
+VERDICT: PASS — zero canonical fields
+```
+
+- 关键断言全部满足：name/company/jobTitle == nil、phones/emails
+  为空、website/address == nil。
+- 未要求 raw OCR text 必须为空：本次 Vision 恰好读到 0 行；即便
+  Vision 从噪声读到非空 raw text，只要 canonical 字段全空，仍满足
+  冻结 `structuredContactFields = "empty"`。
+- 无任何 canonical false positive；未修改 expected.json、未修改
+  任何 production Swift / Domain / Persistence / Repository 契约。
+
+Targeted 结果留档：
+
+```text
+xcresult：/tmp/w4i12-scratch.xcresult
+命令：TEST_RUNNER_SCRATCH_T20_RUN=1 xcodebuild test \
+  -only-testing:SimCamCardTests/ScratchT20NegativeVisionTests \
+  -parallel-testing-enabled NO \
+  -derivedDataPath /tmp/w4i12-scratch-derived \
+  -resultBundlePath /tmp/w4i12-scratch.xcresult
+结果：1/1 passed（1.219s），TEST SUCCEEDED
+scratch 文件：targeted PASS 后已删除（git status 无此文件）
+```
+
+T20 frozen negative fixture proof 的两层分层（缺一不可、不可互相
+替代）：
+
+```text
+层 1 — deterministic DEBUG empty fixture
+  空 OCR fixture → 真实 ScanViewModel/P05 UI
+  → nonCardEmptyResult → Save 可见但 disabled + 点按 no-op
+  + retake/cancel 出口（UI composite B；Unit E07 1/2/3）。
+  证明：状态映射 + save guard。
+
+层 2 — 冻结实际 non-card PNG targeted 真实 Vision 集成（本节）
+  真实 t20-negative-001-non-card.png → 真实 crop/Vision OCR/extractor
+  → zero canonical fields。
+  证明：实际图片经真实 pipeline 后不产生任何规范字段。
+
+两层合起来才构成 T20 frozen negative fixture proof。
+§28/§29 synthetic empty-lines 回归是独立 parser 层，不充作
+actual-PNG proof。
+```
+
+### W4I12 门禁结果（2026-10-07 重跑）
+
+```text
+Unit（全量 SimCamCardTests，iOS 27 sim，禁并行）：
+  431/431 PASS，35 suites，0 failures / 0 unexpected
+  （/tmp/w4i12-unit.log，/tmp/w4i12-unit.xcresult）
+  基线 423 + E07 3 + GT 回归 5 = 431。
+UI deterministic（全量 SimCamCardUITests，skip System01/System02）：
+  55/55 PASS，0 failures / 0 unexpected，1037.7s
+  （/tmp/w4i12-ui.log，/tmp/w4i12-ui.xcresult）
+  = 确定性基线 51 + 本增量新增 4（Exception 3 + 建组取消 1）。
+  XCTest 函数总数 57（另 2 个为有状态真实 Contacts System01/02，
+  按 §30/§31 单列，不在本次确定性套件内重跑）。
+Debug build：PASS（/tmp/w4i12-debug-build.log，新鲜
+  -derivedDataPath /tmp/w4i12-dd-debug）
+Release build：PASS（/tmp/w4i12-release-build.log，
+  /tmp/w4i12-dd，主二进制 8,383,408B）
+Release hook isolation（strings -a 主二进制，13 个符号）：
+  8 fixture 0/0/0/0/0/0/0/0；3 storage 0/0/0；2 export 0/0
+  → 13/13 ABSENT。
+Fresh Debug 阳性对照（SimCamCard.debug.dylib 13,525,888B）：
+  13/13 全部 >0（2/4/2/2/2/2/2/2/4/2/2/2/4），扫描机制有效。
+  .minimal 复用 -SimCamCardOCR，无第 14 个符号。
+```
+
+### Evidence（全部从真实 xcresult 附件导出，无摆拍）
+
+```text
+ai/validation/2026-10-07-w4i12-camera-denied.png
+  来源：testDeniedShowsStableFallbackWithoutSessionUI
+  （/tmp/w4i12-ui.xcresult）。相机 denied fixture：自绘稳定
+  fallback「无法访问相机」+ 设置指引，无快门/相册入口，✕ 可关。
+ai/validation/2026-10-07-w4i12-non-card-empty-result.png
+  来源：testCompositeBNonCardEmptyCannotSaveThenCancel。非卡片
+  空结果进入 P05 空表单（姓名/公司/职位/地址全空值行，无手机/
+  email/网站行），顶部「保存」可见但 disabled（UI 测试断言
+  isEnabled==false 且点按无 P06），无失败弹窗。
+ai/validation/2026-10-07-w4i12-minimal-card.png
+  来源：testCompositeCMinimalCardShowsOnlyExistingFields。
+  全链路 minimal fixture：仅 张伟 + 手机 +86 138 0013 8000；
+  公司/职位/地址空值；无 email/website；保存 enabled。
+ai/validation/2026-10-07-w4i12-recognition-failure.png
+  来源：testOCRFailureCancelReturnsDirectlyToHolder。识别失败
+  fallback：警示图标 +「识别失败」+「取消」「重拍」双出口，
+  无保存。
+```
+
+### T20 终态
+
+```text
+Behavioral Reference Tests：T01–T20 20/20 PASS（P07/P08/P09/P10/
+  P11 的 fidelity PARTIAL 为既有分类差异，非本增量行为缺口，
+  详见 ai/final-reference-audit.md）。
+Dataset：34/34 在册；typed 34/34、full-exact 32/34、捏造 0、
+  multi-phone 23/23；1 个独立 exception fixture。
+冻结面：Model/Repository 契约/Persistence schema/spec/dataset/
+  evidence/pbxproj 全部 no-diff。
+真机：无物理 iPhone，不做真机声称（camera/Vision 均为模拟器
+  fixture/框架层；Contacts 真实系统写入口径沿用 W4I11）。
+遗留（如实保留，不扩大）：orphan image GC 未实现；repository
+  协议 non-throwing（磁盘写失败=known limitation）；corrupt JSON
+  恢复未建；系统 PhotosPicker 真实取消手势未独立验证（platform
+  validation gap，非已验证）；card-019/030 职称两个解析器已知
+  偏差（GT-level，已钉档）。
+
+Human review 收尾（2026-10-09，仅处理 1 个 proof blocker + 文档归档
+  校准，未扩大业务功能）：
+- Proof blocker 已闭合：实际 t20-negative-001-non-card.png targeted
+  真实 Vision 集成 PASS（zero canonical fields，见上节，
+  /tmp/w4i12-scratch.xcresult）；scratch 文件已删除。
+- T20 behavioral acceptance：PASS；T01–T20：20/20 PASS。
+- Proof layering 明确：层 1 deterministic DEBUG empty fixture →
+  UI/nonCardEmptyResult/save guard；层 2 冻结实际 non-card PNG
+  targeted 真实 Vision 集成 → zero canonical fields。synthetic
+  empty-lines 回归不充作 actual-PNG proof。
+- P05：required behavior PASS；full Reference fidelity PARTIAL
+  （REF-exception-02 只观察到保存 affordance，未观察空结果点按保存
+  的行为；Save visible-but-disabled 是 SimCamCard 为满足冻结 T20
+  no-empty-card 的有意实现，不声称为 Reference 已观察）。
+- T05：Photo Import behavioral mechanics PASS；native system
+  PhotosPicker cancel gesture NOT independently verified（platform
+  validation gap）。
+- Evidence 归档日期校准：4 张 w4i12 PNG 2026-10-05 → 2026-10-07
+  （仅重命名，未重新生成截图；实际 full gates 日期 2026-10-07）。
+- 闭合 blocker 未修改任何 production Swift / permanent test /
+  Domain / Persistence / Repository 契约，故按 human review 范围不
+  重跑 55 个 UI；仅 targeted actual-PNG integration + 文档/重命名。
+Human Decision: Accepted — 2026-10-09 (human review)
+  T20 behavioral acceptance: PASS
+  T01–T20: 20 / 20 PASS
+  Full Reference fidelity: PARTIAL (documented non-blocking differences)
+Submission readiness: READY FOR FINAL DELIVERY PREPARATION
+未 commit / push / merge / tag（等待 human 确认最终提交范围与时机）。
+```

@@ -282,8 +282,9 @@ enum DebugCameraEnvironment {
         return CropFixtureMode(rawValue: arguments[index + 1].lowercased())
     }
 
-    /// Parses the optional `-SimCamCardOCR success|empty|failure`
-    /// launch argument. Returns nil when absent or unrecognized.
+    /// Parses the optional `-SimCamCardOCR
+    /// success|missing|multiple|minimal|empty|failure` launch argument.
+    /// Returns nil when absent or unrecognized.
     private static func parseOCRFixture(
         arguments: [String]
     ) -> OCRFixtureMode? {
@@ -469,6 +470,16 @@ actor DebugCropProcessor: CardCropProcessing {
                     OCRLine(text: "邮箱 Email：chen.chen@zhiyuntech.com", confidence: 1.0),
                     OCRLine(text: "网址 Web：www.zhiyuntech.com", confidence: 1.0),
                     OCRLine(text: "地址 Address：上海市徐汇区漕溪北路398号 200030", confidence: 1.0),
+                ])
+            case .minimal:
+                // Card-004 style (T20 REF-exception-01): name + bare
+                // +86 mobile only; every other canonical field absent.
+                // The bare +86 international form is auto-classified
+                // mobile by the deterministic format rule — nothing else
+                // may be fabricated (no company/title/email/website).
+                return CardOCRResult(cropResult: crop, lines: [
+                    OCRLine(text: "张伟", confidence: 1.0),
+                    OCRLine(text: "+86 138 0013 8000", confidence: 1.0),
                 ])
             case .empty:
                 // A legitimate zero-text result (not a failure).

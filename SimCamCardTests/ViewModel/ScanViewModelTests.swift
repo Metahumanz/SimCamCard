@@ -2751,4 +2751,86 @@ struct ScanViewModelTests {
         #expect(await gated.persistedCount == 2, "original + processed assets persisted.")
         #expect(await gated.data(for: card.processedImageReference) != nil)
     }
+
+    // MARK: - Week 4 Increment 12 T20 (E07) empty-result save guard
+
+    /// T20 E07: a non-card empty result renders the edit form but must
+    /// never materialize an empty BusinessCard. Save stays idle, neither
+    /// repository nor image store is touched, and `canSaveCurrentCard`
+    /// reports false.
+    @Test("T20 E07 1. nonCardEmptyResult cannot be saved: no card, no assets, idle state")
+    func emptyResultCannotBeSaved() async {
+        let store = GatedImageAssetStore()
+        let (vm, repository, _) = await enterSettledWithPersistence(
+            ocr: FakeOCRProcessor(outcome: .empty),
+            imageStore: store
+        )
+        guard case .nonCardEmptyResult = vm.recognition else {
+            Issue.record("expected .nonCardEmptyResult, got \(vm.recognition)")
+            return
+        }
+        #expect(vm.canSaveCurrentCard == false)
+
+        await vm.saveCurrentCard()
+
+        #expect(vm.saveState == .idle, "Rejected empty save must leave SaveState idle.")
+        #expect(vm.isSaveInFlight == false)
+        #expect(await repository.allCards().isEmpty, "No blank card may be written.")
+        #expect(await store.persistedCount == 0, "No image assets may be written for a rejected save.")
+        guard case .nonCardEmptyResult = vm.recognition else {
+            Issue.record("Recognition state must stay nonCardEmptyResult, got \(vm.recognition)")
+            return
+        }
+    }
+
+    /// T20 E07: inside manualEditing the guard follows the corrected
+    /// draft — clearing every field disables saving (no-op), and typing
+    /// any real value re-enables it and saves normally.
+    @Test("T20 E07 2. all-cleared draft cannot save; one real value re-enables save")
+    func allClearedDraftCannotSaveThenRealValueEnables() async {
+        let (vm, repository, _) = await enterEditingWithPersistence()
+        guard let draft = draft(from: vm) else { return }
+
+        vm.updateDraftName("")
+        vm.updateDraftCompany("")
+        vm.updateDraftJobTitle("")
+        vm.updateDraftWebsite("")
+        vm.updateDraftAddress("")
+        for phone in draft.phones {
+            vm.updateDraftPhone(id: phone.id, value: "")
+        }
+        for email in draft.emails {
+            vm.updateDraftEmail(id: email.id, value: "")
+        }
+
+        #expect(vm.canSaveCurrentCard == false, "An all-blank draft is not saveable.")
+        await vm.saveCurrentCard()
+        #expect(vm.saveState == .idle)
+        #expect(await repository.allCards().isEmpty)
+
+        // One real field is enough: the user explicitly typed a name.
+        vm.updateDraftName("手动录入")
+        #expect(vm.canSaveCurrentCard == true)
+        await vm.saveCurrentCard()
+        guard let card = savedCard(from: vm) else { return }
+        #expect(card.name == "手动录入")
+        #expect(card.company == nil)
+        #expect(card.phones.isEmpty)
+        #expect(card.emails.isEmpty)
+        #expect(await repository.allCards().count == 1)
+    }
+
+    /// T20 E07: processing and failed recognition are never saveable.
+    @Test("T20 E07 3. canSaveCurrentCard is false for failed recognition")
+    func failedRecognitionIsNotSaveable() async {
+        let (vm, _, _) = await enterSettledWithPersistence(
+            ocr: FakeOCRProcessor(outcome: .failure)
+        )
+        guard case .failed = vm.recognition else {
+            Issue.record("expected .failed, got \(vm.recognition)")
+            return
+        }
+        #expect(vm.canSaveCurrentCard == false)
+        #expect(vm.saveState == .idle)
+    }
 }

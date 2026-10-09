@@ -304,6 +304,95 @@ final class CardGroupUITests: XCTestCase {
         )
     }
 
+    // MARK: - T20 (E12) create-group cancel leaves everything unchanged
+
+    /// T20 exception matrix E12: start the create-group flow, select a
+    /// card and cancel at BOTH possible points — the card-selection
+    /// toolbar 取消 and the naming-alert 取消. The group catalog must
+    /// stay empty (no group created, no tag assigned). Tag/card
+    /// immutability is additionally covered at the ViewModel level by
+    /// the T16 unit suite; this is the direct UI proof of the cancels.
+    @MainActor
+    func testCreateGroupCancelLeavesCatalogAndCardsUnchanged() throws {
+        let app = launchPopulated()
+        openGroupManagement(app: app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["group-empty"].waitForExistence(timeout: 10),
+            "Group catalog should start empty."
+        )
+
+        // 1. Selection phase → select card001 → toolbar 取消 returns to
+        //    the group list without creating anything.
+        enterCardSelection(app: app)
+        selectCard("group-card-select-00000000-0000-0000-0000-000000000001", app: app)
+        XCTAssertTrue(app.staticTexts["已选 1 张"].waitForExistence(timeout: 5))
+        app.buttons["group-selection-cancel"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["group-management"].waitForExistence(timeout: 5),
+            "Selection cancel must return to the group list."
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["group-empty"].exists,
+                      "Catalog must still be empty after selection cancel.")
+
+        // 2. Selection phase again → alert → type a name → alert 取消.
+        enterCardSelection(app: app)
+        selectCard("group-card-select-00000000-0000-0000-0000-000000000001", app: app)
+        tapAddToGroup(app: app)
+
+        let alert = app.alerts[createAlertTitle]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10), "Naming alert should appear.")
+        let nameField = alert.textFields.firstMatch
+        nameField.tap()
+        nameField.typeText("临时客户")
+        // `.firstMatch` by LABEL (no custom identifier on the cancel
+        // action): a SwiftUI alert action can surface its bridge node
+        // more than once, mirroring the documented 完成 button case.
+        let cancelButton = alert.buttons.matching(
+            NSPredicate(format: "label == %@", "取消")
+        ).firstMatch
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "取消 should exist in the alert.")
+        cancelButton.tap()
+
+        // Catalog stays empty — the typed name must not create a group.
+        // Wait through the alert dismiss animation before asserting.
+        var alertGone = false
+        for _ in 0..<20 {
+            if !alert.exists { alertGone = true; break }
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
+        }
+        XCTAssertTrue(alertGone, "Cancel must dismiss the naming alert.")
+        // The alert cancel returns to the CARD-SELECTION phase (no
+        // group is created); the toolbar 取消 is what yields the list.
+        let selectionRow = app.descendants(matching: .any)[
+            "group-card-select-00000000-0000-0000-0000-000000000001"
+        ]
+        XCTAssertTrue(selectionRow.waitForExistence(timeout: 5),
+                      "Alert cancel must return to the card-selection phase, not create a group.")
+        app.buttons["group-selection-cancel"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["group-empty"].waitForExistence(timeout: 5),
+            "Catalog must remain empty after the full cancel sequence."
+        )
+        XCTAssertFalse(app.staticTexts["临时客户"].exists,
+                       "The cancelled group name must not appear in the catalog.")
+
+        // 3. Back to Holder → all fixture cards still present, tags
+        //    untouched (no group filter banner).
+        app.navigationBars["分组"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "Should return to the Card Holder."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["group-filter-active"].exists,
+                       "No group assignment (and no filter) may result from cancels.")
+        for rowID in [card001RowID, card002RowID, card004RowID] {
+            XCTAssertTrue(app.descendants(matching: .any)[rowID].waitForExistence(timeout: 5),
+                          "Card \(rowID) must still be present after cancels.")
+        }
+    }
+
     // MARK: - T16 delete flow
 
     @MainActor

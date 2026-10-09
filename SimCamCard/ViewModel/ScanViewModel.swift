@@ -68,6 +68,9 @@ typealias CropFixtureParam = CropFixtureMode?
         case missing
         /// Card-003 style: mobile + office + fax.
         case multiple
+        /// Card-004 style: name + mobile only, every other canonical
+        /// field absent (T20 minimal-card / no-fabrication fixture).
+        case minimal
         /// A legitimate zero-text result (not a failure).
         case empty
         /// The recognition request fails.
@@ -346,6 +349,41 @@ final class ScanViewModel {
     /// `.saveSucceeded` a second save is blocked, so the same result
     /// cannot be saved twice within one workflow.
     private(set) var saveState: SaveState = .idle
+
+    /// T20 (E07): whether the CURRENT recognition content carries at
+    /// least one canonical contact field and may therefore be saved.
+    ///
+    /// A `nonCardEmptyResult` (valid non-card image → zero recognized
+    /// fields) renders the P05 edit form but must NEVER materialize an
+    /// empty BusinessCard — the frozen t20-negative-001 expected
+    /// behavior is an empty editable result with Retake, not a saved
+    /// blank card. The same rule applies inside manualEditing once the
+    /// user has cleared every field. Processing/inactive/failed states
+    /// are never saveable.
+    var canSaveCurrentCard: Bool {
+        let fields: StructuredCardFields
+        switch recognition {
+        case .structuredResultAvailable(let result),
+             .nonCardEmptyResult(let result),
+             .missingFields(let result),
+             .multiplePhoneFields(let result):
+            fields = result.fields
+        case .manualEditing(let draft):
+            fields = draft.correctedFields
+        case .inactive, .processing, .failed:
+            return false
+        }
+        return Self.hasAnyCanonicalField(fields)
+    }
+
+    /// True when the structured fields carry at least one canonical
+    /// contact value (name / company / job title / any phone / any
+    /// email / website / address).
+    private static func hasAnyCanonicalField(_ f: StructuredCardFields) -> Bool {
+        f.name != nil || f.company != nil || f.jobTitle != nil
+            || !f.phones.isEmpty || !f.emails.isEmpty
+            || f.website != nil || f.address != nil
+    }
 
     /// The single Task consuming the live detection stream while in
     /// `.preview`. Cancelled on scanner disappear, on capture, on photo
@@ -950,6 +988,13 @@ final class ScanViewModel {
         case .inactive, .processing, .failed:
             return
         }
+
+        // T20 (E07): a result with ZERO canonical contact fields (the
+        // non-card empty result, or a draft in which every field was
+        // cleared) must never materialize an empty BusinessCard. This
+        // is the ViewModel-level invariant backing the disabled P05
+        // 保存 button; it never relies on the View for correctness.
+        guard Self.hasAnyCanonicalField(draft.correctedFields) else { return }
 
         isSaveInFlight = true
         defer { isSaveInFlight = false }

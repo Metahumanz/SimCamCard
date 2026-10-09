@@ -428,6 +428,9 @@ struct RecognitionView: View {
     // MARK: - Failure
 
     private func failedContent(_ error: OCRError) -> some View {
+        // T20 (E06, §10): the failure fallback offers BOTH exits —
+        // 重拍 returns to the Scanner for another capture, and 取消
+        // leaves the whole scan flow directly back to the Holder.
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 44, weight: .light))
@@ -439,16 +442,28 @@ struct RecognitionView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.65))
                 .multilineTextAlignment(.center)
-            Button {
-                Task { await viewModel.retake() }
-            } label: {
-                Text("重拍")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(Self.recognitionBlue)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 10)
+            HStack(spacing: 28) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("取消")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 64, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("scan-recognition-cancel")
+                Button {
+                    Task { await viewModel.retake() }
+                } label: {
+                    Text("重拍")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Self.recognitionBlue)
+                        .frame(minWidth: 64, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("scan-recognition-retake")
             }
-            .accessibilityIdentifier("scan-recognition-retake")
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -627,7 +642,11 @@ struct RecognitionView: View {
                         .frame(minWidth: 56, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .disabled(viewModel.isSaveInFlight)
+                // T20 (E07): disabled while saving AND whenever the
+                // current content has zero canonical contact fields
+                // (the non-card empty result / an all-cleared draft) —
+                // an empty result must never save a blank BusinessCard.
+                .disabled(viewModel.isSaveInFlight || !viewModel.canSaveCurrentCard)
                 .accessibilityIdentifier("scan-recognition-save")
             }
         }
