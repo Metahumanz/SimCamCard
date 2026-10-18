@@ -18,9 +18,19 @@ import CoreGraphics
 
 nonisolated enum CardRegionGeometry {
 
-    /// Minimum normalized (unit-square) polygon area for a usable
-    /// region. Centralized — no magic numbers at call sites.
+    /// Minimum normalized (unit-square) polygon area for a geometrically
+    /// valid region. Centralized — no magic numbers at call sites.
     static let minimumNormalizedArea: Double = 0.01
+
+    /// Conservative threshold for auto-accepting a Vision-detected
+    /// rectangle in the still-image pipeline. Derived from the 34-card
+    /// dataset: correct crops occupy 0.47–0.93 of the frame; erroneous
+    /// lock-on quads (tiny decorative rectangles) occupy 0.007–0.024.
+    /// 0.05 cleanly separates the two populations with a >10× margin
+    /// over the bad-quad ceiling. Regions below this are NOT invalid
+    /// geometry — they are rejected from auto-acceptance and routed to
+    /// the manual-adjust fallback (`wasDetected == false`).
+    static let minimumDetectedArea: Double = 0.05
 
     /// Inset fraction used by the no-detection fallback rectangle
     /// (implementation robustness, not Reference-observed behavior):
@@ -73,6 +83,13 @@ nonisolated enum CardRegionGeometry {
             }
         }
         return true
+    }
+
+    /// True iff the region is geometrically valid AND large enough to
+    /// auto-accept in the still-image pipeline. This is a conservative
+    /// rejection for tiny-area quads, not a relaxation of validity.
+    static func isAcceptableAutoDetection(_ region: CardRegion) -> Bool {
+        isValid(region) && normalizedArea(region) >= minimumDetectedArea
     }
 
     /// Signed shoelace area (absolute value / 2 is the polygon area)

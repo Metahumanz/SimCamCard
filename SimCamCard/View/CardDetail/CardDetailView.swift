@@ -71,11 +71,19 @@
 //  success/failure are App alerts. REF-export-03 (macOS Contacts account
 //  picker) has no iPhone counterpart and is intentionally not built.
 //
-//  Deliberately NOT implemented: phone/email/web invocation (no tel:/URL
-//  wiring), favorite star, the deferred more-sheet entries (邀请使用名片/
-//  提醒), the 电话/地址 action-strip entries, the 未分组 group row, the
-//  inline notes-summary row, the bottom 递名片/分享名片 bar, avatar, card
-//  image (Domain holds String references only), and 展开/收起.
+//  B-01 closure (Final Delivery Phase 1.1): phone/email/website rows now
+//  carry tap actions that build native URLs (tel:/mailto:/https) via
+//  CardDetailURLMapping and open them through the SwiftUI openURL
+//  environment. Each phone row is independently tappable (multi-phone
+//  selection preserved). Invalid/empty values produce nil URLs → no
+//  openURL call is made. The Simulator cannot complete real calls; UI
+//  tests verify row tap-targets and URL construction separately.
+//
+//  Deliberately NOT implemented: favorite star, the deferred more-sheet
+//  entries (邀请使用名片/提醒), the 电话/地址 action-strip entries, the
+//  未分组 group row, the inline notes-summary row, the bottom
+//  递名片/分享名片 bar, avatar, card image (Domain holds String
+//  references only), and 展开/收起.
 //  No "Coming soon" / "Not implemented" text.
 //
 //  T17 closure: the trailing ••• (card-detail-more) opens a native
@@ -99,9 +107,13 @@ struct CardDetailView: View {
     let onDeleted: @MainActor () async -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     /// Presents the Reference more-actions bottom surface (•••).
     @State private var showMoreActions = false
+
+    /// B-02: presents the full-screen original card image viewer.
+    @State private var showFullImage = false
 
     /// Presents the native 「提示」 delete confirmation alert.
     @State private var showDeleteAlert = false
@@ -200,6 +212,31 @@ struct CardDetailView: View {
                 .padding(.vertical, 4)
             }
 
+            // MARK: Original card image (B-02)
+            //
+            // Shows the original captured/imported card image loaded from
+            // the shared ImageAssetStore. The thumbnail is tappable to
+            // open a full-screen viewer. Missing image (no data in the
+            // store) → no section is rendered (graceful degradation).
+            if case .loaded(let imageData) = viewModel.originalImageState,
+               let uiImage = UIImage(data: imageData) {
+                Section {
+                    Button {
+                        showFullImage = true
+                    } label: {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 200)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("查看原始名片")
+                    .accessibilityIdentifier("card-detail-original-image")
+                }
+            }
+
             // MARK: Structured fields
             //
             // Multi-value collections are rendered one row per element —
@@ -209,7 +246,10 @@ struct CardDetailView: View {
                     CardDetailFieldRow(
                         systemImage: "phone",
                         value: phone.value,
-                        label: phone.kind.detailLabel
+                        label: phone.kind.detailLabel,
+                        action: CardDetailURLMapping
+                            .phoneURL(phone.value)
+                            .map { url in { openURL(url) } }
                     )
                     .accessibilityIdentifier(
                         "card-detail-phone-\(phone.id.uuidString)"
@@ -220,7 +260,10 @@ struct CardDetailView: View {
                     CardDetailFieldRow(
                         systemImage: "envelope",
                         value: email,
-                        label: "邮箱"
+                        label: "邮箱",
+                        action: CardDetailURLMapping
+                            .emailURL(email)
+                            .map { url in { openURL(url) } }
                     )
                     .accessibilityIdentifier("card-detail-email-\(index)")
                 }
@@ -229,7 +272,10 @@ struct CardDetailView: View {
                     CardDetailFieldRow(
                         systemImage: "globe",
                         value: website,
-                        label: "首页"
+                        label: "首页",
+                        action: CardDetailURLMapping
+                            .websiteURL(website)
+                            .map { url in { openURL(url) } }
                     )
                     .accessibilityIdentifier("card-detail-website")
                 }
@@ -245,6 +291,9 @@ struct CardDetailView: View {
             }
         }
         .accessibilityIdentifier("card-detail")
+        .task {
+            await viewModel.loadOriginalImage()
+        }
         .navigationTitle("名片详情")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -326,6 +375,36 @@ struct CardDetailView: View {
         }
         .navigationDestination(isPresented: $showNotes) {
             CardNotesView(viewModel: viewModel)
+        }
+        // B-02: full-screen original card image viewer.
+        .fullScreenCover(isPresented: $showFullImage) {
+            if case .loaded(let imageData) = viewModel.originalImageState,
+               let uiImage = UIImage(data: imageData) {
+                ZStack(alignment: .topTrailing) {
+                    Color.black.ignoresSafeArea()
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .ignoresSafeArea()
+                        // The full-screen marker lives on the Image, NOT on
+                        // the container ZStack: an identifier on a ZStack
+                        // containing a Button merges the child Button under
+                        // the container id (children:.contain does not stop
+                        // it), hiding `card-detail-image-close` from UI tests.
+                        .accessibilityLabel("原始名片全屏预览")
+                        .accessibilityIdentifier("card-detail-original-image-fullscreen")
+                    Button {
+                        showFullImage = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(.white)
+                            .padding()
+                    }
+                    .accessibilityLabel("关闭")
+                    .accessibilityIdentifier("card-detail-image-close")
+                }
+            }
         }
         // MARK: T19 Contact export entries + result surfaces
         //

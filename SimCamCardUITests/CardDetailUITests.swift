@@ -416,4 +416,224 @@ final class CardDetailUITests: XCTestCase {
         XCTAssertTrue(row.staticTexts[holderOldSecondary].exists)
         XCTAssertFalse(row.staticTexts[holderNewSecondary].exists)
     }
+
+    // MARK: - B-01 Phone/Email/Website tap behavior
+
+    /// Assignment §10: "Tap phone number; Tap email address; Tap website."
+    ///
+    /// The Simulator cannot complete real calls/emails/browser opens, so
+    /// this test verifies the URL-initiation side only: each row exists as
+    /// a hittable element (the Button wrapper is present). The actual
+    /// external-app handoff (Phone/Mail/Safari) is a system-level concern
+    /// verified separately by the URL-construction Unit tests
+    /// (CardDetailURLMappingTests).
+    @MainActor
+    func testCardDetailPhoneEmailWebsiteRowsAreTappable() throws {
+        let app = launchPopulated()
+        openDetail(forRow: card001RowID, app: app)
+
+        // Phone rows: each individually hittable (multi-phone preserved).
+        let mobileRow = app.descendants(matching: .any)[card001MobileRowID].firstMatch
+        XCTAssertTrue(mobileRow.waitForExistence(timeout: 5),
+                      "Mobile phone row must exist.")
+        XCTAssertTrue(mobileRow.isHittable,
+                      "Mobile phone row must be hittable (tap action wired).")
+
+        let officeRow = app.descendants(matching: .any)[card001OfficeRowID].firstMatch
+        XCTAssertTrue(officeRow.exists,
+                      "Office phone row must exist.")
+        XCTAssertTrue(officeRow.isHittable,
+                      "Office phone row must be hittable (tap action wired).")
+
+        // Email row.
+        let emailRow = app.descendants(matching: .any)["card-detail-email-0"].firstMatch
+        XCTAssertTrue(emailRow.exists, "Email row must exist.")
+        XCTAssertTrue(emailRow.isHittable,
+                      "Email row must be hittable (tap action wired).")
+
+        // Website row.
+        let websiteRow = app.descendants(matching: .any)["card-detail-website"].firstMatch
+        XCTAssertTrue(websiteRow.exists, "Website row must exist.")
+        XCTAssertTrue(websiteRow.isHittable,
+                      "Website row must be hittable (tap action wired).")
+
+        // Address row exists but has no tap action (not in §10 must-tap list).
+        let addressRow = app.descendants(matching: .any)["card-detail-address"].firstMatch
+        XCTAssertTrue(addressRow.exists, "Address row must exist.")
+    }
+
+    /// Minimal card (004): its single phone row is also tappable;
+    /// absent fields (email/website/address) have no rows to tap.
+    @MainActor
+    func testCardDetailMinimalCardPhoneRowIsTappable() throws {
+        let app = launchPopulated()
+        openDetail(forRow: card004RowID, app: app)
+
+        let mobileRow = app.descendants(matching: .any)[card004MobileRowID].firstMatch
+        XCTAssertTrue(mobileRow.waitForExistence(timeout: 5),
+                      "Minimal card's phone row must exist.")
+        XCTAssertTrue(mobileRow.isHittable,
+                      "Minimal card's phone row must be hittable.")
+
+        // No email/website/address rows to tap on the minimal card.
+        XCTAssertFalse(app.descendants(matching: .any)["card-detail-email-0"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["card-detail-website"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["card-detail-address"].exists)
+    }
+
+    // MARK: - B-02 Original image viewing
+
+    /// The ephemeral fixture has no image bytes in the store, so the original
+    /// image section must NOT appear — this verifies graceful degradation.
+    /// All existing Detail/Edit/Delete/Notes/Export flows remain unaffected.
+    @MainActor
+    func testCardDetailMissingOriginalImageGracefulDegradation() throws {
+        let app = launchPopulated()
+        openDetail(forRow: card001RowID, app: app)
+
+        // Original image thumbnail should be absent (no bytes in fixture store).
+        let originalImage = app.descendants(matching: .any)["card-detail-original-image"].firstMatch
+        XCTAssertFalse(originalImage.exists,
+                       "Missing original image must not render the image section.")
+
+        // Existing structured fields and actions must still be present and
+        // unaffected (T13/T14/T17/T19 baseline preserved).
+        XCTAssertTrue(app.staticTexts["张伟"].exists, "Name must remain visible.")
+        XCTAssertTrue(
+            app.descendants(matching: .any)[card001MobileRowID].exists,
+            "Phone row must remain visible."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-email-0"].exists,
+            "Email row must remain visible."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-edit"].exists,
+            "Edit entry must remain visible."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-more"].exists,
+            "More actions entry must remain visible."
+        )
+    }
+
+    // MARK: - B-01 URL-initiation evidence (DEBUG-only openURL capture)
+    //
+    // The Simulator has no Phone/Mail/Safari receiver, so the previous
+    // `isHittable` assertions could not prove that the CORRECT URL was
+    // initiated. With `-SimCamCardCaptureOpenURL 1` the App root replaces
+    // the SwiftUI openURL action with a recorder that captures the exact
+    // absoluteString and does NOT forward it to any system app. These tests
+    // therefore assert the initiated URL, not merely tappability.
+
+    /// Launches with the DEBUG openURL recorder installed.
+    @MainActor
+    private func launchPopulatedWithURLCapture() -> XCUIApplication {
+        let app = UITestAppFactory.launchEphemeral(
+            arguments: [
+                "-SimCamCardFixture", "populated",
+                "-SimCamCardCaptureOpenURL", "1",
+            ]
+        )
+        XCTAssertTrue(
+            app.navigationBars["名片夹"].waitForExistence(timeout: 10),
+            "Card Holder should be visible after launch."
+        )
+        return app
+    }
+
+    /// Waits until the capture element reports `expectedURL` as its label.
+    @MainActor
+    private func assertCapturedURL(
+        _ expectedURL: String,
+        app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let log = app.descendants(matching: .any)["debug-open-url-log"].firstMatch
+        XCTAssertTrue(
+            log.waitForExistence(timeout: 5),
+            "The DEBUG openURL capture element must exist.",
+            file: file,
+            line: line
+        )
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", expectedURL),
+            object: log
+        )
+        let result = XCTWaiter().wait(for: [expectation], timeout: 5)
+        XCTAssertEqual(
+            result,
+            .completed,
+            "captured URL = '\(log.label)'; expected '\(expectedURL)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Assignment §10 must-tap rows: mobile phone, office phone, email and
+    /// website must each initiate the correct native URL.
+    @MainActor
+    func testCardDetailRowTapInitiatesCorrectURL() throws {
+        let app = launchPopulatedWithURLCapture()
+        openDetail(forRow: card001RowID, app: app)
+
+        // Mobile phone → tel:
+        let mobileRow = app.descendants(matching: .any)[card001MobileRowID].firstMatch
+        XCTAssertTrue(mobileRow.waitForExistence(timeout: 5),
+                      "Mobile phone row must exist.")
+        mobileRow.tap()
+        assertCapturedURL("tel:+86%20138%200013%208000", app: app)
+
+        // Office phone → tel:
+        let officeRow = app.descendants(matching: .any)[card001OfficeRowID].firstMatch
+        XCTAssertTrue(officeRow.waitForExistence(timeout: 5),
+                      "Office phone row must exist.")
+        officeRow.tap()
+        assertCapturedURL("tel:+86%2021%205555%201234", app: app)
+
+        // Email and website may sit below the fold on the full card.
+        app.swipeUp()
+
+        // Email → mailto:
+        let emailRow = app.descendants(matching: .any)["card-detail-email-0"].firstMatch
+        XCTAssertTrue(emailRow.waitForExistence(timeout: 5),
+                      "Email row must exist.")
+        emailRow.tap()
+        assertCapturedURL("mailto:wei.zhang@zhiyuntech.com", app: app)
+
+        // Website → https:
+        let websiteRow = app.descendants(matching: .any)["card-detail-website"].firstMatch
+        XCTAssertTrue(websiteRow.waitForExistence(timeout: 5),
+                      "Website row must exist.")
+        websiteRow.tap()
+        assertCapturedURL("https://www.zhiyuntech.com", app: app)
+
+        // Evidence: the Detail after the four captured taps.
+        let shot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "w4i13-b01-url-capture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// Negative: the address row is NOT in the §10 must-tap list, so tapping
+    /// it must not initiate any URL (the recorder stays empty).
+    @MainActor
+    func testCardDetailAddressRowDoesNotInitiateURL() throws {
+        let app = launchPopulatedWithURLCapture()
+        openDetail(forRow: card001RowID, app: app)
+
+        app.swipeUp()
+        let addressRow = app.descendants(matching: .any)["card-detail-address"].firstMatch
+        XCTAssertTrue(addressRow.waitForExistence(timeout: 5),
+                      "Address row must exist.")
+        addressRow.tap()
+
+        let log = app.descendants(matching: .any)["debug-open-url-log"].firstMatch
+        if log.waitForExistence(timeout: 2) {
+            XCTAssertEqual(log.label, "",
+                           "Address row must not initiate any URL.")
+        }
+    }
 }

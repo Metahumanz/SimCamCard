@@ -181,7 +181,8 @@ struct CardHolderView: View {
                             card: card,
                             repository: cardRepository
                                 ?? InMemoryBusinessCardRepository(initialCards: [card]),
-                            contactExporter: contactExporter
+                            contactExporter: contactExporter,
+                            imageStore: imageStore
                         ),
                         onDeleted: {
                             await viewModel.loadHolderData()

@@ -52,6 +52,13 @@ struct SimCamCardApp: App {
     /// (not `@StateObject`) is the standard holder for `@Observable`.
     @State private var viewModel: CardHolderViewModel
 
+    #if DEBUG
+    /// Final Delivery Phase 1.1 calibration: DEBUG-only openURL recorder
+    /// installed ONLY when `-SimCamCardCaptureOpenURL 1` is present.
+    /// Compiled out of Release entirely.
+    @State private var debugURLCapture = DebugURLCapture()
+    #endif
+
     /// Wires the storage triple selected for this launch and injects it
     /// into the Card Holder ViewModel.
     init() {
@@ -68,17 +75,36 @@ struct SimCamCardApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                CardHolderView(
-                    viewModel: viewModel,
-                    cardRepository: cardRepository,
-                    imageStore: imageStore,
-                    contactExporter: contactExporter
-                )
-            }
-            .task {
-                await viewModel.loadHolderData()
-            }
+            appRoot
+        }
+    }
+
+    /// The NavigationStack root, plus the DEBUG openURL capture seam when
+    /// (and only when) the capture launch argument is present.
+    @ViewBuilder
+    private var appRoot: some View {
+        #if DEBUG
+        if DebugOpenURLCaptureLaunchMode.isEnabled() {
+            baseRoot.debugOpenURLCapture(debugURLCapture)
+        } else {
+            baseRoot
+        }
+        #else
+        baseRoot
+        #endif
+    }
+
+    private var baseRoot: some View {
+        NavigationStack {
+            CardHolderView(
+                viewModel: viewModel,
+                cardRepository: cardRepository,
+                imageStore: imageStore,
+                contactExporter: contactExporter
+            )
+        }
+        .task {
+            await viewModel.loadHolderData()
         }
     }
 

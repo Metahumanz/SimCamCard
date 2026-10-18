@@ -120,6 +120,27 @@ final class CardDetailViewModel {
         case exportFailed
     }
 
+    /// Original-image load state for B-02 (Final Delivery Phase 1.1).
+    /// The Detail page shows the original captured/imported card image
+    /// by loading bytes from the shared ImageAssetStore using
+    /// `card.originalImageReference`. The processed image is a separate
+    /// asset (`processedImageReference`) used by the Holder thumbnail —
+    /// the two references are never conflated.
+    ///
+    /// - idle: not yet loaded (initial state; loadOriginalImage is a
+    ///   no-op once a terminal state is reached).
+    /// - loading: the async store fetch is in flight.
+    /// - loaded: bytes were found; the View renders the image.
+    /// - missing: no bytes found (e.g. seed fixture tokens never backed
+    ///   by real data, or InMemory store after restart); the View shows
+    ///   no image section (graceful degradation, no crash).
+    enum ImageLoadState: Equatable, Sendable {
+        case idle
+        case loading
+        case loaded(Data)
+        case missing
+    }
+
     /// The saved card whose structured fields are displayed. Updated
     /// IN PLACE (same aggregate id) after a successful T14 edit save.
     private(set) var card: BusinessCard
@@ -135,6 +156,12 @@ final class CardDetailViewModel {
     /// imports Contacts and never builds a CNContactStore itself.
     private let contactExporter: any ContactExporting
 
+    /// B-02: the shared image store injected from the composition root
+    /// (same InMemoryImageAssetStore used by the scan/save path). When
+    /// nil (tests/previews without an image store), no image is loaded
+    /// and the Detail degrades gracefully (no image section shown).
+    private let imageStore: (any ImageAssetStore)?
+
     private(set) var editState: EditState = .viewing
 
     /// T17 delete workflow state (see DeleteState).
@@ -146,6 +173,9 @@ final class CardDetailViewModel {
     /// T19 contact-export workflow state (see ExportState).
     private(set) var exportState: ExportState = .idle
 
+    /// B-02: original-image load state (see ImageLoadState).
+    private(set) var originalImageState: ImageLoadState = .idle
+
     /// Note history projected from the single owning BusinessCard
     /// aggregate. The View reads this directly; there is no second copy.
     var notes: [CardNote] { card.notes }
@@ -153,11 +183,37 @@ final class CardDetailViewModel {
     init(
         card: BusinessCard,
         repository: any BusinessCardRepository,
-        contactExporter: any ContactExporting
+        contactExporter: any ContactExporting,
+        imageStore: (any ImageAssetStore)? = nil
     ) {
         self.card = card
         self.repository = repository
         self.contactExporter = contactExporter
+        self.imageStore = imageStore
+    }
+
+    // MARK: - Original image loading (B-02)
+
+    /// Loads the original captured/imported image bytes from the shared
+    /// ImageAssetStore using `card.originalImageReference`. Called from
+    /// the Detail View's `.task` on appear. A no-op once a terminal
+    /// state (loaded/missing) is reached — the image is loaded at most
+    /// once per ViewModel lifetime. When `imageStore` is nil or the
+    /// reference has no data, the state becomes `.missing` and the View
+    /// shows no image section (graceful degradation).
+    func loadOriginalImage() async {
+        guard case .idle = originalImageState else { return }
+        originalImageState = .loading
+        guard let store = imageStore else {
+            originalImageState = .missing
+            return
+        }
+        let data = await store.data(for: card.originalImageReference)
+        if let data = data, !data.isEmpty {
+            originalImageState = .loaded(data)
+        } else {
+            originalImageState = .missing
+        }
     }
 
     // MARK: - Editing lifecycle

@@ -143,6 +143,42 @@ struct CardRegionGeometryTests {
         #expect(CardRegionGeometry.isValid(region))
     }
 
+    // MARK: - Auto-detection acceptance gate
+
+    @Test("large valid region is acceptable for auto-detection")
+    func largeValidRegionIsAcceptable() {
+        let region = Self.region(
+            tl: (0.1, 0.15), tr: (0.9, 0.15),
+            br: (0.9, 0.85), bl: (0.1, 0.85)
+        )
+        #expect(CardRegionGeometry.isAcceptableAutoDetection(region))
+    }
+
+    @Test("geometrically valid but tiny region is NOT acceptable for auto-detection")
+    func tinyValidRegionIsNotAcceptable() {
+        // 0.15 x 0.15 central square → area 0.0225: valid (>= 0.01) but
+        // below the 0.05 conservative auto-detection threshold.
+        let region = Self.region(
+            tl: (0.425, 0.425), tr: (0.575, 0.425),
+            br: (0.575, 0.575), bl: (0.425, 0.575)
+        )
+        #expect(CardRegionGeometry.isValid(region))
+        #expect(CardRegionGeometry.normalizedArea(region) >= CardRegionGeometry.minimumNormalizedArea)
+        #expect(CardRegionGeometry.normalizedArea(region) < CardRegionGeometry.minimumDetectedArea)
+        #expect(!CardRegionGeometry.isAcceptableAutoDetection(region))
+    }
+
+    @Test("invalid region is NOT acceptable for auto-detection even if large")
+    func invalidLargeRegionIsNotAcceptable() {
+        // Bow-tie with area > 0.05 but self-intersecting.
+        let region = Self.region(
+            tl: (0.8, 0.8), tr: (0.2, 0.2),
+            br: (0.8, 0.2), bl: (0.2, 0.8)
+        )
+        #expect(!CardRegionGeometry.isValid(region))
+        #expect(!CardRegionGeometry.isAcceptableAutoDetection(region))
+    }
+
     // MARK: - Helpers
 
     private static func region(

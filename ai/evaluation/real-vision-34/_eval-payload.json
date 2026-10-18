@@ -1,0 +1,6922 @@
+{
+  "comparison" : [
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "张伟",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "张伟",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海智云科技有限公司",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海智云科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "产品总监 | Product Director",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "产品总监 |Product Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海市浦东新区世纪大道100号 200120",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海市浦东新区世纪大道100号 200120",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 138 0013 8000",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 138 0013 8000",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 5555 1234",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 21 5555 1234",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "wei.zhang@zhiyuntech.com",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "wei.zhang@zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.zhiyuntech.com",
+      "id" : "card-001",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "李娜",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "李娜",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海智云科技有限公司",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海智云科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "市场总监 | Marketing Director",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "市场总监 ｜ Marketing Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海市浦东新区世纪大道188号 200120",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海市浦东新区世纪大道188号 200120",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 139 1234 5678",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 139 1234 5678",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 6888 2468",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 21 6888 2468",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "lina.li@zhiyuntech.com",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "lina.li@zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-002",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "陈晨",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "陈晨",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海智云科技有限公司",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海智云科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "商务拓展经理 | Business Development Manager",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "商务拓展经理丨",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海市徐汇区漕溪北路398号 200030",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海市徐汇区漕溪北路398号200030",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 136 8888 1024",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 136 8888 1024",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 5666 7788",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 21 5666 7788",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "fax",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 5666 7799",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 21 5666 7799",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "chen.chen@zhiyuntech.com",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "chen.chen@zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.zhiyuntech.com",
+      "id" : "card-003",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "张伟",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "张 伟",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 138 0013 8000",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 138 0013 8000",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "email",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-004",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Olivia Chen",
+      "id" : "card-005",
+      "match" : false,
+      "note" : "raw OCR contains anchor but observed field value differs",
+      "observedValue" : "North Harbor",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Senior Data Consultant",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Senior Data Consultant",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "88 Market Street, Suite 920, San Francisco, CA 94105",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "88 Market Street, Suite 920, San Francisco, CA 94105",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 (415) 555-0184",
+      "id" : "card-005",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 (415) 555-0147",
+      "id" : "card-005",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "olivia.chen@northharbor.ai",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "olivia.chen@northharbor.ai",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.northharbor.ai",
+      "id" : "card-005",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.northharbor.ai",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Emma Xu",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Emma Xu",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Green Aurora Studio)",
+      "observedValue" : "Green Aurora Studio",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Visual Designer",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Visual Designer",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 186 0217 4433",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 186 0217 4433",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "emma.xu@grnaurora.com",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "emma.xu@grnaurora.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-006",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "赵磊",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "赵 磊",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "杭州远帆医疗科技有限公司",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "杭州远帆医疗科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "销售经理 | Sales Manager",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "销售经理｜ Sales Manager",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 杭州市滨江区江陵路88号 310051",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国杭州市滨江区江陵路88号 310051",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 150 8800 7312",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 150 8800 7312",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 571 8650 2208",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 571 8650 2208",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "lei.zhao@yuanfanmed.com",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "lei.zhao@yuanfanmed.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-007",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "刘洋",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "刘洋",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "蓝轨物流科技有限公司",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "蓝轨物流科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "区域发展经理 | Regional Development Manager",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "区域发展经理｜Regional Development Manager",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 深圳市南山区科技南十二路6号 518057",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国深圳市南山区科技南十二路6号 518057",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 139 7008 6611",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 139 7008 6611",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 755 2668 4100",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 755 2668 4100",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "fax",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 755 2668 4109",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 755 2668 4109",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "yang.liu@blueorbitlog.com",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "yang.liu@blueorbitlog.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.blueorbitlog.com",
+      "id" : "card-008",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.blueorbitlog.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "何嘉怡",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "何嘉怡",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "广州澜图文旅发展有限公司",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "广州澜图文旅发展有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "品牌合作总监 | Director of Brand Partnerships",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "品牌合作总监 ｜ Director of Brand Partnerships",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 广州市天河区珠江新城华夏路16号 510623",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国 广州市天河区珠江新城 华夏路16号 510623",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 188 2506 3114",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 188 2506 3114",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 20 3899 7781",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 20 3899 7781",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "jiayi.he@lantuvision.com",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "jiayi.he@lantuvision.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.lantuvision.com",
+      "id" : "card-009",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.lantuvision.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "王敏",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "王敏",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "星澜智能制造有限公司",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "星澜智能制造有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "运营总监 | Operations Director",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "运营总监 | Operations Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 上海市 闵行区申长路518号 201106",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国 上海市 闵行区申长路518号 201106",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 137 1001 2200",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 137 1001 2200",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 6200 1188",
+      "id" : "card-010",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "min.wang@xinglanim.com",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "min.wang@xinglanim.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.xinglanim.com",
+      "id" : "card-010",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.xinglanim.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "孙悦",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "孙悦",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "宁波启辰精工有限公司",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "宁波启辰精工有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "客户成功经理 | Customer Success Manager",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "客户成功经理 ｜Customer Success Manager",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 宁波市鄞州区中山东路1200号 315040",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国 宁波市鄞州区中山东路1200号 315040",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 158 5740 6621",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 158 5740 6621",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 574 8790 3321",
+      "id" : "card-011",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "fax",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 574 8790 3329",
+      "id" : "card-011",
+      "match" : false,
+      "note" : "digits found but classified as other instead of fax",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "yue.sun@qichenprecision.com",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "yue.sun@qichenprecision.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-011",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "周婷",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "周 婷",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "成都云桥教育科技有限公司",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "成都云桥教育科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "课程产品经理",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "课程产品经理",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 成都市高新区天府二街99号 610041",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "中国 成都市高新区天府二街99号 610041",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 181 8090 6618",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 181 8090 6618",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 28 8611 4490",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 28 8611 4490",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "ting.zhou@yqedu.cn",
+      "id" : "card-012",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "ting.zhou@yqedu.cn",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.yqedu.cn",
+      "id" : "card-012",
+      "match" : false,
+      "note" : "anchor in raw OCR, observed value differs",
+      "observedValue" : "www.yqeau.cn",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Daniel Wu",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Daniel Wu",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Stonepine BioSystems)",
+      "observedValue" : "BioSystems",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Research Partnerships Lead",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Research Partnerships Lead",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "14 Kingsway, London WC2B 6XF, UK",
+      "id" : "card-013",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+44 7700 900245",
+      "id" : "card-013",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+44 20 7946 1288",
+      "id" : "card-013",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "daniel.wu@stonepinebio.com",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "daniel.wu@stonepinebio.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.stonepinebio.com",
+      "id" : "card-013",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.stonepinebio.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Kevin Park",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Kevin Park",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Morningside Secure Systems)",
+      "observedValue" : "Secure Systems",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Solutions Architect",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Solutions Architect",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "305 Madison Ave, New York, NY 10165",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "305 Madison Ave, New York, NY 10165",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 (646) 555-0113",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+1 (646) 555-0113",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 (212) 555-0199",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+1 (212) 555-0199",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "email",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.mss-secure.com",
+      "id" : "card-014",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.mss-secure.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "李娜",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "李娜",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海智云科技有限公司",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "上海智云科技有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "产品经理",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "产品经理",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "上海市徐汇区漕溪北路398号 200030",
+      "id" : "card-015",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 136 8888 1025",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 136 8888 1025",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "lina@zhiyuntech.com",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "lina@zhiyuntech.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-015",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Michael Chen",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Michael Chen",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (CloudMatrix Inc.)",
+      "observedValue" : "CloudMatrix Inc.",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Senior Software Engineer",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Senior Software Engineer",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "500 Terry A Francois Blvd, San Francisco, CA 94158, USA",
+      "id" : "card-016",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 415 555 0199",
+      "id" : "card-016",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "mchen@cloudmatrix.com",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "mchen@cloudmatrix.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.cloudmatrix.com",
+      "id" : "card-016",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.cloudmatrix.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "王强",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "王强",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "招商银行",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "招商银行",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "客户经理",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "客户经理",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "上海市浦东新区陆家嘴环路1088号 200120",
+      "id" : "card-017",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 139 1234 5678",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 139 1234 5678",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 5555 6666",
+      "id" : "card-017",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "wangqiang@cmbchina.com",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "wangqiang@cmbchina.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-017",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "David Park",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "David Park",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Nexa Studio)",
+      "observedValue" : "Nexa Studio",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Design Director",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Design Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "12 Teheran-ro, Gangnam-gu, Seoul 06234, Korea",
+      "id" : "card-018",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+82 10 9876 5432",
+      "id" : "card-018",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "david.park@nexa.studio",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "david.park@nexa.studio",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.nexa.studio",
+      "id" : "card-018",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.nexa.studio",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "佐藤健一",
+      "id" : "card-019",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "佐藤健一",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "さくら株式会社",
+      "id" : "card-019",
+      "match" : false,
+      "note" : "raw OCR contains anchor but observed field value differs",
+      "observedValue" : "Sakura Co., Ltd.",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "マネージャー",
+      "id" : "card-019",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "東京都千代田区丸の内1-9-1 100-0005",
+      "id" : "card-019",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+81 90 1234 5678",
+      "id" : "card-019",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-019",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-019",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "sato@sakura.co.jp",
+      "id" : "card-019",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "sato@sakura.co.jp",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.sakura.co.jp",
+      "id" : "card-019",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.sakura.co.jp",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "陈静",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "陈静",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "华东第一人民医院",
+      "id" : "card-020",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "主任医师",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "主任医师",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海市静安区延安中路1000号 200040",
+      "id" : "card-020",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 139 8765 4321",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 139 8765 4321",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 6666 8888",
+      "id" : "card-020",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "chenjing@ecfph.cn",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "chenjing@ecfph.cn",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-020",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Sophia Müller",
+      "id" : "card-021",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (GlobalTech GmbH)",
+      "observedValue" : "GlobalTech GmbH",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Product Manager",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Product Manager",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "Musterstraße 12, 80331 München, Deutschland",
+      "id" : "card-021",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+49 151 2345 6789",
+      "id" : "card-021",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "sophia.mueller@globaltech.de",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "sophia.mueller@globaltech.de",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.globaltech.de",
+      "id" : "card-021",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.globaltech.de",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "刘洋",
+      "id" : "card-022",
+      "match" : false,
+      "note" : "raw OCR contains anchor but observed field value differs",
+      "observedValue" : "復旦大拳",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "复旦大学",
+      "id" : "card-022",
+      "match" : false,
+      "note" : "raw OCR lacks GT anchor; observed value may be OCR error",
+      "observedValue" : "FUDAN UNIVERSITY",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "副教授",
+      "id" : "card-022",
+      "match" : false,
+      "note" : "raw OCR lacks GT anchor; observed value may be OCR error",
+      "observedValue" : "刷教授",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "上海市杨浦区邯郸路220号 200433",
+      "id" : "card-022",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 138 5555 6677",
+      "id" : "card-022",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 138 5555 6677",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-022",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-022",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "email",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "liuyang@fudan.edu.cn",
+      "id" : "card-022",
+      "match" : false,
+      "note" : "raw OCR lacks the GT email",
+      "observedValue" : "livyang@fudan.edu.cn",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "http:\/\/www.fudan.edu.cn",
+      "id" : "card-022",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "http:\/\/www.fudan.edu.cn",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Emily Johnson",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Emily Johnson",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "CEO",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "CEO",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "3200 Hillview Ave, Palo Alto, CA 94304, USA",
+      "id" : "card-023",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 650 555 0134",
+      "id" : "card-023",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "emily@novaai.com",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "emily@novaai.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.novaai.com",
+      "id" : "card-023",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.novaai.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "周磊",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "周磊",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "宏远制造有限公司",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "宏远制造有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "销售总监",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "销售总监",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "上海市嘉定区嘉罗公路123号 201800",
+      "id" : "card-024",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 137 0000 9999",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 137 0000 9999",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 21 7777 8888",
+      "id" : "card-024",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "zhoulei@hongyuan.com",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "zhoulei@hongyuan.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.hongyuan.com",
+      "id" : "card-024",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.hongyuan.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Élodie Martin",
+      "id" : "card-025",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-025",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Atelier Lumen SAS)",
+      "observedValue" : "Atelier Lumen SAS",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Directrice de produit | Product Director",
+      "id" : "card-025",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Directrice de produit | Product Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "24 Rue de Lyon, 75012 Paris, France",
+      "id" : "card-025",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+33 6 12 34 56 78",
+      "id" : "card-025",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+33 1 84 80 22 10",
+      "id" : "card-025",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-025",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "elodie.martin@atelierlumen.fr",
+      "id" : "card-025",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "elodie.martin@atelierlumen.fr",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.atelierlumen.fr",
+      "id" : "card-025",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.atelierlumen.fr",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "김서준",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "raw OCR contains anchor but observed field value differs",
+      "observedValue" : "Seo-jun Kim",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "한빛로보틱스 주식회사",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "제품전략 매니저 | Product Strategy Manager",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "raw OCR lacks GT anchor; observed value may be OCR error",
+      "observedValue" : "|Prodct Strategy Manager",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "대한민국 서울특별시 강남구 테헤란로 221, 06142",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+82 10 4382 7715",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+82 2 6123 4400",
+      "id" : "card-026",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-026",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "seojun.kim@hanbitrobotics.kr",
+      "id" : "card-026",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "seojun.kim@hanbitrobotics.kr",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.hanbitrobotics.kr",
+      "id" : "card-026",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.hanbitrobotics.kr",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "高橋 美咲",
+      "id" : "card-027",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "高橋 美咲",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "wrong_value",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "青空デザイン株式会社",
+      "id" : "card-027",
+      "match" : false,
+      "note" : "raw OCR contains anchor but observed field value differs",
+      "observedValue" : "Aozora Design Inc.",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "アートディレクター | Art Director",
+      "id" : "card-027",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "アートディレクター｜Art Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "東京都渋谷区神宮前4-18-7 150-0001",
+      "id" : "card-027",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+81 90 2468 1357",
+      "id" : "card-027",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+81 3 6450 2290",
+      "id" : "card-027",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "fax",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+81 3 6450 2299",
+      "id" : "card-027",
+      "match" : false,
+      "note" : "digits found but classified as other instead of fax",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "misaki.takahashi@aozora-design.jp",
+      "id" : "card-027",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "misaki.takahashi@aozora-design.jp",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.aozora-design.jp",
+      "id" : "card-027",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.aozora-design.jp",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "许晨",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "许晨",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "苏州凌光半导体有限公司",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "苏州凌光半导体有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "产品应用工程师 | Field Application Engineer",
+      "id" : "card-028",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 苏州市工业园区星湖街328号 215123",
+      "id" : "card-028",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 159 5008 7712",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 159 5008 7712",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 512 6688 2046",
+      "id" : "card-028",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "email",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.lingguangsemi.cn",
+      "id" : "card-028",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.lingguangsemi.cn",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Nora O'Connor",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Nora O'Connor",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Vice President, Client Solutions",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Vice President, Client Solutions",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "ocr_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "375 Lexington Avenue, Floor 18, New York, NY 10017, USA",
+      "id" : "card-029",
+      "match" : false,
+      "note" : "raw OCR does not contain the GT anchor",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 917 555 0248",
+      "id" : "card-029",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+1 212 555 0186",
+      "id" : "card-029",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "nora.oconnor@silverlinerisk.com",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "nora.oconnor@silverlinerisk.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.silverlinerisk.com",
+      "id" : "card-029",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.silverlinerisk.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Mateo Ruiz",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Mateo Ruiz",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Cobalto Studio)",
+      "observedValue" : "Cobalto Studio",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "UX Researcher",
+      "id" : "card-030",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "mateo@cobalto.studio",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "mateo@cobalto.studio",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.cobalto.studio",
+      "id" : "card-030",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.cobalto.studio",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "林琪",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "林琪",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "深圳澄海新能源有限公司",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "深圳澄海新能源有限公司",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "国际业务经理 | International Business Manager",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "国际业务经理｜International Business Manager",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "中国 深圳市南山区科苑南路2666号 518063",
+      "id" : "card-031",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 186 8891 2040",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "+86 186 8891 2040",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+86 755 8654 2033",
+      "id" : "card-031",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "linqi@chenghaienergy.com",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "linqi@chenghaienergy.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.chenghaienergy.com",
+      "id" : "card-031",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.chenghaienergy.com",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Aisha Rahman",
+      "id" : "card-032",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Aisha Rahman",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "accepted_alternate_language",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-032",
+      "match" : true,
+      "note" : "GT canonical field absent; observed value matches GT alternate-language variant (Meridian Health Labs)",
+      "observedValue" : "Meridian Health Labs",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Clinical Partnerships Lead",
+      "id" : "card-032",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "Clinical Partnerships Lead",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : true,
+      "gtValue" : "88 Great Portland Street, London W1W 7NT, UK",
+      "id" : "card-032",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+44 7700 912481",
+      "id" : "card-032",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+44 20 7946 2310",
+      "id" : "card-032",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-032",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "aisha.rahman@meridianhealthlabs.co.uk",
+      "id" : "card-032",
+      "match" : false,
+      "note" : "raw OCR contains email but extractor missed it",
+      "observedValue" : "eaisha.rahman@meridianhealthlabs.co.uk",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.meridianhealthlabs.co.uk",
+      "id" : "card-032",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.meridianhealthlabs.co.uk",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "José Álvarez",
+      "id" : "card-033",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "company",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-033",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match_native_partial",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Director de Ventas | Sales Director",
+      "id" : "card-033",
+      "match" : true,
+      "note" : "native side matched; full bilingual GT string not contained",
+      "observedValue" : "Director de Ventas Sales Director",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "Calle de Alcalá 121, 28009 Madrid, España",
+      "id" : "card-033",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+34 612 345 781",
+      "id" : "card-033",
+      "match" : false,
+      "note" : "digits found but classified as other instead of mobile",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "kind_misclassification",
+      "field" : "office",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "+34 91 555 2480",
+      "id" : "card-033",
+      "match" : false,
+      "note" : "digits found but classified as other instead of office",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-033",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "jose.alvarez@nubeclara.es",
+      "id" : "card-033",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "jose.alvarez@nubeclara.es",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "website",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "www.nubeclara.es",
+      "id" : "card-033",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "www.nubeclara.es",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "name",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "顾言",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "顾言",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "company",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "杭州屿川建筑设计事务所",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "杭州屿川建筑设计事务所",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "match",
+      "field" : "jobTitle",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "建筑师",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "建筑师",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "extraction_miss",
+      "field" : "address",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "杭州市西湖区文三路90号 310012",
+      "id" : "card-034",
+      "match" : false,
+      "note" : "raw OCR contains anchor but extractor did not classify",
+      "observedValue" : "",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "mobile",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "office",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "fax",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    },
+    {
+      "errorType" : "match",
+      "field" : "email",
+      "fullImageContainsAnchor" : true,
+      "gtPresent" : true,
+      "gtValue" : "guyan@yuchuan.design",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "guyan@yuchuan.design",
+      "rawContainsAnchor" : true
+    },
+    {
+      "errorType" : "correct_absent",
+      "field" : "website",
+      "fullImageContainsAnchor" : false,
+      "gtPresent" : false,
+      "gtValue" : "",
+      "id" : "card-034",
+      "match" : true,
+      "note" : "",
+      "observedValue" : "",
+      "rawContainsAnchor" : false
+    }
+  ],
+  "environment" : {
+    "cards" : "34 frozen dataset PNGs, unmodified",
+    "crop" : "CardCropProcessor actor + CIPerspectiveCorrection",
+    "detector" : "Vision VNDetectRectanglesRequest via CardRegionDetector",
+    "gt" : "dataset\/ground-truth\/card-001..034.json",
+    "ios" : "27.0",
+    "ocrEngine" : "Vision RecognizeTextRequest (.accurate, zh-Hans+en-US, auto-detect ON, correction OFF)",
+    "runDate" : "2026-10-15T04:45:25Z",
+    "simulator" : "iPhone 18 Pro",
+    "xcode" : "27.0"
+  },
+  "raw" : [
+    {
+      "detectedRegionNormalizedArea" : 0.6201407861260722,
+      "diagLineCount" : 10,
+      "diagProcessedPixelHeight" : 1086,
+      "diagProcessedPixelWidth" : 1448,
+      "diagRawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n张伟\nWei Zhang\n产品总监 ｜ Product Director\n手机 Mobile：+86 138 0013 8000\n电话 Tel： +86 21 5555 1234\n邮稽 Email: wei.zhang@zhiyuntech.com\n网址 Web：www.zhiyuntech.com\n地址 Address：上海市浦东新区世纪大道100号 200120",
+      "file" : "card-001-standard-bilingual.png",
+      "id" : "card-001",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "上海智云科技有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Shanghai Zhiyun Tech Co., Ltd."
+        },
+        {
+          "confidence" : 1,
+          "text" : "张伟"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Wei Zhang"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "产品总监 |Product Director"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "手机 Mobile：+86 138 0013 8000"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "电话 Tel： +86 21 5555 1234"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "邮稍 Email: wei.zhang@zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "网址 Web：www.zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "地址 Address：上海市浦东新区世纪大道100号 200120"
+        }
+      ],
+      "processedPixelHeight" : 727,
+      "processedPixelWidth" : 1361,
+      "rawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n张伟\nWei Zhang\n产品总监 |Product Director\n手机 Mobile：+86 138 0013 8000\n电话 Tel： +86 21 5555 1234\n邮稍 Email: wei.zhang@zhiyuntech.com\n网址 Web：www.zhiyuntech.com\n地址 Address：上海市浦东新区世纪大道100号 200120",
+      "regionBottomLeft" : [
+        0.03233397752046585,
+        0.8536218702793121
+      ],
+      "regionBottomRight" : [
+        0.9645240306854248,
+        0.8471210151910782
+      ],
+      "regionTopLeft" : [
+        0.032281652092933655,
+        0.18541359901428223
+      ],
+      "regionTopRight" : [
+        0.963655412197113,
+        0.18424737453460693
+      ],
+      "sourcePixelHeight" : 1086,
+      "sourcePixelWidth" : 1448,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.6229410343607302,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 1086,
+      "diagProcessedPixelWidth" : 1448,
+      "diagRawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n李娜\nLina Li\n市场总监 ｜ Marketing Director\n手机 Mobile： +86 139 1234 5678\n电话 Tel：+86 21 6888 2468\n邮籍 Email: lina.i@zhiyuntech.com\n地址 Address：上海市浦东新区世纪大道188号 200120",
+      "file" : "card-002-missing-website.png",
+      "id" : "card-002",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "上海智云科技有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Shanghai Zhiyun Tech Co., Ltd."
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "李娜"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Lina Li"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "手机 Mobile：+86 139 1234 5678"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "电话 Tel： +86 21 6888 2468"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "邮籍 Email:lina.li@zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "市场总监 ｜ Marketing Director"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "地址 Address：上海市浦东新区世纪大道188号 200120"
+        }
+      ],
+      "processedPixelHeight" : 728,
+      "processedPixelWidth" : 1353,
+      "rawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n李娜\nLina Li\n手机 Mobile：+86 139 1234 5678\n电话 Tel： +86 21 6888 2468\n邮籍 Email:lina.li@zhiyuntech.com\n市场总监 ｜ Marketing Director\n地址 Address：上海市浦东新区世纪大道188号 200120",
+      "regionBottomLeft" : [
+        0.03220361843705177,
+        0.8540143817663193
+      ],
+      "regionBottomRight" : [
+        0.9637790322303772,
+        0.851404219865799
+      ],
+      "regionTopLeft" : [
+        0.03143111616373062,
+        0.18554580211639404
+      ],
+      "regionTopRight" : [
+        0.9645302891731262,
+        0.18357312679290771
+      ],
+      "sourcePixelHeight" : 1086,
+      "sourcePixelWidth" : 1448,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.6219592089040687,
+      "diagLineCount" : 12,
+      "diagProcessedPixelHeight" : 1086,
+      "diagProcessedPixelWidth" : 1448,
+      "diagRawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n陈晨\nChen Chen\n商务拓展经理 丨\nBusiness Development Manager\n手机 Mobile：+86 136 8888 1024\n电话 Tel： +86 21 5666 7788\n传真 Fax： +86 21 5666 7799\n邮籟 Email: chen.chen@zhiyuntech.com\n网址 Web：www.zhiyuntech.com\n地址 Address：上海市徐汇区漕溪北路398号 200030",
+      "file" : "card-003-multiple-phones-fax.png",
+      "id" : "card-003",
+      "lineCount" : 12,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "上海智云科技有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Shanghai Zhiyun Tech Co., Ltd."
+        },
+        {
+          "confidence" : 1,
+          "text" : "陈晨"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Chen Chen"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "商务拓展经理丨"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Business Development Manager"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "手机 Mobile： +86 136 8888 1024"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "电话 Tel： +86 21 5666 7788"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "传真 Fax： +86 21 5666 7799"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "邮 Email: chen.chen@zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "网址 Web:www.zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "地址 Address：上海市徐汇区漕溪北路398号200030"
+        }
+      ],
+      "processedPixelHeight" : 728,
+      "processedPixelWidth" : 1357,
+      "rawText" : "上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n陈晨\nChen Chen\n商务拓展经理丨\nBusiness Development Manager\n手机 Mobile： +86 136 8888 1024\n电话 Tel： +86 21 5666 7788\n传真 Fax： +86 21 5666 7799\n邮 Email: chen.chen@zhiyuntech.com\n网址 Web:www.zhiyuntech.com\n地址 Address：上海市徐汇区漕溪北路398号200030",
+      "regionBottomLeft" : [
+        0.032248832285404205,
+        0.8524516522884369
+      ],
+      "regionBottomRight" : [
+        0.9637790322303772,
+        0.8533439785242081
+      ],
+      "regionTopLeft" : [
+        0.032248832285404205,
+        0.18660449981689453
+      ],
+      "regionTopRight" : [
+        0.9645289182662964,
+        0.18437832593917847
+      ],
+      "sourcePixelHeight" : 1086,
+      "sourcePixelWidth" : 1448,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.4665074075448655,
+      "diagLineCount" : 2,
+      "diagProcessedPixelHeight" : 597,
+      "diagProcessedPixelWidth" : 725,
+      "diagRawText" : "张 伟\n+86 138 0013 8000",
+      "file" : "card-004-minimal-name-mobile.png",
+      "id" : "card-004",
+      "lineCount" : 2,
+      "lines" : [
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "张 伟"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 138 0013 8000"
+        }
+      ],
+      "processedPixelHeight" : 355,
+      "processedPixelWidth" : 576,
+      "rawText" : "张 伟\n+86 138 0013 8000",
+      "regionBottomLeft" : [
+        0.1066865622997284,
+        0.8029793053865433
+      ],
+      "regionBottomRight" : [
+        0.8995223045349121,
+        0.8007655143737793
+      ],
+      "regionTopLeft" : [
+        0.10780356824398041,
+        0.2132684588432312
+      ],
+      "regionTopRight" : [
+        0.8963095545768738,
+        0.21045368909835815
+      ],
+      "sourcePixelHeight" : 597,
+      "sourcePixelWidth" : 725,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7528278957626752,
+      "diagLineCount" : 13,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "Olivia Chen\nSenior Data Consultant\nNorth Harbor\nAnalytics\nMobile: +1 (415) 555-0184\nOffice:\n+1 (415) 555-0147\nEmail:\nolivia.chen@northharbor.ai\nWeb:\nwww.northharbor.ai\nAddress: 88 Market Street, Suite 920,\nSan Francisco, CA 94105",
+      "file" : "card-005-english-analytics.png",
+      "id" : "card-005",
+      "lineCount" : 14,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "North Harbor"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Analytics"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Olivia Chen"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Senior Data Consultant"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Office:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+1 (415) 555-0184"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+1 (415) 555-0147"
+        },
+        {
+          "confidence" : 1,
+          "text" : "olivia.chen@northharbor.ai"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.northharbor.ai"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Address: 88 Market Street, Suite 920,"
+        },
+        {
+          "confidence" : 1,
+          "text" : "San Francisco, CA 94105"
+        }
+      ],
+      "processedPixelHeight" : 783,
+      "processedPixelWidth" : 1529,
+      "rawText" : "North Harbor\nAnalytics\nOlivia Chen\nSenior Data Consultant\nMobile:\nOffice:\nEmail:\nWeb:\n+1 (415) 555-0184\n+1 (415) 555-0147\nolivia.chen@northharbor.ai\nwww.northharbor.ai\nAddress: 88 Market Street, Suite 920,\nSan Francisco, CA 94105",
+      "regionBottomLeft" : [
+        0.040732964873313904,
+        0.9105440899729729
+      ],
+      "regionBottomRight" : [
+        0.9564374685287476,
+        0.9104248732328415
+      ],
+      "regionTopLeft" : [
+        0.040226537734270096,
+        0.0904994010925293
+      ],
+      "regionTopRight" : [
+        0.9551442861557007,
+        0.08550846576690674
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7905324927151783,
+      "diagLineCount" : 5,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "Green Aurora Studio\nEmma Xu\nVisual Designer\nMobile: +86 186 0217 4433\nEmail: emma.xu@grnaurora.com",
+      "file" : "card-006-minimal-designer.png",
+      "id" : "card-006",
+      "lineCount" : 5,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Green Aurora Studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Emma Xu"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Visual Designer"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 186 0217 4433"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email: emma.xu@grnaurora.com"
+        }
+      ],
+      "processedPixelHeight" : 818,
+      "processedPixelWidth" : 1530,
+      "rawText" : "Green Aurora Studio\nEmma Xu\nVisual Designer\nMobile: +86 186 0217 4433\nEmail: emma.xu@grnaurora.com",
+      "regionBottomLeft" : [
+        0.039578281342983246,
+        0.9302724003791809
+      ],
+      "regionBottomRight" : [
+        0.9583684206008911,
+        0.9331817328929901
+      ],
+      "regionTopLeft" : [
+        0.039888255298137665,
+        0.07134348154067993
+      ],
+      "regionTopRight" : [
+        0.958612322807312,
+        0.07123774290084839
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7563596394709435,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 1659,
+      "diagProcessedPixelWidth" : 948,
+      "diagRawText" : "杭州远帆医疗科技有限公司\nHangzhou Yuanfan Medical Technology Co., Ltd.\n赵 磊\nLei Zhao\n销售经理 ｜ Sales Manager\nMobile: +86 150 8800 7312\nTel: +86 571 8650 2208\nEmail: lei.zhao@yuanfanmed.com\nAaaress：中国 杭州市滨江区江陵路88号 310051",
+      "file" : "card-007-vertical-medical-bilingual.png",
+      "id" : "card-007",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "杭州远帆医疗科技有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Hangzhou Yuanfan Medical Technology Co., Ltd."
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "赵 磊"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Lei Zhao"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "销售经理｜ Sales Manager"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 150 8800 7312"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Tel: +86 571 8650 2208"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email: lei.zhao@yuanfanmed.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Address：中国杭州市滨江区江陵路88号 310051"
+        }
+      ],
+      "processedPixelHeight" : 1545,
+      "processedPixelWidth" : 1051,
+      "rawText" : "杭州远帆医疗科技有限公司\nHangzhou Yuanfan Medical Technology Co., Ltd.\n赵 磊\nLei Zhao\n销售经理｜ Sales Manager\nMobile: +86 150 8800 7312\nTel: +86 571 8650 2208\nEmail: lei.zhao@yuanfanmed.com\nAddress：中国杭州市滨江区江陵路88号 310051",
+      "regionBottomLeft" : [
+        0.04217032343149185,
+        0.9462247006595135
+      ],
+      "regionBottomRight" : [
+        0.9547715783119202,
+        0.8119074702262878
+      ],
+      "regionTopLeft" : [
+        0.04327860474586487,
+        0.048572003841400146
+      ],
+      "regionTopRight" : [
+        0.9520811438560486,
+        0.04862910509109497
+      ],
+      "sourcePixelHeight" : 1659,
+      "sourcePixelWidth" : 948,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7534502164300958,
+      "diagLineCount" : 11,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "蓝轨物流科技有限公司\nBlue Orbit Logistics\n刘洋\nYang Liu\n区域发展经理｜ Regional Development Manager\nMobile: +86 139 7008 6611\nTel: +86 755 2668 4100\nFax: +86 755 2668 4109\nEmail: yang.liu@blueorbitlog.com\nWeb: www.blueorbitlog.com\nAddress：中国 深圳市南山区科技南十二路6号518057",
+      "file" : "card-008-dark-logistics-bilingual.png",
+      "id" : "card-008",
+      "lineCount" : 11,
+      "lines" : [
+        {
+          "confidence" : 0.5,
+          "text" : "蓝轨物流科技有限公司"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Blue Orbit Logistics"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "刘洋"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Yang Liu"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "区域发展经理｜Regional Development Manager"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 139 7008 6611"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Tel: +86 755 2668 4100"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Fax: +86 755 2668 4109"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email: yang.liu@blueorbitlog.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web: www.blueorbitlog.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Address：中国深圳市南山区科技南十二路6号 518057"
+        }
+      ],
+      "processedPixelHeight" : 796,
+      "processedPixelWidth" : 1510,
+      "rawText" : "蓝轨物流科技有限公司\nBlue Orbit Logistics\n刘洋\nYang Liu\n区域发展经理｜Regional Development Manager\nMobile: +86 139 7008 6611\nTel: +86 755 2668 4100\nFax: +86 755 2668 4109\nEmail: yang.liu@blueorbitlog.com\nWeb: www.blueorbitlog.com\nAddress：中国深圳市南山区科技南十二路6号 518057",
+      "regionBottomLeft" : [
+        0.04530556872487068,
+        0.9162944853305817
+      ],
+      "regionBottomRight" : [
+        0.9529337286949158,
+        0.9149860441684723
+      ],
+      "regionTopLeft" : [
+        0.047806937247514725,
+        0.08462512493133545
+      ],
+      "regionTopRight" : [
+        0.9496820569038391,
+        0.08111697435379028
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7448870404042521,
+      "diagLineCount" : 12,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "广州澜图文旅发展有限公司\nGuangzhou Lantu Cultural Tourism Development Co., Ltd.\n何嘉怡\nJiayi He\n品牌合作总监｜ Director of Brand Partnerships\n凶\nMobile: +86 188 2506 3114\nTel: +86 20 3899 7781\nEmail: jiayi.he@lantuvision.com\nWeb: www.lantuvision.com\nAddress：中国 广州市天河区珠江新城\n华夏路16号 510623",
+      "file" : "card-009-bilingual-tourism.png",
+      "id" : "card-009",
+      "lineCount" : 11,
+      "lines" : [
+        {
+          "confidence" : 0.5,
+          "text" : "广州澜图文旅发展有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Guangzhou Lantu Cultural Tourism Development Co., Ltd."
+        },
+        {
+          "confidence" : 1,
+          "text" : "何嘉怡"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Jiayi He"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "品牌合作总监 ｜ Director of Brand Partnerships"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 188 2506 3114"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Tel: +86 20 3899 7781"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email: jiayi.he@lantuvision.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web: www.lantuvision.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Address：中国 广州市天河区珠江新城"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "华夏路16号 510623"
+        }
+      ],
+      "processedPixelHeight" : 796,
+      "processedPixelWidth" : 1485,
+      "rawText" : "广州澜图文旅发展有限公司\nGuangzhou Lantu Cultural Tourism Development Co., Ltd.\n何嘉怡\nJiayi He\n品牌合作总监 ｜ Director of Brand Partnerships\nMobile: +86 188 2506 3114\nTel: +86 20 3899 7781\nEmail: jiayi.he@lantuvision.com\nWeb: www.lantuvision.com\nAddress：中国 广州市天河区珠江新城\n华夏路16号 510623",
+      "regionBottomLeft" : [
+        0.05147945508360863,
+        0.9178142845630646
+      ],
+      "regionBottomRight" : [
+        0.9455915093421936,
+        0.917872279882431
+      ],
+      "regionTopLeft" : [
+        0.054381564259529114,
+        0.08314758539199829
+      ],
+      "regionTopRight" : [
+        0.9444552063941956,
+        0.08256196975708008
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.756043242513367,
+      "diagLineCount" : 12,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "王敏\nMin Wang\n运营总监 | Operations Director\n星澜智能制造有限公司\nXinglan Intelligent Manufacturing Co., Ltd.\nMobile: +86 137 1001 2200\nTel:\n+86 21 6200 1188\nEmail:min.wang@xinglanim.com\n© Web:\nWeb: www.xinglanim.com\nAddress：中国 上海市 闵行区申长路518号 201106",
+      "file" : "card-010-standard-bilingual-manufacturing.png",
+      "id" : "card-010",
+      "lineCount" : 12,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "星澜智能制造有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Xinglan Intelligent Manufacturing Co., Ltd."
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "王敏"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Min Wang"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "运营总监 | Operations Director"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "く"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 137 1001 2200"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Tel:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+86 21 6200 1188"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email: min.wang@xinglanim.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web: www.xinglanim.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Address：中国 上海市 闵行区申长路518号 201106"
+        }
+      ],
+      "processedPixelHeight" : 802,
+      "processedPixelWidth" : 1505,
+      "rawText" : "星澜智能制造有限公司\nXinglan Intelligent Manufacturing Co., Ltd.\n王敏\nMin Wang\n运营总监 | Operations Director\nく\nMobile: +86 137 1001 2200\nTel:\n+86 21 6200 1188\nEmail: min.wang@xinglanim.com\nWeb: www.xinglanim.com\nAddress：中国 上海市 闵行区申长路518号 201106",
+      "regionBottomLeft" : [
+        0.050324976444244385,
+        0.9205980151891708
+      ],
+      "regionBottomRight" : [
+        0.9496033787727356,
+        0.9249754101037979
+      ],
+      "regionTopLeft" : [
+        0.0502927340567112,
+        0.08285880088806152
+      ],
+      "regionTopRight" : [
+        0.948479413986206,
+        0.08024799823760986
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.6556412609726607,
+      "diagLineCount" : 13,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "宁波启辰精工有限公司\nNingbo Qichen Precision Co., Ltd.\n孙悦\nYue Sun\n客户成功经理｜ Customer Success Manager\nMobile: +86 158 5740 6621\nTel:\nFax:\nEmail:\n+86 574 8790 3321\n+86 574 8790 3329\nyue.sun@qichenprecision.com\nAddress：中国 宁波市鄞州区中山东路1200号 315040",
+      "file" : "card-011-bilingual-multi-phone-fax.png",
+      "id" : "card-011",
+      "lineCount" : 14,
+      "lines" : [
+        {
+          "confidence" : 0.5,
+          "text" : "宁波启辰精工有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Ningbo Qichen Precision Co., Ltd."
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "孙悦"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Yue Sun"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "客户成功经理 ｜Customer Success Manager"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "M"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +86 158 5740 6621"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Tel:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Fax:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+86 574 8790 3321"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 574 8790 3329"
+        },
+        {
+          "confidence" : 1,
+          "text" : "yue.sun@qichenprecision.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "Address：中国 宁波市鄞州区中山东路1200号 315040"
+        }
+      ],
+      "processedPixelHeight" : 1103,
+      "processedPixelWidth" : 1483,
+      "rawText" : "宁波启辰精工有限公司\nNingbo Qichen Precision Co., Ltd.\n孙悦\nYue Sun\n客户成功经理 ｜Customer Success Manager\nM\nMobile: +86 158 5740 6621\nTel:\nFax:\nEmail:\n+86 574 8790 3321\n+86 574 8790 3329\nyue.sun@qichenprecision.com\nAddress：中国 宁波市鄞州区中山东路1200号 315040",
+      "regionBottomLeft" : [
+        0.04706608131527901,
+        0.9354726076126099
+      ],
+      "regionBottomRight" : [
+        0.7144712805747986,
+        0.9374769032001495
+      ],
+      "regionTopLeft" : [
+        0.04926935210824013,
+        0.06738054752349854
+      ],
+      "regionTopRight" : [
+        0.888930082321167,
+        0.06539136171340942
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "周 婷\n课程产品经理\n成都云桥教育科技有限公司\n手机：+86 181 8090 6618\n电话：+86 28 8611 4490\n邮籍：ting.zhou@yqedu.cn\n网址：www.yqedu.cn\n地址：中国 成都市高新区天府二街99号 610041",
+      "file" : "card-012-chinese-only-education.png",
+      "id" : "card-012",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "周 婷"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "课程产品经理"
+        },
+        {
+          "confidence" : 1,
+          "text" : "成都云桥教育科技有限公司"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "手机：+86 181 8090 6618"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "电话：+86 28 8611 4490"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "邮箱：ting.zhou@yqedu.cn"
+        },
+        {
+          "confidence" : 1,
+          "text" : "网址：www.yqeau.cn"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "地址：中国 成都市高新区天府二街99号 610041"
+        }
+      ],
+      "processedPixelHeight" : 835,
+      "processedPixelWidth" : 1460,
+      "rawText" : "周 婷\n课程产品经理\n成都云桥教育科技有限公司\n手机：+86 181 8090 6618\n电话：+86 28 8611 4490\n邮箱：ting.zhou@yqedu.cn\n网址：www.yqeau.cn\n地址：中国 成都市高新区天府二街99号 610041",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.750621233488625,
+      "diagLineCount" : 14,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "Stonepine\nBioSystems\nDaniel Wu\nResearch Partnerships Lead\nMobile:\nOffice:\nEmail:\nWeb:\nAddress:\n+44 7700 900245\n+44 20 7946 1288\ndaniel.wu@stonepinebio.com\nwww.stonepinebio.com\n14 Kingsway, London WC2B 6XF, UK",
+      "file" : "card-013-english-bio-photographed.png",
+      "id" : "card-013",
+      "lineCount" : 14,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Stonepine"
+        },
+        {
+          "confidence" : 1,
+          "text" : "BioSystems"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Daniel Wu"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Research Partnerships Lead"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Office:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Email:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Address:"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+44 7700 900245"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+44 20 7946 1288"
+        },
+        {
+          "confidence" : 1,
+          "text" : "daniel.wu@stonepinebio.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.stonepinebio.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "14 Kingsway, London WC2B 6XF, UK"
+        }
+      ],
+      "processedPixelHeight" : 867,
+      "processedPixelWidth" : 1546,
+      "rawText" : "Stonepine\nBioSystems\nDaniel Wu\nResearch Partnerships Lead\nMobile:\nOffice:\nEmail:\nWeb:\nAddress:\n+44 7700 900245\n+44 20 7946 1288\ndaniel.wu@stonepinebio.com\nwww.stonepinebio.com\n14 Kingsway, London WC2B 6XF, UK",
+      "regionBottomLeft" : [
+        0.04399770870804787,
+        0.9538904391229153
+      ],
+      "regionBottomRight" : [
+        0.9682360887527466,
+        0.8798730969429016
+      ],
+      "regionTopLeft" : [
+        0.06145031750202179,
+        0.11294108629226685
+      ],
+      "regionTopRight" : [
+        0.9176063537597656,
+        0.03719758987426758
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7724170821539754,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 948,
+      "diagProcessedPixelWidth" : 1659,
+      "diagRawText" : "Morningside\nSecure Systems\nKevin Park\nSolutions Architect\nMobile: +1 (646) 555-0113\nOffice: +1 (212) 555-0199\nWeb: www.mss-secure.com\nAddress: 305 Madison Ave, New York, NY 10165",
+      "file" : "card-014-missing-email-security.png",
+      "id" : "card-014",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Morningside"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Secure Systems"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Kevin Park"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Solutions Architect"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mobile: +1 (646) 555-0113"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Office: +1 (212) 555-0199"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Web: www.mss-secure.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Address: 305 Madison Ave, New York, NY 10165"
+        }
+      ],
+      "processedPixelHeight" : 788,
+      "processedPixelWidth" : 1545,
+      "rawText" : "Morningside\nSecure Systems\nKevin Park\nSolutions Architect\nMobile: +1 (646) 555-0113\nOffice: +1 (212) 555-0199\nWeb: www.mss-secure.com\nAddress: 305 Madison Ave, New York, NY 10165",
+      "regionBottomLeft" : [
+        0.03430766239762306,
+        0.9178848713636398
+      ],
+      "regionBottomRight" : [
+        0.9647805094718933,
+        0.916444256901741
+      ],
+      "regionTopLeft" : [
+        0.03443075343966484,
+        0.087776780128479
+      ],
+      "regionTopRight" : [
+        0.9643363356590271,
+        0.08577883243560791
+      ],
+      "sourcePixelHeight" : 948,
+      "sourcePixelWidth" : 1659,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.9307414808935902,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 263,
+      "diagProcessedPixelWidth" : 292,
+      "diagRawText" : "李娜\n产品经理\n上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n+86 136 8888 1025\nlina@zhiyuntech.com\n上海市徐汇区潜溪北路398号\n200030\n智云科技",
+      "file" : "card-015-zh-bilingual-product-manager.png",
+      "id" : "card-015",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "李娜"
+        },
+        {
+          "confidence" : 1,
+          "text" : "产品经理"
+        },
+        {
+          "confidence" : 1,
+          "text" : "上海智云科技有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Shanghai Zhiyun Tech Co., Ltd."
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 136 8888 1025"
+        },
+        {
+          "confidence" : 1,
+          "text" : "lina@zhiyuntech.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "上海市徐汇区潘溪北路398号"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "200030"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "智云科技"
+        }
+      ],
+      "processedPixelHeight" : 254,
+      "processedPixelWidth" : 285,
+      "rawText" : "李娜\n产品经理\n上海智云科技有限公司\nShanghai Zhiyun Tech Co., Ltd.\n+86 136 8888 1025\nlina@zhiyuntech.com\n上海市徐汇区潘溪北路398号\n200030\n智云科技",
+      "regionBottomLeft" : [
+        0.014092628844082355,
+        0.9842867627739906
+      ],
+      "regionBottomRight" : [
+        0.9831769466400146,
+        0.9842868838459253
+      ],
+      "regionTopLeft" : [
+        0.014179447665810585,
+        0.0235288143157959
+      ],
+      "regionTopRight" : [
+        0.9850229024887085,
+        0.025921165943145752
+      ],
+      "sourcePixelHeight" : 263,
+      "sourcePixelWidth" : 292,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.9341182338535496,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 263,
+      "diagProcessedPixelWidth" : 307,
+      "diagRawText" : "Michael Chen\nSenior Software Engineer\nCloudMatrix Inc.\nCloudMatrix\n+1 415 555 0199\nmchen@cloudmatrix.com\nwww.cloudmatrix.com\n500 Terry A Francois Blvd\nSan Francisco, CA 94158, USA",
+      "file" : "card-016-en-software-engineer.png",
+      "id" : "card-016",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Michael Chen"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Senior Software Engineer"
+        },
+        {
+          "confidence" : 1,
+          "text" : "CloudMatrix Inc."
+        },
+        {
+          "confidence" : 1,
+          "text" : "CloudMatrix"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+1 415 555 0199"
+        },
+        {
+          "confidence" : 1,
+          "text" : "mchen@cloudmatrix.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.cloudmatrix.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "500 Terry A Francois Blvd"
+        },
+        {
+          "confidence" : 1,
+          "text" : "San Francisco, CA 94158, USA"
+        }
+      ],
+      "processedPixelHeight" : 253,
+      "processedPixelWidth" : 300,
+      "rawText" : "Michael Chen\nSenior Software Engineer\nCloudMatrix Inc.\nCloudMatrix\n+1 415 555 0199\nmchen@cloudmatrix.com\nwww.cloudmatrix.com\n500 Terry A Francois Blvd\nSan Francisco, CA 94158, USA",
+      "regionBottomLeft" : [
+        0.013429329730570316,
+        0.9823479019105434
+      ],
+      "regionBottomRight" : [
+        0.9868906140327454,
+        0.9843321163207293
+      ],
+      "regionTopLeft" : [
+        0.013429329730570316,
+        0.023793816566467285
+      ],
+      "regionTopRight" : [
+        0.9871418476104736,
+        0.02396535873413086
+      ],
+      "sourcePixelHeight" : 263,
+      "sourcePixelWidth" : 307,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 263,
+      "diagProcessedPixelWidth" : 280,
+      "diagRawText" : "招商銀行\n王强\n客户经理\n上渐分行•岑售金酸郎\n+86 139 1234 5678\n+86 21 5555 6666\nwangqiang@cmbchina.com\n上海市浦东新区陆家明环路1088号\n200120",
+      "file" : "card-017-zh-bank-department.png",
+      "id" : "card-017",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 0.5,
+          "text" : "招商银行"
+        },
+        {
+          "confidence" : 1,
+          "text" : "ANTS BANK"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "王强"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "客户经理"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "上海分行・零售金融郎"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 139 1234 5678"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "+86 215555 6666"
+        },
+        {
+          "confidence" : 1,
+          "text" : "wangqiang@cmbchina.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "上海市浦东新区陆家嘴环路1088号"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "900190"
+        }
+      ],
+      "processedPixelHeight" : 232,
+      "processedPixelWidth" : 247,
+      "rawText" : "招商银行\nANTS BANK\n王强\n客户经理\n上海分行・零售金融郎\n+86 139 1234 5678\n+86 215555 6666\nwangqiang@cmbchina.com\n上海市浦东新区陆家嘴环路1088号\n900190",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 263,
+      "sourcePixelWidth" : 280,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.918510988762331,
+      "diagLineCount" : 12,
+      "diagProcessedPixelHeight" : 263,
+      "diagProcessedPixelWidth" : 299,
+      "diagRawText" : "David Park\nDesign Director\nNexa Studio\nNEXA\nSTUDIO\n●\n●\n+82 10 9876 5432\ndavid.park@nexa.studio\nwww.nexa.studio\n12 Teheran-ro, Gangnam-gu\nSeoul 06234, Korea",
+      "file" : "card-018-en-korea-dark.png",
+      "id" : "card-018",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "David Park"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Design Director"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Nexa Studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "NEXA"
+        },
+        {
+          "confidence" : 1,
+          "text" : "STUDIO"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+82 10 9876 5432"
+        },
+        {
+          "confidence" : 1,
+          "text" : "david.park@nexa.studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.nexa.studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "12 Teheran-ro, Gangnam-gu"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Seoul 06234, Korea"
+        }
+      ],
+      "processedPixelHeight" : 252,
+      "processedPixelWidth" : 288,
+      "rawText" : "David Park\nDesign Director\nNexa Studio\nNEXA\nSTUDIO\n+82 10 9876 5432\ndavid.park@nexa.studio\nwww.nexa.studio\n12 Teheran-ro, Gangnam-gu\nSeoul 06234, Korea",
+      "regionBottomLeft" : [
+        0.015520848333835602,
+        0.9843988288193941
+      ],
+      "regionBottomRight" : [
+        0.9756495356559753,
+        0.9841479528695345
+      ],
+      "regionTopLeft" : [
+        0.013779107481241226,
+        0.02752530574798584
+      ],
+      "regionTopRight" : [
+        0.9738866090774536,
+        0.027692437171936035
+      ],
+      "sourcePixelHeight" : 263,
+      "sourcePixelWidth" : 299,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.9314761563367078,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 263,
+      "diagProcessedPixelWidth" : 292,
+      "diagRawText" : "佐藤健一\n営業部マネージャー\nさくら株式会社\nSakura Co.， Ltd.\n+81 90 1234 5678\nsato@sakura.co.jp\nwww.sakura.co.jp\n東京部千代田区丸の内1-9-1\n100-0005",
+      "file" : "card-019-ja-japanese-company.png",
+      "id" : "card-019",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "佐藤健一"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "営業部マネージャー"
+        },
+        {
+          "confidence" : 1,
+          "text" : "さくら株式会社"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Sakura Co., Ltd."
+        },
+        {
+          "confidence" : 1,
+          "text" : "+81 90 1234 5678"
+        },
+        {
+          "confidence" : 1,
+          "text" : "sato@sakura.co.jp"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "www.sakura.co.jp"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "東京都千代田区丸の内1-9-1"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "100-0005"
+        }
+      ],
+      "processedPixelHeight" : 253,
+      "processedPixelWidth" : 285,
+      "rawText" : "佐藤健一\n営業部マネージャー\nさくら株式会社\nSakura Co., Ltd.\n+81 90 1234 5678\nsato@sakura.co.jp\nwww.sakura.co.jp\n東京都千代田区丸の内1-9-1\n100-0005",
+      "regionBottomLeft" : [
+        0.014035637490451336,
+        0.9823474828153849
+      ],
+      "regionBottomRight" : [
+        0.98480623960495,
+        0.9843331333249807
+      ],
+      "regionTopLeft" : [
+        0.014294757507741451,
+        0.023916184902191162
+      ],
+      "regionTopRight" : [
+        0.9850679039955139,
+        0.023722589015960693
+      ],
+      "sourcePixelHeight" : 263,
+      "sourcePixelWidth" : 292,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 10,
+      "diagProcessedPixelHeight" : 251,
+      "diagProcessedPixelWidth" : 292,
+      "diagRawText" : "陈静\n主任医师\n心血管内料\n华东第一人民医院\nEast China First People's Hospitat\n+86 139 8765 4321\n+86 21 6666 8888\nchenjing@ecfph.cn\n上海市静安区延安中路1000号\n200040",
+      "file" : "card-020-zh-hospital.png",
+      "id" : "card-020",
+      "lineCount" : 11,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "陈静"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "主任医师"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "心血管内科"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "华东第一人民医"
+        },
+        {
+          "confidence" : 1,
+          "text" : "East China First People's Hospr"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "K"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 139 8765 4321\/"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "+86 216666 8888"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "chenjing@ecfph.cn"
+        },
+        {
+          "confidence" : 1,
+          "text" : "上海市静安区延安中路1000号"
+        },
+        {
+          "confidence" : 1,
+          "text" : "200040"
+        }
+      ],
+      "processedPixelHeight" : 221,
+      "processedPixelWidth" : 257,
+      "rawText" : "陈静\n主任医师\n心血管内科\n华东第一人民医\nEast China First People's Hospr\nK\n+86 139 8765 4321\/\n+86 216666 8888\nchenjing@ecfph.cn\n上海市静安区延安中路1000号\n200040",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 251,
+      "sourcePixelWidth" : 292,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 251,
+      "diagProcessedPixelWidth" : 306,
+      "diagRawText" : "Sophia Müller\nProduct Manager\nGLOBALTECH\nGlobalTech GmbH\n+49 151 2345 6789\nsophia.mueller@globaltech.de\nwww.globaltech.de\nMusterstraße 12\n80331 München, Deutschland",
+      "file" : "card-021-de-german-umlaut.png",
+      "id" : "card-021",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Sophia Müller"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Product Manager"
+        },
+        {
+          "confidence" : 1,
+          "text" : "GlobalTech GmbH"
+        },
+        {
+          "confidence" : 1,
+          "text" : "GLOBALTECH"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+49 151 2345 6789"
+        },
+        {
+          "confidence" : 1,
+          "text" : "sophia.mueller@globaltech.de"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.globaltech.de"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Musterstraße 12"
+        },
+        {
+          "confidence" : 1,
+          "text" : "80331 München, Deutschland"
+        }
+      ],
+      "processedPixelHeight" : 221,
+      "processedPixelWidth" : 270,
+      "rawText" : "Sophia Müller\nProduct Manager\nGlobalTech GmbH\nGLOBALTECH\n+49 151 2345 6789\nsophia.mueller@globaltech.de\nwww.globaltech.de\nMusterstraße 12\n80331 München, Deutschland",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 251,
+      "sourcePixelWidth" : 306,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 11,
+      "diagProcessedPixelHeight" : 251,
+      "diagProcessedPixelWidth" : 277,
+      "diagRawText" : "甲\n復旦大學\nFUDAN UNIVERSITY\n刘洋\n刷致授\n计算机科学技术学院\n+86 138 5555 6677\nlivyang@fudan.edu.cn\nhttp:\/\/www.fudan.edu.cn\n上海市杨浦区邯郸路220号\n200433",
+      "file" : "card-022-zh-university.png",
+      "id" : "card-022",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "復旦大拳"
+        },
+        {
+          "confidence" : 1,
+          "text" : "FUDAN UNIVERSITY"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "刘洋"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "刷教授"
+        },
+        {
+          "confidence" : 1,
+          "text" : "计算机科学技术学院"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 138 5555 6677"
+        },
+        {
+          "confidence" : 1,
+          "text" : "livyang@fudan.edu.cn"
+        },
+        {
+          "confidence" : 1,
+          "text" : "http:\/\/www.fudan.edu.cn"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "上海市杨浦区那郸路220号"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "200433"
+        }
+      ],
+      "processedPixelHeight" : 221,
+      "processedPixelWidth" : 244,
+      "rawText" : "復旦大拳\nFUDAN UNIVERSITY\n刘洋\n刷教授\n计算机科学技术学院\n+86 138 5555 6677\nlivyang@fudan.edu.cn\nhttp:\/\/www.fudan.edu.cn\n上海市杨浦区那郸路220号\n200433",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 251,
+      "sourcePixelWidth" : 277,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.9133164292499241,
+      "diagLineCount" : 9,
+      "diagProcessedPixelHeight" : 251,
+      "diagProcessedPixelWidth" : 296,
+      "diagRawText" : "Emily Johnson\nCEO\nNevaAl\n+1 650 555 0134\nemily@novaai.com\nwww.novaai.com\n3200 Hillview Ave\nPalo Alto, CA 94304, USA\nNovaAl",
+      "file" : "card-023-en-startup-ceo.png",
+      "id" : "card-023",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Emily Johnson"
+        },
+        {
+          "confidence" : 1,
+          "text" : "CEO"
+        },
+        {
+          "confidence" : 1,
+          "text" : "NevaAl"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+1 650 555 0134"
+        },
+        {
+          "confidence" : 1,
+          "text" : "emily@novaai.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.novaai.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "3200 Hillview Ave"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Palo Alto, CA 94304, USA"
+        },
+        {
+          "confidence" : 1,
+          "text" : "NovaAl"
+        }
+      ],
+      "processedPixelHeight" : 243,
+      "processedPixelWidth" : 280,
+      "rawText" : "Emily Johnson\nCEO\nNevaAl\n+1 650 555 0134\nemily@novaai.com\nwww.novaai.com\n3200 Hillview Ave\nPalo Alto, CA 94304, USA\nNovaAl",
+      "regionBottomLeft" : [
+        0.02392609231173992,
+        0.9822944328188896
+      ],
+      "regionBottomRight" : [
+        0.9691764116287231,
+        0.9821684565395117
+      ],
+      "regionTopLeft" : [
+        0.023478185757994652,
+        0.015999972820281982
+      ],
+      "regionTopRight" : [
+        0.9686990976333618,
+        0.015999972820281982
+      ],
+      "sourcePixelHeight" : 251,
+      "sourcePixelWidth" : 296,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7589424461866745,
+      "diagLineCount" : 12,
+      "diagProcessedPixelHeight" : 251,
+      "diagProcessedPixelWidth" : 290,
+      "diagRawText" : "周磊\nH\n销售总监\n宏远制造有限公司\n+86 137 0000 9999\n+86 217777 8888\nzhoulei@hongyuan.com\nwww.hongyuan.com\n上海市鶯定区州罗公路123号\n201800\n宏远制造\nHONOTUAN HAMUTACTURINC",
+      "file" : "card-024-zh-manufacturing-multi-phone.png",
+      "id" : "card-024",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "周磊"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "销售总监"
+        },
+        {
+          "confidence" : 1,
+          "text" : "宏远制造有限公司"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+86 137 0000 9999"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+86 21 7777 8888"
+        },
+        {
+          "confidence" : 1,
+          "text" : "zhoulei@hongyuan.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.hongyuan.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "上海市嘉定区嘉罗公路123号"
+        },
+        {
+          "confidence" : 1,
+          "text" : "201800"
+        }
+      ],
+      "processedPixelHeight" : 325,
+      "processedPixelWidth" : 362,
+      "rawText" : "周磊\n销售总监\n宏远制造有限公司\n+86 137 0000 9999\n+86 21 7777 8888\nzhoulei@hongyuan.com\nwww.hongyuan.com\n上海市嘉定区嘉罗公路123号\n201800",
+      "regionBottomLeft" : [
+        0.013753767125308514,
+        0.9834255985915661
+      ],
+      "regionBottomRight" : [
+        0.7711703181266785,
+        0.9832081906497478
+      ],
+      "regionTopLeft" : [
+        0.014011112041771412,
+        0.011665403842926025
+      ],
+      "regionTopRight" : [
+        1,
+        0.24420922994613647
+      ],
+      "sourcePixelHeight" : 251,
+      "sourcePixelWidth" : 290,
+      "wasDetected" : true
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "Atelier Lumen SAS\nÉlodie Martin\nDirectrice de produit | Product Director\n+33 6 12 34 56 78\n+33 1 84 80 22 10\nelodie.martin@atelierlumen.fr\nwww.atelierlumen.tr\n24 Rue de Lyon, 75012 Paris, France",
+      "file" : "card-025-fr-en-product-director.png",
+      "id" : "card-025",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Atelier Lumen SAS"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Élodie Martin"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Directrice de produit | Product Director"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+33 6 12 34 56 78"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+33 1 84 80 22 10"
+        },
+        {
+          "confidence" : 1,
+          "text" : "elodie.martin@atelierlumen.fr"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.atelierlumen.fr"
+        },
+        {
+          "confidence" : 1,
+          "text" : "24 Rue de Lyon, 75012 Paris, France"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "Atelier Lumen SAS\nÉlodie Martin\nDirectrice de produit | Product Director\n+33 6 12 34 56 78\n+33 1 84 80 22 10\nelodie.martin@atelierlumen.fr\nwww.atelierlumen.fr\n24 Rue de Lyon, 75012 Paris, France",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 10,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "한빛로보틱스 주식회사\nHanbit Robotics co, Ltd.\n김서준\nM +8210 4382 7715\nSeo-jun Kim\n• +822 6123 4400\nMEN Product Strategy Manager\n• seojun.kim@hanbitrobotics.kr\nw www.hanbitrobotics.kr\nA 대한민국 서울특별시 강남구 테헤란로 221, 06142",
+      "file" : "card-026-ko-en-robotics.png",
+      "id" : "card-026",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "한빛로보틱스 주식회사"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Hanbit Robotics Co., Lta."
+        },
+        {
+          "confidence" : 1,
+          "text" : "김서준"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Seo-jun Kim"
+        },
+        {
+          "confidence" : 1,
+          "text" : "|Prodct Strategy Manager"
+        },
+        {
+          "confidence" : 1,
+          "text" : "M +8210 4382 7715"
+        },
+        {
+          "confidence" : 1,
+          "text" : "T +822 6123 4400"
+        },
+        {
+          "confidence" : 1,
+          "text" : "@ seojun.kim@hanbitrobotics.kr"
+        },
+        {
+          "confidence" : 1,
+          "text" : "w www.hanbitrobotics.kr"
+        },
+        {
+          "confidence" : 1,
+          "text" : "A 대한민국 서울특별시 강남구 테헤란로 221, 06142"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "한빛로보틱스 주식회사\nHanbit Robotics Co., Lta.\n김서준\nSeo-jun Kim\n|Prodct Strategy Manager\nM +8210 4382 7715\nT +822 6123 4400\n@ seojun.kim@hanbitrobotics.kr\nw www.hanbitrobotics.kr\nA 대한민국 서울특별시 강남구 테헤란로 221, 06142",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 11,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "青空デザイン株式会社\nAozora Design Inc.\n高橋 美咲\nMisaki Takahashi\nアートディレクター｜Art Director\n+8190 2468 1357\n+813 6450 2290\n+81 3 6450 2299\nmisaki.takahashi@aozora-design.jp\nwww.aozora-design.jp\nA 東京都渋谷区神宮前4-18-7 150-0001",
+      "file" : "card-027-ja-en-design-fax.png",
+      "id" : "card-027",
+      "lineCount" : 11,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "青空デザイン株式会社"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Aozora Design Inc."
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "高橋 美咲"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Misaki Takahashi"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "アートディレクター｜Art Director"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "M +8190 2468 1357"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "+813 6450 2290"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "+813 6450 2299"
+        },
+        {
+          "confidence" : 1,
+          "text" : "misaki.takahashi@aozora-design.jp"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.aozora-design.jp"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "A 東京都渋谷区神宮前4-18-7 150-0001"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "青空デザイン株式会社\nAozora Design Inc.\n高橋 美咲\nMisaki Takahashi\nアートディレクター｜Art Director\nM +8190 2468 1357\n+813 6450 2290\n+813 6450 2299\nmisaki.takahashi@aozora-design.jp\nwww.aozora-design.jp\nA 東京都渋谷区神宮前4-18-7 150-0001",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "苏州凌光半导体有限公司\n许晨\nChen Xu\nM +86 159 50087712\nT +865126688 2046\n产品应用工程师｜ Field Application Engineer w www.lingguangsemi.cn\n技术市场部\nA 中国苏州市工业园区星湖街328号215123",
+      "file" : "card-028-zh-en-semiconductor-no-email.png",
+      "id" : "card-028",
+      "lineCount" : 9,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "苏州凌光半导体有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Suzhou Lingguang Semiconductor Co., Lta."
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "许晨"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Chen Xu"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "M +86 159 5008 7712"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "T +8651266882046"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "立品应用工程师｜ Field Application Engieer w www.lingguangsemi.cn"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "技术市场部"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "A 中国苏州市工业园区星湖街328号 215123"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "苏州凌光半导体有限公司\nSuzhou Lingguang Semiconductor Co., Lta.\n许晨\nChen Xu\nM +86 159 5008 7712\nT +8651266882046\n立品应用工程师｜ Field Application Engieer w www.lingguangsemi.cn\n技术市场部\nA 中国苏州市工业园区星湖街328号 215123",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "Silverline Risk Advisory\nNora O'Connor\nVice President, Client Solutions\nM +1917555 0248\nT +1212 555 0186\n• nora.oconnor@silverlinerisk.com\nw www.silverlinerisk.com\nA 375 Lexington Avenue, Floor 18, New York, NY 10017, USA",
+      "file" : "card-029-en-apostrophe-long-address.png",
+      "id" : "card-029",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Silverline Risk Advisory"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Nora O'Connor"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Vice President, Client Solutions"
+        },
+        {
+          "confidence" : 1,
+          "text" : "@ +1917 555 0248"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+1212 555 0186"
+        },
+        {
+          "confidence" : 1,
+          "text" : "@nora.oconnor@silverlinerisk.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "w www.silverlinerisk.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "@ 375 Lexington Avenue, FHoor 18, New York, NY 10017, US"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "Silverline Risk Advisory\nNora O'Connor\nVice President, Client Solutions\n@ +1917 555 0248\n+1212 555 0186\n@nora.oconnor@silverlinerisk.com\nw www.silverlinerisk.com\n@ 375 Lexington Avenue, FHoor 18, New York, NY 10017, US",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 5,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "Cobalto Studio\nMateo Ruiz\nUX Researcher\n© mateo@cobalto.studio\nW www.cobalto.studio",
+      "file" : "card-030-en-minimal-no-phone.png",
+      "id" : "card-030",
+      "lineCount" : 5,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Cobalto Studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Mateo Ruiz"
+        },
+        {
+          "confidence" : 1,
+          "text" : "UX Researcher"
+        },
+        {
+          "confidence" : 1,
+          "text" : "• mateo@cobalto.studio"
+        },
+        {
+          "confidence" : 1,
+          "text" : "W www.cobalto.studio"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "Cobalto Studio\nMateo Ruiz\nUX Researcher\n• mateo@cobalto.studio\nW www.cobalto.studio",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 10,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "深圳澄海新能源有限公司\nShenzhen Chenghai New Energy Co.， Ltd.\n林琪\nQi Lin\n国际业务经理｜International Business Manager\n+86 186 8891 2040\n+86 755 8654 2033\nlinqi@chenghaienergy.com\nwww.chenghaienergy.com\n中国深圳市南山区科苑南路2666号518063",
+      "file" : "card-031-zh-en-dark-energy.png",
+      "id" : "card-031",
+      "lineCount" : 10,
+      "lines" : [
+        {
+          "confidence" : 0.5,
+          "text" : "深圳澄海新能源有限公司"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Shenzhen Chenghai New Energy Co., Lta."
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "林琪"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Qi Lin"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "国际业务经理｜International Business Manager"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+86 186 8891 2040"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+86 755 8654 2033"
+        },
+        {
+          "confidence" : 1,
+          "text" : "linqi@chenghaienergy.com"
+        },
+        {
+          "confidence" : 1,
+          "text" : "www.chenghaienergy.com"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "中国深圳市南山区科苑南路2666号518063"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "深圳澄海新能源有限公司\nShenzhen Chenghai New Energy Co., Lta.\n林琪\nQi Lin\n国际业务经理｜International Business Manager\n+86 186 8891 2040\n+86 755 8654 2033\nlinqi@chenghaienergy.com\nwww.chenghaienergy.com\n中国深圳市南山区科苑南路2666号518063",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 1120,
+      "diagProcessedPixelWidth" : 720,
+      "diagRawText" : "Meridian Health Labs\nAisha Rahman\nClinical Partnerships Lead\n+44 7700 912481\n+44 20 7946 2310\nEaisha.rahman@meridianhealthlabs.co.uk\nwwww.meridianhealthlabs.co.uk\n88 Great Portland Stret, London WLW 7NT, UK",
+      "file" : "card-032-en-vertical-health.png",
+      "id" : "card-032",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Meridian Health Labs"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Aisha Rahman"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Clinical Partnerships Lead"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+44 7700 912481"
+        },
+        {
+          "confidence" : 1,
+          "text" : "+44 20 7946 2310"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Eaisha.rahman@meridianhealthlabs.co.uk"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Wwww.meridianhealthlabs.co.uk"
+        },
+        {
+          "confidence" : 1,
+          "text" : "(A 88 Great Portland Street, London W1W 7NT, UK"
+        }
+      ],
+      "processedPixelHeight" : 986,
+      "processedPixelWidth" : 634,
+      "rawText" : "Meridian Health Labs\nAisha Rahman\nClinical Partnerships Lead\n+44 7700 912481\n+44 20 7946 2310\nEaisha.rahman@meridianhealthlabs.co.uk\nWwww.meridianhealthlabs.co.uk\n(A 88 Great Portland Street, London W1W 7NT, UK",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 1120,
+      "sourcePixelWidth" : 720,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 8,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "Nube Clara Tecnología S.L.\nJosé Álvarez\nDirector de Ventas | Sales Director\n+34 612 345 781\n+3491 555 2480\njose.alvarez@nubeclara.es\nwww.nubeclara.es\nCalle de Alcalá 121, 28009 Madrid, España",
+      "file" : "card-033-es-en-sales-director.png",
+      "id" : "card-033",
+      "lineCount" : 8,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "Nube Clara Tecnología S.L."
+        },
+        {
+          "confidence" : 1,
+          "text" : "José Álvarez"
+        },
+        {
+          "confidence" : 1,
+          "text" : "Director de Ventas Sales Director"
+        },
+        {
+          "confidence" : 1,
+          "text" : "M +34 612 345 781"
+        },
+        {
+          "confidence" : 1,
+          "text" : "T +3491 555 2480"
+        },
+        {
+          "confidence" : 1,
+          "text" : "• jose.alvarez@nubeclara.es"
+        },
+        {
+          "confidence" : 1,
+          "text" : "w www.nubeclara.es"
+        },
+        {
+          "confidence" : 1,
+          "text" : "A Calle de Alcalá 121, 28009 Madrid, España"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "Nube Clara Tecnología S.L.\nJosé Álvarez\nDirector de Ventas Sales Director\nM +34 612 345 781\nT +3491 555 2480\n• jose.alvarez@nubeclara.es\nw www.nubeclara.es\nA Calle de Alcalá 121, 28009 Madrid, España",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    },
+    {
+      "detectedRegionNormalizedArea" : 0.7744,
+      "diagLineCount" : 5,
+      "diagProcessedPixelHeight" : 650,
+      "diagProcessedPixelWidth" : 1100,
+      "diagRawText" : "杭州屿川建筑设计事务所\n顾言\n建筑师\n® guyan@yuchuan.design\nA 杭州市西湖区文三路90号 310012",
+      "file" : "card-034-zh-sparse-architect.png",
+      "id" : "card-034",
+      "lineCount" : 5,
+      "lines" : [
+        {
+          "confidence" : 1,
+          "text" : "杭州屿川建筑设计事务所"
+        },
+        {
+          "confidence" : 1,
+          "text" : "顾言"
+        },
+        {
+          "confidence" : 0.30000001192092896,
+          "text" : "建筑师"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "E guyan@yuchuan.design"
+        },
+        {
+          "confidence" : 0.5,
+          "text" : "A 杭州市西湖区文三路90号310012"
+        }
+      ],
+      "processedPixelHeight" : 572,
+      "processedPixelWidth" : 968,
+      "rawText" : "杭州屿川建筑设计事务所\n顾言\n建筑师\nE guyan@yuchuan.design\nA 杭州市西湖区文三路90号310012",
+      "regionBottomLeft" : [
+        0.06,
+        0.94
+      ],
+      "regionBottomRight" : [
+        0.94,
+        0.94
+      ],
+      "regionTopLeft" : [
+        0.06,
+        0.06
+      ],
+      "regionTopRight" : [
+        0.94,
+        0.06
+      ],
+      "sourcePixelHeight" : 650,
+      "sourcePixelWidth" : 1100,
+      "wasDetected" : false
+    }
+  ],
+  "structured" : [
+    {
+      "address" : "上海市浦东新区世纪大道100号 200120",
+      "company" : "上海智云科技有限公司",
+      "emails" : [
+        "wei.zhang@zhiyuntech.com"
+      ],
+      "id" : "card-001",
+      "jobTitle" : "产品总监 |Product Director",
+      "name" : "张伟",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 138 0013 8000"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 21 5555 1234"
+        }
+      ],
+      "unclassifiedText" : [
+        "Shanghai Zhiyun Tech Co., Ltd.",
+        "Wei Zhang"
+      ],
+      "website" : "www.zhiyuntech.com"
+    },
+    {
+      "address" : "上海市浦东新区世纪大道188号 200120",
+      "company" : "上海智云科技有限公司",
+      "emails" : [
+        "lina.li@zhiyuntech.com"
+      ],
+      "id" : "card-002",
+      "jobTitle" : "市场总监 ｜ Marketing Director",
+      "name" : "李娜",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 139 1234 5678"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 21 6888 2468"
+        }
+      ],
+      "unclassifiedText" : [
+        "Shanghai Zhiyun Tech Co., Ltd.",
+        "Lina Li"
+      ]
+    },
+    {
+      "address" : "上海市徐汇区漕溪北路398号200030",
+      "company" : "上海智云科技有限公司",
+      "emails" : [
+        "chen.chen@zhiyuntech.com"
+      ],
+      "id" : "card-003",
+      "jobTitle" : "商务拓展经理丨",
+      "name" : "陈晨",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 136 8888 1024"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 21 5666 7788"
+        },
+        {
+          "kind" : "fax",
+          "value" : "+86 21 5666 7799"
+        }
+      ],
+      "unclassifiedText" : [
+        "Shanghai Zhiyun Tech Co., Ltd.",
+        "Chen Chen",
+        "Business Development Manager"
+      ],
+      "website" : "www.zhiyuntech.com"
+    },
+    {
+      "emails" : [
+
+      ],
+      "id" : "card-004",
+      "name" : "张 伟",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 138 0013 8000"
+        }
+      ],
+      "unclassifiedText" : [
+
+      ]
+    },
+    {
+      "address" : "88 Market Street, Suite 920, San Francisco, CA 94105",
+      "emails" : [
+        "olivia.chen@northharbor.ai"
+      ],
+      "id" : "card-005",
+      "jobTitle" : "Senior Data Consultant",
+      "name" : "North Harbor",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+1 (415) 555-0184"
+        },
+        {
+          "kind" : "other",
+          "value" : "+1 (415) 555-0147"
+        }
+      ],
+      "unclassifiedText" : [
+        "Analytics",
+        "Olivia Chen",
+        "Mobile:",
+        "Office:",
+        "Email:",
+        "Web:"
+      ],
+      "website" : "www.northharbor.ai"
+    },
+    {
+      "company" : "Green Aurora Studio",
+      "emails" : [
+        "emma.xu@grnaurora.com"
+      ],
+      "id" : "card-006",
+      "jobTitle" : "Visual Designer",
+      "name" : "Emma Xu",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 186 0217 4433"
+        }
+      ],
+      "unclassifiedText" : [
+
+      ]
+    },
+    {
+      "address" : "中国杭州市滨江区江陵路88号 310051",
+      "company" : "杭州远帆医疗科技有限公司",
+      "emails" : [
+        "lei.zhao@yuanfanmed.com"
+      ],
+      "id" : "card-007",
+      "jobTitle" : "销售经理｜ Sales Manager",
+      "name" : "赵 磊",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 150 8800 7312"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 571 8650 2208"
+        }
+      ],
+      "unclassifiedText" : [
+        "Hangzhou Yuanfan Medical Technology Co., Ltd.",
+        "Lei Zhao"
+      ]
+    },
+    {
+      "address" : "中国深圳市南山区科技南十二路6号 518057",
+      "company" : "蓝轨物流科技有限公司",
+      "emails" : [
+        "yang.liu@blueorbitlog.com"
+      ],
+      "id" : "card-008",
+      "jobTitle" : "区域发展经理｜Regional Development Manager",
+      "name" : "刘洋",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 139 7008 6611"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 755 2668 4100"
+        },
+        {
+          "kind" : "fax",
+          "value" : "+86 755 2668 4109"
+        }
+      ],
+      "unclassifiedText" : [
+        "Blue Orbit Logistics",
+        "Yang Liu"
+      ],
+      "website" : "www.blueorbitlog.com"
+    },
+    {
+      "address" : "中国 广州市天河区珠江新城 华夏路16号 510623",
+      "company" : "广州澜图文旅发展有限公司",
+      "emails" : [
+        "jiayi.he@lantuvision.com"
+      ],
+      "id" : "card-009",
+      "jobTitle" : "品牌合作总监 ｜ Director of Brand Partnerships",
+      "name" : "何嘉怡",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 188 2506 3114"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 20 3899 7781"
+        }
+      ],
+      "unclassifiedText" : [
+        "Guangzhou Lantu Cultural Tourism Development Co., Ltd.",
+        "Jiayi He"
+      ],
+      "website" : "www.lantuvision.com"
+    },
+    {
+      "address" : "中国 上海市 闵行区申长路518号 201106",
+      "company" : "星澜智能制造有限公司",
+      "emails" : [
+        "min.wang@xinglanim.com"
+      ],
+      "id" : "card-010",
+      "jobTitle" : "运营总监 | Operations Director",
+      "name" : "王敏",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 137 1001 2200"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 21 6200 1188"
+        }
+      ],
+      "unclassifiedText" : [
+        "Xinglan Intelligent Manufacturing Co., Ltd.",
+        "Min Wang",
+        "く",
+        "Tel:"
+      ],
+      "website" : "www.xinglanim.com"
+    },
+    {
+      "address" : "中国 宁波市鄞州区中山东路1200号 315040",
+      "company" : "宁波启辰精工有限公司",
+      "emails" : [
+        "yue.sun@qichenprecision.com"
+      ],
+      "id" : "card-011",
+      "jobTitle" : "客户成功经理 ｜Customer Success Manager",
+      "name" : "孙悦",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 158 5740 6621"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 574 8790 3321"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 574 8790 3329"
+        }
+      ],
+      "unclassifiedText" : [
+        "Ningbo Qichen Precision Co., Ltd.",
+        "Yue Sun",
+        "M",
+        "Tel:",
+        "Fax:",
+        "Email:"
+      ]
+    },
+    {
+      "address" : "中国 成都市高新区天府二街99号 610041",
+      "company" : "成都云桥教育科技有限公司",
+      "emails" : [
+        "ting.zhou@yqedu.cn"
+      ],
+      "id" : "card-012",
+      "jobTitle" : "课程产品经理",
+      "name" : "周 婷",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 181 8090 6618"
+        },
+        {
+          "kind" : "office",
+          "value" : "+86 28 8611 4490"
+        }
+      ],
+      "unclassifiedText" : [
+
+      ],
+      "website" : "www.yqeau.cn"
+    },
+    {
+      "company" : "BioSystems",
+      "emails" : [
+        "daniel.wu@stonepinebio.com"
+      ],
+      "id" : "card-013",
+      "jobTitle" : "Research Partnerships Lead",
+      "name" : "Daniel Wu",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+44 7700 900245"
+        },
+        {
+          "kind" : "other",
+          "value" : "+44 20 7946 1288"
+        }
+      ],
+      "unclassifiedText" : [
+        "Stonepine",
+        "Mobile:",
+        "Office:",
+        "Email:",
+        "Web:",
+        "Address:",
+        "14 Kingsway, London WC2B 6XF, UK"
+      ],
+      "website" : "www.stonepinebio.com"
+    },
+    {
+      "address" : "305 Madison Ave, New York, NY 10165",
+      "company" : "Secure Systems",
+      "emails" : [
+
+      ],
+      "id" : "card-014",
+      "jobTitle" : "Solutions Architect",
+      "name" : "Kevin Park",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+1 (646) 555-0113"
+        },
+        {
+          "kind" : "office",
+          "value" : "+1 (212) 555-0199"
+        }
+      ],
+      "unclassifiedText" : [
+        "Morningside"
+      ],
+      "website" : "www.mss-secure.com"
+    },
+    {
+      "company" : "上海智云科技有限公司",
+      "emails" : [
+        "lina@zhiyuntech.com"
+      ],
+      "id" : "card-015",
+      "jobTitle" : "产品经理",
+      "name" : "李娜",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 136 8888 1025"
+        }
+      ],
+      "unclassifiedText" : [
+        "Shanghai Zhiyun Tech Co., Ltd.",
+        "上海市徐汇区潘溪北路398号",
+        "200030",
+        "智云科技"
+      ]
+    },
+    {
+      "company" : "CloudMatrix Inc.",
+      "emails" : [
+        "mchen@cloudmatrix.com"
+      ],
+      "id" : "card-016",
+      "jobTitle" : "Senior Software Engineer",
+      "name" : "Michael Chen",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+1 415 555 0199"
+        }
+      ],
+      "unclassifiedText" : [
+        "CloudMatrix",
+        "500 Terry A Francois Blvd",
+        "San Francisco, CA 94158, USA"
+      ],
+      "website" : "www.cloudmatrix.com"
+    },
+    {
+      "company" : "招商银行",
+      "emails" : [
+        "wangqiang@cmbchina.com"
+      ],
+      "id" : "card-017",
+      "jobTitle" : "客户经理",
+      "name" : "王强",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 139 1234 5678"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 215555 6666"
+        }
+      ],
+      "unclassifiedText" : [
+        "ANTS BANK",
+        "上海分行・零售金融郎",
+        "上海市浦东新区陆家嘴环路1088号",
+        "900190"
+      ]
+    },
+    {
+      "company" : "Nexa Studio",
+      "emails" : [
+        "david.park@nexa.studio"
+      ],
+      "id" : "card-018",
+      "jobTitle" : "Design Director",
+      "name" : "David Park",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+82 10 9876 5432"
+        }
+      ],
+      "unclassifiedText" : [
+        "NEXA",
+        "STUDIO",
+        "12 Teheran-ro, Gangnam-gu",
+        "Seoul 06234, Korea"
+      ],
+      "website" : "www.nexa.studio"
+    },
+    {
+      "company" : "Sakura Co., Ltd.",
+      "emails" : [
+        "sato@sakura.co.jp"
+      ],
+      "id" : "card-019",
+      "name" : "佐藤健一",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+81 90 1234 5678"
+        },
+        {
+          "kind" : "other",
+          "value" : "100-0005"
+        }
+      ],
+      "unclassifiedText" : [
+        "営業部マネージャー",
+        "さくら株式会社",
+        "東京都千代田区丸の内1-9-1"
+      ],
+      "website" : "www.sakura.co.jp"
+    },
+    {
+      "emails" : [
+        "chenjing@ecfph.cn"
+      ],
+      "id" : "card-020",
+      "jobTitle" : "主任医师",
+      "name" : "陈静",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 139 8765 4321"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 216666 8888"
+        }
+      ],
+      "unclassifiedText" : [
+        "心血管内科",
+        "华东第一人民医",
+        "East China First People's Hospr",
+        "K",
+        "上海市静安区延安中路1000号",
+        "200040"
+      ]
+    },
+    {
+      "company" : "GlobalTech GmbH",
+      "emails" : [
+        "sophia.mueller@globaltech.de"
+      ],
+      "id" : "card-021",
+      "jobTitle" : "Product Manager",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+49 151 2345 6789"
+        }
+      ],
+      "unclassifiedText" : [
+        "Sophia Müller",
+        "GLOBALTECH",
+        "Musterstraße 12",
+        "80331 München, Deutschland"
+      ],
+      "website" : "www.globaltech.de"
+    },
+    {
+      "company" : "FUDAN UNIVERSITY",
+      "emails" : [
+        "livyang@fudan.edu.cn"
+      ],
+      "id" : "card-022",
+      "jobTitle" : "刷教授",
+      "name" : "復旦大拳",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 138 5555 6677"
+        }
+      ],
+      "unclassifiedText" : [
+        "刘洋",
+        "计算机科学技术学院",
+        "上海市杨浦区那郸路220号",
+        "200433"
+      ],
+      "website" : "http:\/\/www.fudan.edu.cn"
+    },
+    {
+      "emails" : [
+        "emily@novaai.com"
+      ],
+      "id" : "card-023",
+      "jobTitle" : "CEO",
+      "name" : "Emily Johnson",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+1 650 555 0134"
+        }
+      ],
+      "unclassifiedText" : [
+        "NevaAl",
+        "3200 Hillview Ave",
+        "Palo Alto, CA 94304, USA",
+        "NovaAl"
+      ],
+      "website" : "www.novaai.com"
+    },
+    {
+      "company" : "宏远制造有限公司",
+      "emails" : [
+        "zhoulei@hongyuan.com"
+      ],
+      "id" : "card-024",
+      "jobTitle" : "销售总监",
+      "name" : "周磊",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 137 0000 9999"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 21 7777 8888"
+        }
+      ],
+      "unclassifiedText" : [
+        "上海市嘉定区嘉罗公路123号",
+        "201800"
+      ],
+      "website" : "www.hongyuan.com"
+    },
+    {
+      "company" : "Atelier Lumen SAS",
+      "emails" : [
+        "elodie.martin@atelierlumen.fr"
+      ],
+      "id" : "card-025",
+      "jobTitle" : "Directrice de produit | Product Director",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+33 6 12 34 56 78"
+        },
+        {
+          "kind" : "other",
+          "value" : "+33 1 84 80 22 10"
+        }
+      ],
+      "unclassifiedText" : [
+        "Élodie Martin",
+        "24 Rue de Lyon, 75012 Paris, France"
+      ],
+      "website" : "www.atelierlumen.fr"
+    },
+    {
+      "emails" : [
+        "seojun.kim@hanbitrobotics.kr"
+      ],
+      "id" : "card-026",
+      "jobTitle" : "|Prodct Strategy Manager",
+      "name" : "Seo-jun Kim",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+8210 4382 7715"
+        },
+        {
+          "kind" : "other",
+          "value" : "+822 6123 4400"
+        }
+      ],
+      "unclassifiedText" : [
+        "한빛로보틱스 주식회사",
+        "Hanbit Robotics Co., Lta.",
+        "김서준",
+        "A 대한민국 서울특별시 강남구 테헤란로 221, 06142"
+      ],
+      "website" : "www.hanbitrobotics.kr"
+    },
+    {
+      "company" : "Aozora Design Inc.",
+      "emails" : [
+        "misaki.takahashi@aozora-design.jp"
+      ],
+      "id" : "card-027",
+      "jobTitle" : "アートディレクター｜Art Director",
+      "name" : "高橋 美咲",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+8190 2468 1357"
+        },
+        {
+          "kind" : "other",
+          "value" : "+813 6450 2290"
+        },
+        {
+          "kind" : "other",
+          "value" : "+813 6450 2299"
+        },
+        {
+          "kind" : "other",
+          "value" : "4-18-7 150-0001"
+        }
+      ],
+      "unclassifiedText" : [
+        "青空デザイン株式会社",
+        "Misaki Takahashi"
+      ],
+      "website" : "www.aozora-design.jp"
+    },
+    {
+      "company" : "苏州凌光半导体有限公司",
+      "emails" : [
+
+      ],
+      "id" : "card-028",
+      "name" : "许晨",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 159 5008 7712"
+        },
+        {
+          "kind" : "other",
+          "value" : "+8651266882046"
+        }
+      ],
+      "unclassifiedText" : [
+        "Suzhou Lingguang Semiconductor Co., Lta.",
+        "Chen Xu",
+        "技术市场部",
+        "A 中国苏州市工业园区星湖街328号 215123"
+      ],
+      "website" : "www.lingguangsemi.cn"
+    },
+    {
+      "emails" : [
+        "nora.oconnor@silverlinerisk.com"
+      ],
+      "id" : "card-029",
+      "jobTitle" : "Vice President, Client Solutions",
+      "name" : "Nora O'Connor",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+1917 555 0248"
+        },
+        {
+          "kind" : "other",
+          "value" : "+1212 555 0186"
+        }
+      ],
+      "unclassifiedText" : [
+        "Silverline Risk Advisory",
+        "@ 375 Lexington Avenue, FHoor 18, New York, NY 10017, US"
+      ],
+      "website" : "www.silverlinerisk.com"
+    },
+    {
+      "company" : "Cobalto Studio",
+      "emails" : [
+        "mateo@cobalto.studio"
+      ],
+      "id" : "card-030",
+      "name" : "Mateo Ruiz",
+      "phones" : [
+
+      ],
+      "unclassifiedText" : [
+        "UX Researcher"
+      ],
+      "website" : "www.cobalto.studio"
+    },
+    {
+      "company" : "深圳澄海新能源有限公司",
+      "emails" : [
+        "linqi@chenghaienergy.com"
+      ],
+      "id" : "card-031",
+      "jobTitle" : "国际业务经理｜International Business Manager",
+      "name" : "林琪",
+      "phones" : [
+        {
+          "kind" : "mobile",
+          "value" : "+86 186 8891 2040"
+        },
+        {
+          "kind" : "other",
+          "value" : "+86 755 8654 2033"
+        }
+      ],
+      "unclassifiedText" : [
+        "Shenzhen Chenghai New Energy Co., Lta.",
+        "Qi Lin",
+        "中国深圳市南山区科苑南路2666号518063"
+      ],
+      "website" : "www.chenghaienergy.com"
+    },
+    {
+      "company" : "Meridian Health Labs",
+      "emails" : [
+        "Eaisha.rahman@meridianhealthlabs.co.uk"
+      ],
+      "id" : "card-032",
+      "jobTitle" : "Clinical Partnerships Lead",
+      "name" : "Aisha Rahman",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+44 7700 912481"
+        },
+        {
+          "kind" : "other",
+          "value" : "+44 20 7946 2310"
+        }
+      ],
+      "unclassifiedText" : [
+        "(A 88 Great Portland Street, London W1W 7NT, UK"
+      ],
+      "website" : "www.meridianhealthlabs.co.uk"
+    },
+    {
+      "emails" : [
+        "jose.alvarez@nubeclara.es"
+      ],
+      "id" : "card-033",
+      "jobTitle" : "Director de Ventas Sales Director",
+      "phones" : [
+        {
+          "kind" : "other",
+          "value" : "+34 612 345 781"
+        },
+        {
+          "kind" : "other",
+          "value" : "+3491 555 2480"
+        }
+      ],
+      "unclassifiedText" : [
+        "Nube Clara Tecnología S.L.",
+        "José Álvarez",
+        "A Calle de Alcalá 121, 28009 Madrid, España"
+      ],
+      "website" : "www.nubeclara.es"
+    },
+    {
+      "company" : "杭州屿川建筑设计事务所",
+      "emails" : [
+        "guyan@yuchuan.design"
+      ],
+      "id" : "card-034",
+      "jobTitle" : "建筑师",
+      "name" : "顾言",
+      "phones" : [
+
+      ],
+      "unclassifiedText" : [
+        "A 杭州市西湖区文三路90号310012"
+      ]
+    }
+  ]
+}

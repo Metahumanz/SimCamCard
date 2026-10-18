@@ -28,7 +28,22 @@ import CoreGraphics
 import CoreVideo
 import Vision
 
-nonisolated struct CardRegionDetector: Sendable {
+/// Abstract rectangle-detection seam. Allows deterministic unit tests
+/// to inject a controllable detection result while keeping the MainActor
+/// ViewModel / crop processor decoupled from the concrete Vision service.
+nonisolated protocol CardRegionDetecting: Sendable {
+    func detect(
+        in pixelBuffer: CVPixelBuffer,
+        orientation: CGImagePropertyOrientation
+    ) -> CardRegion?
+
+    func detect(
+        in cgImage: CGImage,
+        orientation: CGImagePropertyOrientation
+    ) -> CardRegion?
+}
+
+nonisolated struct CardRegionDetector: CardRegionDetecting {
 
     /// Business-card detection thresholds, centralized (no magic
     /// numbers scattered in delegates). Single-card scanning → at most

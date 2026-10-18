@@ -16,6 +16,7 @@
 import Foundation
 import ImageIO
 import CoreGraphics
+import CoreVideo
 import Testing
 @testable import SimCamCard
 
@@ -202,6 +203,68 @@ struct CardCropProcessorTests {
         #expect(ImageOrientationResolver.orientation(of: result.original.data) == .right)
     }
 
+    // MARK: - Detection acceptance gate
+
+    @Test("prepare rejects a tiny detected region and returns fallback")
+    func prepareRejectsTinyDetection() async throws {
+        // 0.15 x 0.15 central square → area 0.0225: geometrically valid
+        // (>= 0.01) but below the 0.05 conservative auto-detection threshold.
+        let tinyRegion = Self.region(
+            tl: (0.425, 0.425), tr: (0.575, 0.425),
+            br: (0.575, 0.575), bl: (0.425, 0.575),
+            pixelWidth: 240, pixelHeight: 180
+        )
+        let processor = CardCropProcessor(
+            detector: StubCardRegionDetector(region: tinyRegion)
+        )
+        let data = try Self.makeImageData(width: 240, height: 180)
+        let photo = CapturedPhoto(data: data)
+
+        let preparation = try await processor.prepare(photo)
+
+        #expect(!preparation.wasDetected)
+        let expectedFallback = CardRegionGeometry.fallbackRegion(
+            pixelWidth: 240, pixelHeight: 180
+        )
+        #expect(preparation.draft.region == expectedFallback)
+    }
+
+    @Test("prepare accepts a large detected region")
+    func prepareAcceptsLargeDetection() async throws {
+        let largeRegion = Self.region(
+            tl: (0.1, 0.15), tr: (0.9, 0.15),
+            br: (0.9, 0.85), bl: (0.1, 0.85),
+            pixelWidth: 240, pixelHeight: 180
+        )
+        let processor = CardCropProcessor(
+            detector: StubCardRegionDetector(region: largeRegion)
+        )
+        let data = try Self.makeImageData(width: 240, height: 180)
+        let photo = CapturedPhoto(data: data)
+
+        let preparation = try await processor.prepare(photo)
+
+        #expect(preparation.wasDetected)
+        #expect(preparation.draft.region == largeRegion)
+    }
+
+    @Test("prepare falls back when detector returns nil")
+    func prepareFallsBackWhenDetectorReturnsNil() async throws {
+        let processor = CardCropProcessor(
+            detector: StubCardRegionDetector(region: nil)
+        )
+        let data = try Self.makeImageData(width: 240, height: 180)
+        let photo = CapturedPhoto(data: data)
+
+        let preparation = try await processor.prepare(photo)
+
+        #expect(!preparation.wasDetected)
+        let expectedFallback = CardRegionGeometry.fallbackRegion(
+            pixelWidth: 240, pixelHeight: 180
+        )
+        #expect(preparation.draft.region == expectedFallback)
+    }
+
     // MARK: - Helpers
 
     private static func region(
@@ -278,5 +341,24 @@ struct CardCropProcessorTests {
             throw CropError.correctionFailed
         }
         return output as Data
+    }
+}
+
+/// Test-only stub that returns a fixed detection result.
+private struct StubCardRegionDetector: CardRegionDetecting {
+    let region: CardRegion?
+
+    func detect(
+        in pixelBuffer: CVPixelBuffer,
+        orientation: CGImagePropertyOrientation
+    ) -> CardRegion? {
+        region
+    }
+
+    func detect(
+        in cgImage: CGImage,
+        orientation: CGImagePropertyOrientation
+    ) -> CardRegion? {
+        region
     }
 }

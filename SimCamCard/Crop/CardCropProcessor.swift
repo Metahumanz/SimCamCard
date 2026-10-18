@@ -82,9 +82,12 @@ actor CardCropProcessor: CardCropProcessing {
     /// Reused across confirms — CIContext creation is expensive.
     private let ciContext = CIContext()
 
-    /// The Increment 4 stable Vision detector is reused — never
-    /// duplicated.
-    private let detector = CardRegionDetector()
+    /// The Increment 4 stable Vision detector, injected for testability.
+    private let detector: any CardRegionDetecting
+
+    init(detector: any CardRegionDetecting = CardRegionDetector()) {
+        self.detector = detector
+    }
 
     // MARK: - Preparation
 
@@ -96,13 +99,14 @@ actor CardCropProcessor: CardCropProcessing {
         if let detected = detector.detect(
             in: decoded.cgImage,
             orientation: decoded.orientation
-        ) {
+        ), CardRegionGeometry.isAcceptableAutoDetection(detected) {
             draftRegion = detected
             wasDetected = true
         } else {
             // Implementation robustness fallback (NOT Reference-observed
             // behavior): an inset rectangle keeps manual cropping
-            // possible; the ViewModel enters manualAdjusting.
+            // possible; the ViewModel enters manualAdjusting. Also covers
+            // detected-but-too-small quads (conservative rejection).
             draftRegion = CardRegionGeometry.fallbackRegion(
                 pixelWidth: decoded.orientedPixelWidth,
                 pixelHeight: decoded.orientedPixelHeight

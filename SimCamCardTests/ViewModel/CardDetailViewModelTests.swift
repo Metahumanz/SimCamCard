@@ -645,6 +645,130 @@ struct CardDetailViewModelTests {
         Issue.record("gated contact export never entered")
     }
 
+    // MARK: - B-02 Original image loading
+
+    @Test("B-02 loadOriginalImage with populated store loads bytes")
+    func loadOriginalImageWithData() async {
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47]) // PNG magic bytes
+        let store = InMemoryImageAssetStore()
+        await store.save(reference: "test-original", data: imageData)
+
+        let card = BusinessCard(
+            id: UUID(),
+            originalImageReference: "test-original",
+            processedImageReference: "test-processed",
+            name: "测试"
+        )
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: InMemoryBusinessCardRepository(initialCards: [card]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed),
+            imageStore: store
+        )
+
+        #expect(viewModel.originalImageState == .idle)
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .loaded(imageData))
+    }
+
+    @Test("B-02 loadOriginalImage with empty store → missing (graceful)")
+    func loadOriginalImageMissing() async {
+        let store = InMemoryImageAssetStore()
+        // No data saved for "test-original"
+
+        let card = BusinessCard(
+            id: UUID(),
+            originalImageReference: "test-original",
+            processedImageReference: "test-processed",
+            name: "测试"
+        )
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: InMemoryBusinessCardRepository(initialCards: [card]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed),
+            imageStore: store
+        )
+
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .missing)
+    }
+
+    @Test("B-02 loadOriginalImage with nil store → missing (graceful)")
+    func loadOriginalImageNilStore() async {
+        let card = BusinessCard(
+            id: UUID(),
+            originalImageReference: "test-original",
+            processedImageReference: "test-processed",
+            name: "测试"
+        )
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: InMemoryBusinessCardRepository(initialCards: [card]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed)
+            // imageStore defaults to nil
+        )
+
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .missing)
+    }
+
+    @Test("B-02 loadOriginalImage is idempotent (second call is no-op)")
+    func loadOriginalImageIdempotent() async {
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let store = InMemoryImageAssetStore()
+        await store.save(reference: "test-original", data: imageData)
+
+        let card = BusinessCard(
+            id: UUID(),
+            originalImageReference: "test-original",
+            processedImageReference: "test-processed",
+            name: "测试"
+        )
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: InMemoryBusinessCardRepository(initialCards: [card]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed),
+            imageStore: store
+        )
+
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .loaded(imageData))
+
+        // Second call: still loaded, no re-fetch.
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .loaded(imageData))
+    }
+
+    @Test("B-02 loadOriginalImage loads the ORIGINAL bytes, never the processed bytes")
+    func loadOriginalImageUsesOriginalReferenceNotProcessed() async {
+        // Distinguishable byte payloads so the assertion can only pass if
+        // the ORIGINAL reference was read — proving the two references are
+        // not conflated (the Holder thumbnail uses processedImageReference).
+        let originalBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
+        let processedBytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
+
+        let store = InMemoryImageAssetStore()
+        await store.save(reference: "card-original", data: originalBytes)
+        await store.save(reference: "card-processed", data: processedBytes)
+
+        let card = BusinessCard(
+            id: UUID(),
+            originalImageReference: "card-original",
+            processedImageReference: "card-processed",
+            name: "测试"
+        )
+        let viewModel = CardDetailViewModel(
+            card: card,
+            repository: InMemoryBusinessCardRepository(initialCards: [card]),
+            contactExporter: ScriptedContactExporter(behavior: .allowed),
+            imageStore: store
+        )
+
+        await viewModel.loadOriginalImage()
+        #expect(viewModel.originalImageState == .loaded(originalBytes))
+        #expect(viewModel.originalImageState != .loaded(processedBytes))
+    }
+
     // MARK: - Deterministic fixtures (DEBUG-only; MockBusinessCards is
     // compiled out of Release)
 

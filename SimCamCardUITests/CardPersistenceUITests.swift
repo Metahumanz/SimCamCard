@@ -179,6 +179,30 @@ final class CardPersistenceUITests: XCTestCase {
             "The Detail must show the corrected title."
         )
 
+        // 3b. B-02 original-image E2E (BEFORE terminate): the just-saved
+        //     card's Detail must show the original-image thumbnail; tapping
+        //     it opens the full-screen viewer, which dismisses back to the
+        //     Detail. This exercises the real saved bytes, not a fixture
+        //     placeholder.
+        let originalThumb = app.descendants(matching: .any)["card-detail-original-image"]
+        XCTAssertTrue(
+            originalThumb.waitForExistence(timeout: 5),
+            "The saved card's Detail must show the original-image thumbnail before termination."
+        )
+        originalThumb.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-original-image-fullscreen"]
+                .waitForExistence(timeout: 5),
+            "Tapping the thumbnail must open the full-screen original-image viewer."
+        )
+        attachScreenshot(app, name: "w4i13-b02-original-image-fullscreen-before-relaunch")
+        app.buttons["card-detail-image-close"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["card-detail-original-image-fullscreen"]
+                .waitForNonExistence(timeout: 5),
+            "Dismissing the viewer must return to the Detail."
+        )
+
         // 4. Back to Holder → Group Management → create 客户 with the
         //    saved card assigned (T16). The card has a runtime UUID, so
         //    the selection row is located by its stable id prefix.
@@ -341,6 +365,35 @@ final class CardPersistenceUITests: XCTestCase {
         XCTAssertTrue(relaunched.staticTexts[mobile].exists)
         XCTAssertTrue(relaunched.staticTexts[office].exists)
         XCTAssertTrue(relaunched.staticTexts[email].exists)
+
+        // B-02 original-image E2E (AFTER relaunch): the restored original
+        // bytes must again render as a tappable thumbnail that opens the
+        // full-screen viewer and dismisses back to the Detail — proving the
+        // original asset survived the full terminate/relaunch, not just the
+        // processed thumbnail.
+        let restoredThumb = relaunched.descendants(matching: .any)["card-detail-original-image"]
+        XCTAssertTrue(
+            restoredThumb.waitForExistence(timeout: 5),
+            "The original-image thumbnail must survive the full terminate/relaunch."
+        )
+        restoredThumb.tap()
+        XCTAssertTrue(
+            relaunched.descendants(matching: .any)["card-detail-original-image-fullscreen"]
+                .waitForExistence(timeout: 5),
+            "Tapping the restored thumbnail must open the full-screen viewer."
+        )
+        attachScreenshot(relaunched, name: "w4i13-b02-original-image-fullscreen-after-relaunch")
+        relaunched.buttons["card-detail-image-close"].tap()
+        XCTAssertTrue(
+            relaunched.descendants(matching: .any)["card-detail-original-image-fullscreen"]
+                .waitForNonExistence(timeout: 5),
+            "Dismissing the restored viewer must return to the Detail."
+        )
+
+        // B-02: the original-image section appears on a saved card with
+        // stored bytes and can push the website row below the fold.
+        // Scroll down before asserting the last field row.
+        relaunched.swipeUp()
         XCTAssertTrue(relaunched.staticTexts[website].exists)
 
         // Evidence 2: Detail after relaunch.

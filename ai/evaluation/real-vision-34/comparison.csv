@@ -1,0 +1,307 @@
+id,field,gtPresent,gtValue,observedValue,rawContainsAnchor,fullImageContainsAnchor,match,errorType,note,absenceKind
+card-001,name,True,张伟,张伟,True,True,True,match,,
+card-001,company,True,上海智云科技有限公司,上海智云科技有限公司,True,True,True,match,,
+card-001,jobTitle,True,产品总监 | Product Director,产品总监 |Product Director,True,True,True,match,,
+card-001,address,True,上海市浦东新区世纪大道100号 200120,上海市浦东新区世纪大道100号 200120,True,True,True,match,,
+card-001,mobile,True,+86 138 0013 8000,+86 138 0013 8000,True,True,True,match,,
+card-001,office,True,+86 21 5555 1234,+86 21 5555 1234,True,True,True,match,,
+card-001,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-001,email,True,wei.zhang@zhiyuntech.com,wei.zhang@zhiyuntech.com,True,True,True,match,,
+card-001,website,True,www.zhiyuntech.com,www.zhiyuntech.com,True,True,True,match,,
+card-002,name,True,李娜,李娜,True,True,True,match,,
+card-002,company,True,上海智云科技有限公司,上海智云科技有限公司,True,True,True,match,,
+card-002,jobTitle,True,市场总监 | Marketing Director,市场总监 ｜ Marketing Director,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-002,address,True,上海市浦东新区世纪大道188号 200120,上海市浦东新区世纪大道188号 200120,True,True,True,match,,
+card-002,mobile,True,+86 139 1234 5678,+86 139 1234 5678,True,True,True,match,,
+card-002,office,True,+86 21 6888 2468,+86 21 6888 2468,True,True,True,match,,
+card-002,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-002,email,True,lina.li@zhiyuntech.com,lina.li@zhiyuntech.com,True,False,True,match,,
+card-002,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-003,name,True,陈晨,陈晨,True,True,True,match,,
+card-003,company,True,上海智云科技有限公司,上海智云科技有限公司,True,True,True,match,,
+card-003,jobTitle,True,商务拓展经理 | Business Development Manager,商务拓展经理丨,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-003,address,True,上海市徐汇区漕溪北路398号 200030,上海市徐汇区漕溪北路398号200030,True,True,True,match,,
+card-003,mobile,True,+86 136 8888 1024,+86 136 8888 1024,True,True,True,match,,
+card-003,office,True,+86 21 5666 7788,+86 21 5666 7788,True,True,True,match,,
+card-003,fax,True,+86 21 5666 7799,+86 21 5666 7799,True,True,True,match,,
+card-003,email,True,chen.chen@zhiyuntech.com,chen.chen@zhiyuntech.com,True,True,True,match,,
+card-003,website,True,www.zhiyuntech.com,www.zhiyuntech.com,True,True,True,match,,
+card-004,name,True,张伟,张 伟,True,True,True,match,,
+card-004,company,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,jobTitle,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,address,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,mobile,True,+86 138 0013 8000,+86 138 0013 8000,True,True,True,match,,
+card-004,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,email,False,,,False,False,True,correct_absent,,canonical_absent
+card-004,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-005,name,True,Olivia Chen,North Harbor,True,True,False,wrong_value,raw OCR contains anchor but observed field value differs,
+card-005,company,False,,,False,False,True,correct_absent,,canonical_absent
+card-005,jobTitle,True,Senior Data Consultant,Senior Data Consultant,True,True,True,match,,
+card-005,address,True,"88 Market Street, Suite 920, San Francisco, CA 94105","88 Market Street, Suite 920, San Francisco, CA 94105",True,True,True,match,,
+card-005,mobile,True,+1 (415) 555-0184,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-005,office,True,+1 (415) 555-0147,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-005,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-005,email,True,olivia.chen@northharbor.ai,olivia.chen@northharbor.ai,True,True,True,match,,
+card-005,website,True,www.northharbor.ai,www.northharbor.ai,True,True,True,match,,
+card-006,name,True,Emma Xu,Emma Xu,True,True,True,match,,
+card-006,company,False,,Green Aurora Studio,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Green Aurora Studio),alternate_exact
+card-006,jobTitle,True,Visual Designer,Visual Designer,True,True,True,match,,
+card-006,address,False,,,False,False,True,correct_absent,,canonical_absent
+card-006,mobile,True,+86 186 0217 4433,+86 186 0217 4433,True,True,True,match,,
+card-006,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-006,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-006,email,True,emma.xu@grnaurora.com,emma.xu@grnaurora.com,True,True,True,match,,
+card-006,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-007,name,True,赵磊,赵 磊,True,True,True,match,,
+card-007,company,True,杭州远帆医疗科技有限公司,杭州远帆医疗科技有限公司,True,True,True,match,,
+card-007,jobTitle,True,销售经理 | Sales Manager,销售经理｜ Sales Manager,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-007,address,True,中国 杭州市滨江区江陵路88号 310051,中国杭州市滨江区江陵路88号 310051,True,True,True,match,,
+card-007,mobile,True,+86 150 8800 7312,+86 150 8800 7312,True,True,True,match,,
+card-007,office,True,+86 571 8650 2208,+86 571 8650 2208,True,True,True,match,,
+card-007,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-007,email,True,lei.zhao@yuanfanmed.com,lei.zhao@yuanfanmed.com,True,True,True,match,,
+card-007,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-008,name,True,刘洋,刘洋,True,True,True,match,,
+card-008,company,True,蓝轨物流科技有限公司,蓝轨物流科技有限公司,True,True,True,match,,
+card-008,jobTitle,True,区域发展经理 | Regional Development Manager,区域发展经理｜Regional Development Manager,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-008,address,True,中国 深圳市南山区科技南十二路6号 518057,中国深圳市南山区科技南十二路6号 518057,True,True,True,match,,
+card-008,mobile,True,+86 139 7008 6611,+86 139 7008 6611,True,True,True,match,,
+card-008,office,True,+86 755 2668 4100,+86 755 2668 4100,True,True,True,match,,
+card-008,fax,True,+86 755 2668 4109,+86 755 2668 4109,True,True,True,match,,
+card-008,email,True,yang.liu@blueorbitlog.com,yang.liu@blueorbitlog.com,True,True,True,match,,
+card-008,website,True,www.blueorbitlog.com,www.blueorbitlog.com,True,True,True,match,,
+card-009,name,True,何嘉怡,何嘉怡,True,True,True,match,,
+card-009,company,True,广州澜图文旅发展有限公司,广州澜图文旅发展有限公司,True,True,True,match,,
+card-009,jobTitle,True,品牌合作总监 | Director of Brand Partnerships,品牌合作总监 ｜ Director of Brand Partnerships,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-009,address,True,中国 广州市天河区珠江新城华夏路16号 510623,中国 广州市天河区珠江新城 华夏路16号 510623,True,True,True,match,,
+card-009,mobile,True,+86 188 2506 3114,+86 188 2506 3114,True,True,True,match,,
+card-009,office,True,+86 20 3899 7781,+86 20 3899 7781,True,True,True,match,,
+card-009,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-009,email,True,jiayi.he@lantuvision.com,jiayi.he@lantuvision.com,True,True,True,match,,
+card-009,website,True,www.lantuvision.com,www.lantuvision.com,True,True,True,match,,
+card-010,name,True,王敏,王敏,True,True,True,match,,
+card-010,company,True,星澜智能制造有限公司,星澜智能制造有限公司,True,True,True,match,,
+card-010,jobTitle,True,运营总监 | Operations Director,运营总监 | Operations Director,True,True,True,match,,
+card-010,address,True,中国 上海市 闵行区申长路518号 201106,中国 上海市 闵行区申长路518号 201106,True,True,True,match,,
+card-010,mobile,True,+86 137 1001 2200,+86 137 1001 2200,True,True,True,match,,
+card-010,office,True,+86 21 6200 1188,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-010,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-010,email,True,min.wang@xinglanim.com,min.wang@xinglanim.com,True,True,True,match,,
+card-010,website,True,www.xinglanim.com,www.xinglanim.com,True,True,True,match,,
+card-011,name,True,孙悦,孙悦,True,True,True,match,,
+card-011,company,True,宁波启辰精工有限公司,宁波启辰精工有限公司,True,True,True,match,,
+card-011,jobTitle,True,客户成功经理 | Customer Success Manager,客户成功经理 ｜Customer Success Manager,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-011,address,True,中国 宁波市鄞州区中山东路1200号 315040,中国 宁波市鄞州区中山东路1200号 315040,True,True,True,match,,
+card-011,mobile,True,+86 158 5740 6621,+86 158 5740 6621,True,True,True,match,,
+card-011,office,True,+86 574 8790 3321,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-011,fax,True,+86 574 8790 3329,,True,True,False,kind_misclassification,digits found but classified as other instead of fax,
+card-011,email,True,yue.sun@qichenprecision.com,yue.sun@qichenprecision.com,True,True,True,match,,
+card-011,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-012,name,True,周婷,周 婷,True,True,True,match,,
+card-012,company,True,成都云桥教育科技有限公司,成都云桥教育科技有限公司,True,True,True,match,,
+card-012,jobTitle,True,课程产品经理,课程产品经理,True,True,True,match,,
+card-012,address,True,中国 成都市高新区天府二街99号 610041,中国 成都市高新区天府二街99号 610041,True,True,True,match,,
+card-012,mobile,True,+86 181 8090 6618,+86 181 8090 6618,True,True,True,match,,
+card-012,office,True,+86 28 8611 4490,+86 28 8611 4490,True,True,True,match,,
+card-012,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-012,email,True,ting.zhou@yqedu.cn,ting.zhou@yqedu.cn,True,True,True,match,,
+card-012,website,True,www.yqedu.cn,www.yqeau.cn,True,True,False,wrong_value,"anchor in raw OCR, observed value differs",
+card-013,name,True,Daniel Wu,Daniel Wu,True,True,True,match,,
+card-013,company,False,,BioSystems,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Stonepine BioSystems),alternate_partial
+card-013,jobTitle,True,Research Partnerships Lead,Research Partnerships Lead,True,True,True,match,,
+card-013,address,True,"14 Kingsway, London WC2B 6XF, UK",,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-013,mobile,True,+44 7700 900245,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-013,office,True,+44 20 7946 1288,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-013,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-013,email,True,daniel.wu@stonepinebio.com,daniel.wu@stonepinebio.com,True,True,True,match,,
+card-013,website,True,www.stonepinebio.com,www.stonepinebio.com,True,True,True,match,,
+card-014,name,True,Kevin Park,Kevin Park,True,True,True,match,,
+card-014,company,False,,Secure Systems,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Morningside Secure Systems),alternate_partial
+card-014,jobTitle,True,Solutions Architect,Solutions Architect,True,True,True,match,,
+card-014,address,True,"305 Madison Ave, New York, NY 10165","305 Madison Ave, New York, NY 10165",True,True,True,match,,
+card-014,mobile,True,+1 (646) 555-0113,+1 (646) 555-0113,True,True,True,match,,
+card-014,office,True,+1 (212) 555-0199,+1 (212) 555-0199,True,True,True,match,,
+card-014,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-014,email,False,,,False,False,True,correct_absent,,canonical_absent
+card-014,website,True,www.mss-secure.com,www.mss-secure.com,True,True,True,match,,
+card-015,name,True,李娜,李娜,True,True,True,match,,
+card-015,company,True,上海智云科技有限公司,上海智云科技有限公司,True,True,True,match,,
+card-015,jobTitle,True,产品经理,产品经理,True,True,True,match,,
+card-015,address,True,上海市徐汇区漕溪北路398号 200030,,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-015,mobile,True,+86 136 8888 1025,+86 136 8888 1025,True,True,True,match,,
+card-015,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-015,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-015,email,True,lina@zhiyuntech.com,lina@zhiyuntech.com,True,True,True,match,,
+card-015,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-016,name,True,Michael Chen,Michael Chen,True,True,True,match,,
+card-016,company,False,,CloudMatrix Inc.,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (CloudMatrix Inc.),alternate_exact
+card-016,jobTitle,True,Senior Software Engineer,Senior Software Engineer,True,True,True,match,,
+card-016,address,True,"500 Terry A Francois Blvd, San Francisco, CA 94158, USA",,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-016,mobile,True,+1 415 555 0199,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-016,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-016,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-016,email,True,mchen@cloudmatrix.com,mchen@cloudmatrix.com,True,True,True,match,,
+card-016,website,True,www.cloudmatrix.com,www.cloudmatrix.com,True,True,True,match,,
+card-017,name,True,王强,王强,True,True,True,match,,
+card-017,company,True,招商银行,招商银行,True,False,True,match,,
+card-017,jobTitle,True,客户经理,客户经理,True,True,True,match,,
+card-017,address,True,上海市浦东新区陆家嘴环路1088号 200120,,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-017,mobile,True,+86 139 1234 5678,+86 139 1234 5678,True,True,True,match,,
+card-017,office,True,+86 21 5555 6666,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-017,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-017,email,True,wangqiang@cmbchina.com,wangqiang@cmbchina.com,True,True,True,match,,
+card-017,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-018,name,True,David Park,David Park,True,True,True,match,,
+card-018,company,False,,Nexa Studio,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Nexa Studio),alternate_exact
+card-018,jobTitle,True,Design Director,Design Director,True,True,True,match,,
+card-018,address,True,"12 Teheran-ro, Gangnam-gu, Seoul 06234, Korea",,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-018,mobile,True,+82 10 9876 5432,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-018,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-018,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-018,email,True,david.park@nexa.studio,david.park@nexa.studio,True,True,True,match,,
+card-018,website,True,www.nexa.studio,www.nexa.studio,True,True,True,match,,
+card-019,name,True,佐藤健一,佐藤健一,True,True,True,match,,
+card-019,company,True,さくら株式会社,"Sakura Co., Ltd.",True,True,False,wrong_value,raw OCR contains anchor but observed field value differs,
+card-019,jobTitle,True,マネージャー,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-019,address,True,東京都千代田区丸の内1-9-1 100-0005,,True,False,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-019,mobile,True,+81 90 1234 5678,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-019,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-019,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-019,email,True,sato@sakura.co.jp,sato@sakura.co.jp,True,True,True,match,,
+card-019,website,True,www.sakura.co.jp,www.sakura.co.jp,True,True,True,match,,
+card-020,name,True,陈静,陈静,True,True,True,match,,
+card-020,company,True,华东第一人民医院,,False,True,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-020,jobTitle,True,主任医师,主任医师,True,True,True,match,,
+card-020,address,True,上海市静安区延安中路1000号 200040,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-020,mobile,True,+86 139 8765 4321,+86 139 8765 4321,True,True,True,match,,
+card-020,office,True,+86 21 6666 8888,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-020,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-020,email,True,chenjing@ecfph.cn,chenjing@ecfph.cn,True,True,True,match,,
+card-020,website,False,,,False,False,True,correct_absent,,canonical_absent
+card-021,name,True,Sophia Müller,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-021,company,False,,GlobalTech GmbH,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (GlobalTech GmbH),alternate_exact
+card-021,jobTitle,True,Product Manager,Product Manager,True,True,True,match,,
+card-021,address,True,"Musterstraße 12, 80331 München, Deutschland",,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-021,mobile,True,+49 151 2345 6789,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-021,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-021,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-021,email,True,sophia.mueller@globaltech.de,sophia.mueller@globaltech.de,True,True,True,match,,
+card-021,website,True,www.globaltech.de,www.globaltech.de,True,True,True,match,,
+card-022,name,True,刘洋,復旦大拳,True,True,False,wrong_value,raw OCR contains anchor but observed field value differs,
+card-022,company,True,复旦大学,FUDAN UNIVERSITY,False,False,False,ocr_miss,raw OCR lacks GT anchor; observed value may be OCR error,
+card-022,jobTitle,True,副教授,刷教授,False,False,False,ocr_miss,raw OCR lacks GT anchor; observed value may be OCR error,
+card-022,address,True,上海市杨浦区邯郸路220号 200433,,False,True,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-022,mobile,True,+86 138 5555 6677,+86 138 5555 6677,True,True,True,match,,
+card-022,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-022,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-022,email,True,liuyang@fudan.edu.cn,livyang@fudan.edu.cn,False,False,False,ocr_miss,raw OCR lacks the GT email,
+card-022,website,True,http://www.fudan.edu.cn,http://www.fudan.edu.cn,True,True,True,match,,
+card-023,name,True,Emily Johnson,Emily Johnson,True,True,True,match,,
+card-023,company,False,,,False,False,True,correct_absent,,canonical_absent
+card-023,jobTitle,True,CEO,CEO,True,True,True,match,,
+card-023,address,True,"3200 Hillview Ave, Palo Alto, CA 94304, USA",,False,False,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-023,mobile,True,+1 650 555 0134,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-023,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-023,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-023,email,True,emily@novaai.com,emily@novaai.com,True,True,True,match,,
+card-023,website,True,www.novaai.com,www.novaai.com,True,True,True,match,,
+card-024,name,True,周磊,周磊,True,True,True,match,,
+card-024,company,True,宏远制造有限公司,宏远制造有限公司,True,True,True,match,,
+card-024,jobTitle,True,销售总监,销售总监,True,True,True,match,,
+card-024,address,True,上海市嘉定区嘉罗公路123号 201800,,True,False,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-024,mobile,True,+86 137 0000 9999,+86 137 0000 9999,True,True,True,match,,
+card-024,office,True,+86 21 7777 8888,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-024,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-024,email,True,zhoulei@hongyuan.com,zhoulei@hongyuan.com,True,True,True,match,,
+card-024,website,True,www.hongyuan.com,www.hongyuan.com,True,True,True,match,,
+card-025,name,True,Élodie Martin,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-025,company,False,,Atelier Lumen SAS,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Atelier Lumen SAS),alternate_exact
+card-025,jobTitle,True,Directrice de produit | Product Director,Directrice de produit | Product Director,True,True,True,match,,
+card-025,address,True,"24 Rue de Lyon, 75012 Paris, France",,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-025,mobile,True,+33 6 12 34 56 78,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-025,office,True,+33 1 84 80 22 10,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-025,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-025,email,True,elodie.martin@atelierlumen.fr,elodie.martin@atelierlumen.fr,True,True,True,match,,
+card-025,website,True,www.atelierlumen.fr,www.atelierlumen.fr,True,True,True,match,,
+card-026,name,True,김서준,Seo-jun Kim,True,True,False,wrong_value,raw OCR contains anchor but observed field value differs,
+card-026,company,True,한빛로보틱스 주식회사,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-026,jobTitle,True,제품전략 매니저 | Product Strategy Manager,|Prodct Strategy Manager,False,False,False,ocr_miss,raw OCR lacks GT anchor; observed value may be OCR error,
+card-026,address,True,"대한민국 서울특별시 강남구 테헤란로 221, 06142",,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-026,mobile,True,+82 10 4382 7715,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-026,office,True,+82 2 6123 4400,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-026,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-026,email,True,seojun.kim@hanbitrobotics.kr,seojun.kim@hanbitrobotics.kr,True,True,True,match,,
+card-026,website,True,www.hanbitrobotics.kr,www.hanbitrobotics.kr,True,True,True,match,,
+card-027,name,True,高橋 美咲,高橋 美咲,True,True,True,match,,
+card-027,company,True,青空デザイン株式会社,Aozora Design Inc.,True,True,False,wrong_value,raw OCR contains anchor but observed field value differs,
+card-027,jobTitle,True,アートディレクター | Art Director,アートディレクター｜Art Director,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-027,address,True,東京都渋谷区神宮前4-18-7 150-0001,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-027,mobile,True,+81 90 2468 1357,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-027,office,True,+81 3 6450 2290,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-027,fax,True,+81 3 6450 2299,,True,True,False,kind_misclassification,digits found but classified as other instead of fax,
+card-027,email,True,misaki.takahashi@aozora-design.jp,misaki.takahashi@aozora-design.jp,True,True,True,match,,
+card-027,website,True,www.aozora-design.jp,www.aozora-design.jp,True,True,True,match,,
+card-028,name,True,许晨,许晨,True,True,True,match,,
+card-028,company,True,苏州凌光半导体有限公司,苏州凌光半导体有限公司,True,True,True,match,,
+card-028,jobTitle,True,产品应用工程师 | Field Application Engineer,,False,True,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-028,address,True,中国 苏州市工业园区星湖街328号 215123,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-028,mobile,True,+86 159 5008 7712,+86 159 5008 7712,True,True,True,match,,
+card-028,office,True,+86 512 6688 2046,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-028,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-028,email,False,,,False,False,True,correct_absent,,canonical_absent
+card-028,website,True,www.lingguangsemi.cn,www.lingguangsemi.cn,True,True,True,match,,
+card-029,name,True,Nora O'Connor,Nora O'Connor,True,True,True,match,,
+card-029,company,False,,,False,False,True,correct_absent,,canonical_absent
+card-029,jobTitle,True,"Vice President, Client Solutions","Vice President, Client Solutions",True,True,True,match,,
+card-029,address,True,"375 Lexington Avenue, Floor 18, New York, NY 10017, USA",,False,True,False,ocr_miss,raw OCR does not contain the GT anchor,
+card-029,mobile,True,+1 917 555 0248,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-029,office,True,+1 212 555 0186,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-029,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-029,email,True,nora.oconnor@silverlinerisk.com,nora.oconnor@silverlinerisk.com,True,True,True,match,,
+card-029,website,True,www.silverlinerisk.com,www.silverlinerisk.com,True,True,True,match,,
+card-030,name,True,Mateo Ruiz,Mateo Ruiz,True,True,True,match,,
+card-030,company,False,,Cobalto Studio,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Cobalto Studio),alternate_exact
+card-030,jobTitle,True,UX Researcher,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-030,address,False,,,False,False,True,correct_absent,,canonical_absent
+card-030,mobile,False,,,False,False,True,correct_absent,,canonical_absent
+card-030,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-030,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-030,email,True,mateo@cobalto.studio,mateo@cobalto.studio,True,True,True,match,,
+card-030,website,True,www.cobalto.studio,www.cobalto.studio,True,True,True,match,,
+card-031,name,True,林琪,林琪,True,True,True,match,,
+card-031,company,True,深圳澄海新能源有限公司,深圳澄海新能源有限公司,True,True,True,match,,
+card-031,jobTitle,True,国际业务经理 | International Business Manager,国际业务经理｜International Business Manager,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-031,address,True,中国 深圳市南山区科苑南路2666号 518063,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-031,mobile,True,+86 186 8891 2040,+86 186 8891 2040,True,True,True,match,,
+card-031,office,True,+86 755 8654 2033,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-031,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-031,email,True,linqi@chenghaienergy.com,linqi@chenghaienergy.com,True,True,True,match,,
+card-031,website,True,www.chenghaienergy.com,www.chenghaienergy.com,True,True,True,match,,
+card-032,name,True,Aisha Rahman,Aisha Rahman,True,True,True,match,,
+card-032,company,False,,Meridian Health Labs,False,False,True,accepted_alternate_language,GT canonical field absent; observed value matches GT alternate-language variant (Meridian Health Labs),alternate_exact
+card-032,jobTitle,True,Clinical Partnerships Lead,Clinical Partnerships Lead,True,True,True,match,,
+card-032,address,True,"88 Great Portland Street, London W1W 7NT, UK",,True,False,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-032,mobile,True,+44 7700 912481,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-032,office,True,+44 20 7946 2310,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-032,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-032,email,True,aisha.rahman@meridianhealthlabs.co.uk,eaisha.rahman@meridianhealthlabs.co.uk,True,True,False,extraction_miss,raw OCR contains email but extractor missed it,
+card-032,website,True,www.meridianhealthlabs.co.uk,www.meridianhealthlabs.co.uk,True,True,True,match,,
+card-033,name,True,José Álvarez,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-033,company,False,,,False,False,True,correct_absent,,canonical_absent
+card-033,jobTitle,True,Director de Ventas | Sales Director,Director de Ventas Sales Director,True,True,True,match_native_partial,native side matched; full bilingual GT string not contained,
+card-033,address,True,"Calle de Alcalá 121, 28009 Madrid, España",,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-033,mobile,True,+34 612 345 781,,True,True,False,kind_misclassification,digits found but classified as other instead of mobile,
+card-033,office,True,+34 91 555 2480,,True,True,False,kind_misclassification,digits found but classified as other instead of office,
+card-033,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-033,email,True,jose.alvarez@nubeclara.es,jose.alvarez@nubeclara.es,True,True,True,match,,
+card-033,website,True,www.nubeclara.es,www.nubeclara.es,True,True,True,match,,
+card-034,name,True,顾言,顾言,True,True,True,match,,
+card-034,company,True,杭州屿川建筑设计事务所,杭州屿川建筑设计事务所,True,True,True,match,,
+card-034,jobTitle,True,建筑师,建筑师,True,True,True,match,,
+card-034,address,True,杭州市西湖区文三路90号 310012,,True,True,False,extraction_miss,raw OCR contains anchor but extractor did not classify,
+card-034,mobile,False,,,False,False,True,correct_absent,,canonical_absent
+card-034,office,False,,,False,False,True,correct_absent,,canonical_absent
+card-034,fax,False,,,False,False,True,correct_absent,,canonical_absent
+card-034,email,True,guyan@yuchuan.design,guyan@yuchuan.design,True,True,True,match,,
+card-034,website,False,,,False,False,True,correct_absent,,canonical_absent
