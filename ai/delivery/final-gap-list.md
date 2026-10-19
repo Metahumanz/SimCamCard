@@ -6,6 +6,8 @@ Final Delivery Phase 1。配套：[course-compliance-matrix.md](./course-complia
 
 - 基线：`week4/structured-recognition` @ `f5533b3c4486a644a9c2c427dc617efbe8dd8570`
 - 日期：2026-10-12
+
+> **Phase 2A-1 更新（2026-10-19）**：以上基线与日期为**历史事实，保留不改**。Phase 1.1 修复经 Human Decision **Accepted — 2026-10-18** 后，已以 `de58eee81326e6728080a2816ac718520c268366` **commit + push** 至 `origin/week4/structured-recognition`。当前交付状态见下方 Phase 1.1 段；本轮仅为文档刷新（README / SDD-README / 相对链接 / 历史状态校准），未改动 production / test / frozen 文件。
 - 复审方法：P01–P11 每个 PARTIAL 重新判定"是不是课程要求内的可观察行为缺失"，而非视觉装饰。
 - 分类（任务书 §6 指定六类）：
   1. **Required behavior blocker** — 作业明文要求的可观察行为缺失；
@@ -64,9 +66,9 @@ hook 隔离 **16/16 ABSENT**（Release）/ **16/16 PRESENT**（Debug dylib）。
 - **作业原文（§10，中英一致）**："The business card detail page must support: … **Tap phone number;
   Tap email address; Tap website.**" / "点击电话号码；点击Email；点击Website。"
   下一句明确允许："Functions that invoke external system applications may use native system components."
-- **现状**：
-  - [CardDetailView.swift L74-79](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailView.swift#L74-L79) 注释："Deliberately NOT implemented: phone/email/web invocation (no tel:/URL wiring)"；
-  - [CardDetailFieldRow.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailFieldRow.swift) 是纯 `HStack`，无 `Button`/`Link`/`onTapGesture`/`openURL`；
+- **Phase 1 审计时的源码现状（以下三条源码证据均指向 `f5533b3c4486a644a9c2c427dc617efbe8dd8570` 提交时的缺陷版本，即 Phase 1.1 修复**之前**的状态。请勿将这些相对链接当作当前 `de58eee` 已修复源码的证据）**：
+  - [CardDetailView.swift L74-79 @ f5533b3](https://github.com/Metahumanz/SimCamCard/blob/f5533b3c4486a644a9c2c427dc617efbe8dd8570/SimCamCard/View/CardDetail/CardDetailView.swift#L74-L79) 注释："Deliberately NOT implemented: phone/email/web invocation (no tel:/URL wiring)"；
+  - [CardDetailFieldRow.swift @ f5533b3](https://github.com/Metahumanz/SimCamCard/blob/f5533b3c4486a644a9c2c427dc617efbe8dd8570/SimCamCard/View/CardDetail/CardDetailFieldRow.swift) 是纯 `HStack`，无 `Button`/`Link`/`onTapGesture`/`openURL`；
   - 全文件唯一 `UIApplication.shared.open` 调用是导出权限页的 `openSystemSettings()`。
 - **Reference**：`REF-detail-02-phone-picker.png` 证明 CamCard 点电话弹出系统操作面板；
   `REF-detail-01` 顶部有"电话"动作按钮。email/website 行可见但**点击结果未截图（NOT OBSERVED）**——
@@ -77,13 +79,13 @@ hook 隔离 **16/16 ABSENT**（Release）/ **16/16 PRESENT**（Debug dylib）。
   （tel:、mailto:、https://；phone 多值可走系统 actionSheet 或直接 tel:）；
   需补确定性 UI 测试（断言行可点/调用 openURL seam）；模拟器无电话/邮件 App，测试需用 seam mock。
 - **影响交付：是。** 这是作业 §10 must-support 列表中的 3 个可观察行为。
-- **Phase 1.1 解决**：新增 [CardDetailURLMapping.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailURLMapping.swift)
+- **Phase 1.1 解决**：新增 [CardDetailURLMapping.swift](../../SimCamCard/View/CardDetail/CardDetailURLMapping.swift)
   （`phoneURL` → `tel:`、`emailURL` → `mailto:`、`websiteURL` → safe `https://`；无效/缺失值返回 nil 不触发调用）；
-  [CardDetailFieldRow.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailFieldRow.swift)
+  [CardDetailFieldRow.swift](../../SimCamCard/View/CardDetail/CardDetailFieldRow.swift)
   按行包 `Button` + `openURL` seam。测试：Unit `CardDetailURLMappingTests`（合法/分隔符/无效值/percent-encoding）+
   UI `CardDetailUITests`（openURL seam 断言，模拟器不依赖真实电话/邮件 App）。
 - **Phase 1.1 校准加固（behavioral verification）**：新增 DEBUG-only `-SimCamCardCaptureOpenURL 1` hook
-  （[DebugOpenURLCapture.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Debug/DebugOpenURLCapture.swift)），
+  （[DebugOpenURLCapture.swift](../../SimCamCard/View/Debug/DebugOpenURLCapture.swift)），
   在 App 组合根替换 SwiftUI `openURL` 为记录器——捕获实际发起的 `absoluteString`、**不转发给系统 App**，
   并经 accessibility 元素暴露给 UI 测试。UI `testCardDetailRowTapInitiatesCorrectURL` 实际 tap mobile/office/email/website
   四行并断言捕获到 `tel:+86%20138%200013%208000` / `tel:+86%2021%205555%201234` / `mailto:wei.zhang@zhiyuntech.com` /
@@ -100,18 +102,18 @@ hook 隔离 **16/16 ABSENT**（Release）/ **16/16 PRESENT**（Debug dylib）。
 
 - **作业原文（§10）**：detail page must support "**View original business card** / 查看原始名片"。
 - **现状**：
-  - 原始图片字节确实持久化（[ScanViewModel.swift L1016](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/ViewModel/ScanViewModel.swift#L1016) `imageStore.save(reference: originalRef, data: crop.original.data)`），满足 §12 持久化保证；
+  - 原始图片字节确实持久化（[ScanViewModel.swift L1016](../../SimCamCard/ViewModel/ScanViewModel.swift#L1016) `imageStore.save(reference: originalRef, data: crop.original.data)`），满足 §12 持久化保证；
   - 但详情页不渲染任何名片图像，全工程无图片查看器（无 fullScreenCover/ImageViewer；`originalImageReference` 不被任何 View 消费）；名片夹列表只显示 processed 缩略图。
 - **Reference**：`REF-detail-01/03` 顶部为深色头像 header，**未观察到**原图查看入口/界面（NOT OBSERVED）。
 - **解释空间**：T13（§17）验收文本仅要求"all saved fields displayed correctly"，不含图像。
   若老师把 §10 的 "View original business card" 解释为"保存的原图可追溯/在流程中可见"，
   现状可辩护；若解释为"详情页可点开查看原图"，则缺失。
 - **影响交付：待人类裁决。** 若需修复，边界小：详情页加图条/点击全屏查看 `originalImageReference`（数据已在）。
-- **Phase 1.1 解决**：[CardDetailView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailView.swift)
+- **Phase 1.1 解决**：[CardDetailView.swift](../../SimCamCard/View/CardDetail/CardDetailView.swift)
   新增 `card-detail-original-image` 图条（maxHeight 200）与 `fullScreenCover` 全屏查看器；
   `CardDetailViewModel.loadOriginalImage()` 经既有 `ImageAssetStore` 惰性加载，无第二图片数据所有者；
   缺图时优雅降级（不渲染图条，其余行不受影响）。测试：UI `CardDetailUITests.testCardDetailMissingOriginalImageGracefulDegradation`
-  + T18 persistence relaunch 后原图仍可见（[CardPersistenceUITests.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCardUITests/CardPersistenceUITests.swift)）。
+  + T18 persistence relaunch 后原图仍可见（[CardPersistenceUITests.swift](../../SimCamCardUITests/CardPersistenceUITests.swift)）。
 - **Phase 1.1 校准正向 E2E（behavioral verification）**：
   `CardPersistenceUITests` 扩展 T18 全链路闭环：首次保存后打开 Detail → 断言缩略图 → tap → 断言全屏查看器 → 关闭 →
   terminate/relaunch → 重新打开同一 card → 断言缩略图 → tap → 断言全屏查看器 → 关闭。两阶段均通过。
@@ -210,10 +212,10 @@ Department/Postal Code（§7.5 明确可选）；VCF（§13 二选一，Contacts
   9 个 alternate-language 行（GT `company=null` + `companyLatin` 非空；**7 exact / 2 partial**，属真实 GT 字段的语言变体，**不算 fabrication**）；
   card-005/019/022 等 OCR 错读样例。
 - **Phase 1.1 解决**：采用修复选项"检测区域面积闸门 + 亚阈值 quad 回退"。
-  [CardRegionGeometry.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/Crop/CardRegionGeometry.swift)
+  [CardRegionGeometry.swift](../../SimCamCard/Crop/CardRegionGeometry.swift)
   新增 `minimumDetectedArea = 0.05` 与 `isAcceptableAutoDetection(_:)`（阈值依据：34 张中正确裁剪面积 0.47–0.93，
   误锁 quad 0.007–0.024，间距 >10×，非单样本硬编码）；
-  [CardCropProcessor.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/Crop/CardCropProcessor.swift)
+  [CardCropProcessor.swift](../../SimCamCard/Crop/CardCropProcessor.swift)
   仅在 `prepare()` 的 auto-accept 分支应用闸门，Core Image 主链与实时预览路径未改；
   新增 `CardRegionDetecting` 协议 seam 支持 stub 注入。
   验证（同 harness/GT/归一化规则，baseline 为临时回退闸门后的实测）：detection accepted 33→19、fallback 1→15、
@@ -232,4 +234,4 @@ Department/Postal Code（§7.5 明确可选）；VCF（§13 二选一，Contacts
 4. G-02/G-03 取得平台说明或手动证据；G-05/G-07/G-08/G-10 按 Canvas 与老师口径补证据（维持原建议）。
 5. G-09/G-13/G-14 文档刷新（打包前必做，维持原建议）。
 
-本轮：归档校准完成（Human Decision：**Accepted — 2026-10-18 (human review)**）。不自行 commit、不 push、不 merge、不 tag、不建 ZIP——提交由人类执行。
+本轮：归档校准完成（Human Decision：**Accepted — 2026-10-18 (human review)**）。**Phase 2A-1 更新（2026-10-19）**：修复范围已 commit + push（`de58eee` → `origin/week4/structured-recognition`）；原“不自行 commit、不 push、不 merge、不 tag、不建 ZIP”为提交前历史语态，保留不改。

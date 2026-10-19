@@ -3,6 +3,12 @@
 Final Delivery Phase 1 §7。所有大小/结构基于当前工作区实测（2026-10-12）。
 **本文件不是打包命令执行记录；ZIP 待 Human Decision（B-01/B-02/G-01 处置后）再创建。**
 
+> **Phase 2A-1 更新（2026-10-19）**：Phase 1.1 已 **Accepted（2026-10-18）** 并以 `de58eee81326e6728080a2816ac718520c268366` **commit + push** 至 `origin/week4/structured-recognition`；B-01 / B-02 / G-01 均已 FIXED 并完成行为级验证。**注意：`de58eee` 仅包含 Phase 1.1 功能修复（13 修改 + 15 新增），不包含本轮 6 个 Markdown 文档未提交的刷新（README / SDD-README / 相对链接 / 历史校准 / changes.md 事后总结）——本轮改动仍在工作树中，尚未 commit。**
+> 本文标注“431 Unit / 55 UI / 13 hook”“B-01/B-02 STOP”“待人类裁决后再创建 ZIP”“禁止提交”等均为 **Phase 1（2026-10-12）阶段语态，保留为历史记录**，不覆盖。
+> 当前实测门禁基线：Unit **466/466**、**62/62 full UI regression（含 2 项真实 Contacts 集成 System01/System02）**、Debug/Release 构建 PASS、hook 隔离 **16/16**。
+> Phase 1.1 相对本文件 §1 结构新增的源码/测试/证据文件：`SimCamCard/View/CardDetail/CardDetailURLMapping.swift`、`SimCamCard/View/Debug/DebugOpenURLCapture.swift`、`SimCamCardTests/ViewModel/CardDetailURLMappingTests.swift`、`SimCamCardTests/Evaluation/RealVision34EvaluationTests.swift`、`ai/evaluation/real-vision-34/_eval-payload-pre-gate-baseline.json`。
+> `README.md` 已在 Phase 2A-1 刷新（G-09 项目状态段已解决）；`evidence/image-manifest.md`（G-13）**本轮未改**，其修订草稿待下一次 Human Review。G-14（`ai/changes.md` 末尾 W4I12 历史语态）**已通过 changes.md 末尾追加的 Retrospective Summary 事后总结补充语境**，目前待人工审核。**ZIP 仍未创建。**
+
 ## 0. Canvas 约束（必须先在作业页面核实，本文无法代查）
 
 - 允许的提交文件类型（ZIP 是否允许、是否要求文件夹/其他格式）；
@@ -115,9 +121,11 @@ python3 tools/assemble_real_vision34.py
 
 ## 5. 打包前 preflight 清单（人类放行后执行）
 
-- [ ] B-01/B-02/G-01 有 Human Decision（修复则重新走 431+55 回归并重跑 34 卡评估）
-- [ ] README.md 刷新（G-09）；image-manifest 抬头（G-13）；changes.md 历史语境注记（G-14）
-- [ ] 确认 `git status`：评审新增文件是否先 commit（本 Phase 禁止提交，打包前由人类决定提交策略）
-- [ ] Canvas 文件类型/大小已核实
-- [ ] 用 `zip -r -X` 显式排除 §2 各项，解压到临时干净目录实测 §3 第 2、3 步
-- [ ] 校验包内无 `.git`、xcuserdata、DerivedData、xcresult、`.DS_Store`、任何凭据
+> 下列 [ ] 为 Phase 1（2026-10-12）原始清单，保留不改；每项后的 **Phase 2A-1 状态** 为 2026-10-19 补充。
+
+- [ ] B-01/B-02/G-01 有 Human Decision（修复则重新走 431+55 回归并重跑 34 卡评估）— **Phase 2A-1 状态：已完成（Accepted 2026-10-18；已重走 466/62 回归并重跑 34 卡评估）**
+- [ ] README.md 刷新（G-09）；image-manifest 抬头（G-13）；changes.md 历史语境注记（G-14）— **Phase 2A-1 状态：README 已刷新（G-09 项目状态段解决）；G-13（image-manifest）本轮未改，修订草稿待下一次 Human Review；G-14 已通过 `ai/changes.md` 末尾追加的 Retrospective Summary 事后总结补充，目前待人工审核**
+- [ ] 确认 `git status`：评审新增文件是否先 commit（本 Phase 禁止提交，打包前由人类决定提交策略）— **Phase 2A-1 状态：已 commit + push（`de58eee`）**
+- [ ] Canvas 文件类型/大小已核实 — **Phase 2A-1 状态：仍待人工核实（Canvas 细则本地资料不可确认）**
+- [ ] 用 `zip -r -X` 显式排除 §2 各项，解压到临时干净目录实测 §3 第 2、3 步 — **Phase 2A-1 状态：未执行（ZIP 尚未创建）**
+- [ ] 校验包内无 `.git`、xcuserdata、DerivedData、xcresult、`.DS_Store`、任何凭据 — **Phase 2A-1 状态：未执行（ZIP 尚未创建）**

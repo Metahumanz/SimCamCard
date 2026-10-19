@@ -9,6 +9,8 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 - 真实 Vision 评估（本轮新增）：[real-vision-34/summary.md](../evaluation/real-vision-34/summary.md)。
 - 本矩阵日期：2026-10-12。本文件不含任何未经验证的 PASS。
 
+> **Phase 2A-1 更新（2026-10-19）**：以上审计基线（HEAD `f5533b3`、日期 2026-10-12）为**历史事实，保留不改**。此后 Phase 1.1 修复已获 Human Decision **Accepted — 2026-10-18**，并以 `de58eee81326e6728080a2816ac718520c268366` **提交并推送**到 `origin/week4/structured-recognition`。当前交付状态：B-01 / B-02 / G-01 均 FIXED 且完成行为级验证；门禁基线为 Unit **466/466**、**62/62 full UI regression（含 2 项真实 Contacts 集成）**、Debug/Release 构建 PASS、hook 隔离 **16/16**。本节仅补充状态，不覆盖下方任何历史判定。
+
 ## 状态定义
 
 | 状态 | 含义 |
@@ -33,9 +35,9 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 实际完成 | 仍缺少的证明 | 状态 / 影响交付 |
 |---|---|---|---|---|---|---|
-| 名片列表 + 空态 | [CardHolderView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardHolder/CardHolderView.swift)（`card-holder-empty`） | UI `CardHolderEmptyUITests`；Unit Holder 套件 | `REF-card-holder-01-empty.png`、`REF-card-holder-02-after-save.png` | 空/满两种状态均实现 | — | **PASS**；不影响 |
+| 名片列表 + 空态 | [CardHolderView.swift](../../SimCamCard/View/CardHolder/CardHolderView.swift)（`card-holder-empty`） | UI `CardHolderEmptyUITests`；Unit Holder 套件 | `REF-card-holder-01-empty.png`、`REF-card-holder-02-after-save.png` | 空/满两种状态均实现 | — | **PASS**；不影响 |
 | 扫描入口 / 搜索入口 | `ScanEntryView`（scan-entry）；`CardSearchView` pushed 页 | UI `ScanEntryUITests`、搜索 UI | `REF-scanner-01-initial.png`、`REF-search-01/02` | 均实现；搜索为独立页而非内嵌条（fidelity 差异） | — | **PASS**（行为）；不影响 |
-| 每行摘要信息 | [BusinessCardRow.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardHolder/BusinessCardRow.swift)（name/company + processed 缩略图） | UI holder 行断言 | `REF-card-holder-02-after-save.png` | 名称/公司/缩略图摘要 | — | **PASS**；不影响 |
+| 每行摘要信息 | [BusinessCardRow.swift](../../SimCamCard/View/CardHolder/BusinessCardRow.swift)（name/company + processed 缩略图） | UI holder 行断言 | `REF-card-holder-02-after-save.png` | 名称/公司/缩略图摘要 | — | **PASS**；不影响 |
 | 点击进入详情 | CardHolder NavigationLink `card-row-*` | UI detail 进入测试；T13 | 同上 | 实现 | — | **PASS**；不影响 |
 | 新增/删除后即时刷新 | `onAppear` + T17 `onDeleted` 闭包 | UI direct-save/delete | `REF-card-holder-02`、`REF-delete-01` | 实现 | — | **PASS**；不影响 |
 | 首次启动工作流（Empty→Scan→Save→出现） | 全链路 | T01/T12 UI | `REF-card-holder-01/02` | 端到端证明 | — | **PASS**；不影响 |
@@ -47,7 +49,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 实际完成 | 仍缺少的证明 | 状态 / 影响交付 |
 |---|---|---|---|---|---|---|
-| 相机预览 / 权限请求 / 拍摄 / 返回 | [ScanEntryView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Scan/ScanEntryView.swift) 真实 AVCapture 会话 | UI T02/T04；权限 Unit | `REF-scanner-01/02`、`REF-permission-01-camera.png` | 真机 AVCapture（模拟器跑通） | 物理 iPhone 拍摄（环境无设备） | **PASS**（模拟器）；物理设备 = platform 限制 |
+| 相机预览 / 权限请求 / 拍摄 / 返回 | [ScanEntryView.swift](../../SimCamCard/View/Scan/ScanEntryView.swift) 真实 AVCapture 会话 | UI T02/T04；权限 Unit | `REF-scanner-01/02`、`REF-permission-01-camera.png` | 真机 AVCapture（模拟器跑通） | 物理 iPhone 拍摄（环境无设备） | **PASS**（模拟器）；物理设备 = platform 限制 |
 | Camera permission denied | `ScanViewModel` denied/restricted → 稳定 fallback 页（无拍摄/导入动作） | UI `testDeniedShowsStableFallbackWithoutSessionUI` 等 3 个 | `REF-permission-01-camera.png`（仅系统对话框） | 自定义 fallback 超出 Reference 观察 | — | **PASS**（行为）；不影响 |
 | **Photo library permission denied（必测项）** | 系统 `PhotosPicker`（PhotosUI），进程外选择器，**iOS 上不产生相册授权弹窗，因此不存在 denied 状态**；仅有 load failure fixture | E04 load-failure fixture 测试（不等价于授权拒绝） | `REF-permission-02-photo-library.png`（仅系统设置/对话框截图） | 平台组件使该必测场景无法以同名状态出现 | 作业点名要求的"相册权限拒绝"测试**无对应证据**；需要人类决定如何向老师说明（旧 API 语义 vs 现代 picker） | **PARTIAL（platform-specific limitation + MISSING-EVIDENCE）**；可能影响"必测项"勾选，见 G-02 |
 | Cancel（流程中取消）/ Exit midway | `handleImportCancel`、crop retake/cancel、recognition cancel(E06) | UI import-cancel / crop-cancel / E06 | — | 各阶段取消均有 fixture 证明 | 系统 picker 内真人取消手势未在模拟器独立验证（T05 已自认） | **PARTIAL**（MISSING-EVIDENCE G-03）；不阻断功能 |
@@ -59,7 +61,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 实际完成 | 仍缺少的证明 | 状态 / 影响交付 |
 |---|---|---|---|---|---|---|
-| 自动边界检测 + 可视化 + 手动调整 + 透视/方向校正 + 确认/重拍 | [CardCropProcessor](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/Crop/CardCropProcessor.swift)、[CardRegionDetector](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/Crop/CardRegionDetector.swift)、[CardCropView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Scan/CardCropView.swift) | UI T06（auto/manual/confirm/retake）；Unit crop 套件；真实 Vision smoke 001–004 | `REF-crop-01-manual-adjust.png` | 功能齐全 | 物理设备检测精度未声称（platform） | **PASS（功能/模拟器）** |
+| 自动边界检测 + 可视化 + 手动调整 + 透视/方向校正 + 确认/重拍 | [CardCropProcessor](../../SimCamCard/Crop/CardCropProcessor.swift)、[CardRegionDetector](../../SimCamCard/Detection/CardRegionDetector.swift)、[CardCropView.swift](../../SimCamCard/View/Scan/CardCropView.swift) | UI T06（auto/manual/confirm/retake）；Unit crop 套件；真实 Vision smoke 001–004 | `REF-crop-01-manual-adjust.png` | 功能齐全 | 物理设备检测精度未声称（platform） | **PASS（功能/模拟器）** |
 | **教师数据集上的检测结果要求（复杂背景）** | 同上（auto-accept + fallback 路径） | **本轮真实评估**：`CardRegionGeometry.minimumDetectedArea` (0.05) 闸门上线；14 张 tiny-quad 误锁全部回退到 inset fallback，零 OCR 行卡片从 14→0 张，pipeline error 从 2→0 次；present 字段准确率从 46.8% → 70.4%（summary §9 逐卡 before/after） | 无 CamCard 同类数据 | 闸门已覆盖 14/14 历史误锁样本；card-022 为真实 no-detection fallback（不受影响） | summary §9 完整记录修复效果 | **PASS**（§7.3 数据集要求已大幅提升；残余误差属 OCR/提取层，非检测缺失） |
 
 ### A4. §7.4 Feature 4 — OCR 文本识别 (T07)
@@ -78,7 +80,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 实际完成 | 仍缺少的证明 | 状态 / 影响交付 |
 |---|---|---|---|---|---|---|
-| 8 字段结构化 | [CardFieldExtractor.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/Recognition/CardFieldExtractor.swift)（Phase A 类型 token + Phase B 语义） | Unit T08；GT 级回归 typed 34/34 | `REF-recognition-01..06`（card A/B/C） | 8 字段 + fax 均有 | Department/Postal Code = 作业可选，Domain 无 | **PASS**（可选缺失合法，N/A-EXCLUDED） |
+| 8 字段结构化 | [CardFieldExtractor.swift](../../SimCamCard/Recognition/CardFieldExtractor.swift)（Phase A 类型 token + Phase B 语义） | Unit T08；GT 级回归 typed 34/34 | `REF-recognition-01..06`（card A/B/C） | 8 字段 + fax 均有 | Department/Postal Code = 作业可选，Domain 无 | **PASS**（可选缺失合法，N/A-EXCLUDED） |
 | 缺失网站不得虚构 (T09) | website 仅识别 `www.`/`http(s)://` token；email-domain masking | Unit card-002；GT 回归 0 website 假阳性；真实评估 25 个 website-present/9 absent | `REF-recognition-03/04`（card B） | 满足 | — | **PASS** |
 | 多电话 mobile/office/fax 分类 (T10) | 标签族 手机/Mobile、电话/Tel、传真/Fax；裸号 `1[3-9]` 归 mobile，其余诚实 `.other` | GT 回归多电话 23/23；真实评估：12 个 kind_misclassification（数字找到但落 `.other`：mobile 6 / office 5 / fax 1） | `REF-recognition-05/06`（card C） | 标签齐全时正确；无标签号码不强行归类 | 12 个 kind 错误的实际样例已在 summary §4/§8 列明 | **PASS（确定性 T10）**；概率性分类弱点已如实报告 |
 
@@ -100,7 +102,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 状态 |
 |---|---|---|---|---|
-| 识别结果进入可编辑确认页（不直接保存） | [RecognitionView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Scan/RecognitionView.swift) | T08/T11 UI | `REF-recognition-01..06` | **PASS** |
+| 识别结果进入可编辑确认页（不直接保存） | [RecognitionView.swift](../../SimCamCard/View/Scan/RecognitionView.swift) | T08/T11 UI | `REF-recognition-01..06` | **PASS** |
 | 人工修正（scalar/多电话/多 email 行）替换最终值 | `manualEditing` draft；CardEditView ForEach emails/phones | Unit T11 套件；UI before/after | `REF-edit-01/02` | **PASS** |
 | 修正取消 / 重拍放弃 | retake-discard；E06 failure Cancel | UI | — | **PASS** |
 | 非名片空结果：进表单、无失败弹窗、无虚构、Save 禁用；minimal 卡可保存；OCR 失败有 Retake+Cancel | W4I12 E06/E07/E08 | UI `ExceptionHandlingUITests` + Unit E07；真实 t20-negative PNG 真实管线 0 字段 | `REF-exception-01-minimal-card-empty-fields.png`、`REF-exception-02-non-card-empty-result.png` | **PASS**（禁用 Save 超出 CamCard 已观察证据，fidelity 已注明） |
@@ -111,14 +113,14 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 对应代码 | 测试证据 | Reference 证据 | 实际完成 | 状态 / 影响交付 |
 |---|---|---|---|---|---|
-| 查看识别字段 | [CardDetailView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailView.swift) + [CardDetailFieldRow.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailFieldRow.swift) 全 scalar + 多值行 | UI detail 001 full/004 minimal | `REF-detail-01/03` | 全部字段展示 | **PASS** |
+| 查看识别字段 | [CardDetailView.swift](../../SimCamCard/View/CardDetail/CardDetailView.swift) + [CardDetailFieldRow.swift](../../SimCamCard/View/CardDetail/CardDetailFieldRow.swift) 全 scalar + 多值行 | UI detail 001 full/004 minimal | `REF-detail-01/03` | 全部字段展示 | **PASS** |
 | Edit / Save（编辑后保存） | CardEditView + `CardDetailViewModel` | T14 Unit/UI | `REF-edit-01/02` | 实现 | **PASS** |
 | Delete（确认后删除） | `card-detail-delete` + 原生确认 alert | T17 | `REF-delete-01` | 实现 | **PASS** |
 | Back navigation | NavigationStack 返回 | UI | — | 实现 | **PASS** |
-| **Tap phone number（点击电话号码）** | [CardDetailURLMapping.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailURLMapping.swift) `phoneURL(_:)` → `tel:`（**最小结构校验** minimal guards：不含可拨数字 → nil；**非完整电话格式验证**，典型非法值反例 PASS ≠ 任意非法输入必然被拒）；[CardDetailFieldRow.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailFieldRow.swift) `Button` + `openURL` seam；无效/空号不触发调用 | Unit `CardDetailURLMappingTests`（percent-encoding + 非法输入反例）；**UI 行为验证**：DEBUG-only `-SimCamCardCaptureOpenURL 1` hook 捕获实际 URL——`testCardDetailRowTapInitiatesCorrectURL` tap mobile/office 行断言捕获 `tel:+86%20138%200013%208000` / `tel:+86%2021%205555%201234` | `REF-detail-02-phone-picker.png`（CamCard 系统操作面板） | 实现 | **PASS**（B-01 behavioral verification: PASS；系统 App 最终接管未实测） |
+| **Tap phone number（点击电话号码）** | [CardDetailURLMapping.swift](../../SimCamCard/View/CardDetail/CardDetailURLMapping.swift) `phoneURL(_:)` → `tel:`（**最小结构校验** minimal guards：不含可拨数字 → nil；**非完整电话格式验证**，典型非法值反例 PASS ≠ 任意非法输入必然被拒）；[CardDetailFieldRow.swift](../../SimCamCard/View/CardDetail/CardDetailFieldRow.swift) `Button` + `openURL` seam；无效/空号不触发调用 | Unit `CardDetailURLMappingTests`（percent-encoding + 非法输入反例）；**UI 行为验证**：DEBUG-only `-SimCamCardCaptureOpenURL 1` hook 捕获实际 URL——`testCardDetailRowTapInitiatesCorrectURL` tap mobile/office 行断言捕获 `tel:+86%20138%200013%208000` / `tel:+86%2021%205555%201234` | `REF-detail-02-phone-picker.png`（CamCard 系统操作面板） | 实现 | **PASS**（B-01 behavioral verification: PASS；系统 App 最终接管未实测） |
 | **Tap email address（点击 Email）** | 同上，`emailURL(_:)` → `mailto:`（**最小结构校验** minimal guards：单 `@`/非空 local/domain/域名含点/无空白 → 失败即 nil；**非完整 Email 格式验证**，典型非法值反例 PASS ≠ 任意非法输入必然被拒） | 同上 Unit；**UI 行为验证**：tap email 行断言捕获 `mailto:wei.zhang@zhiyuntech.com` | email 行在 REF-detail-03 可见；点击结果 NOT OBSERVED | 实现 | **PASS**（B-01 behavioral verification: PASS；系统 App 最终接管未实测） |
 | **Tap website（点击 Website）** | 同上，`websiteURL(_:)` → safe `https://`（显式非 web scheme 如 `ftp://`/`file://`/`javascript:` 拒绝；裸域名升级 https） | 同上 Unit；**UI 行为验证**：tap website 行断言捕获 `https://www.zhiyuntech.com` | website「首页」行可见；点击结果 NOT OBSERVED | 实现 | **PASS**（B-01 behavioral verification: PASS；系统 App 最终接管未实测） |
-| **View original business card（查看原始名片）** | [CardDetailView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/CardDetail/CardDetailView.swift) `card-detail-original-image` 图条 + `fullScreenCover` 全屏查看器；`CardDetailViewModel.loadOriginalImage()` 复用 `ImageAssetStore` | Unit：VM 字节级断言 `originalImageReference` ≠ `processedImageReference`；UI `CardDetailUITests` missing-image 降级；**正向 E2E**：T18 首次保存后及 terminate/relaunch 后各完成 缩略图 → 全屏 → 关闭 闭环 | REF-detail-01/03 未见原图查看器（NOT OBSERVED） | 实现 | **PASS**（B-02 behavioral verification: PASS） |
+| **View original business card（查看原始名片）** | [CardDetailView.swift](../../SimCamCard/View/CardDetail/CardDetailView.swift) `card-detail-original-image` 图条 + `fullScreenCover` 全屏查看器；`CardDetailViewModel.loadOriginalImage()` 复用 `ImageAssetStore` | Unit：VM 字节级断言 `originalImageReference` ≠ `processedImageReference`；UI `CardDetailUITests` missing-image 降级；**正向 E2E**：T18 首次保存后及 terminate/relaunch 后各完成 缩略图 → 全屏 → 关闭 闭环 | REF-detail-01/03 未见原图查看器（NOT OBSERVED） | 实现 | **PASS**（B-02 behavioral verification: PASS） |
 
 > 说明：final-reference-audit.md P07 将 tel/mailto/URL 归类为 "excluded from the slice (no Reference acceptance row)"。该分类对 Reference fidelity 成立，**但对课程作业不成立**——作业 §10 明文列为 must-support。本矩阵以作业文本为准。
 
@@ -128,7 +130,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 | 要求 | 代码 | 测试证据 | Reference | 状态 |
 |---|---|---|---|---|
-| 五范围搜索 + 空结果/清除/返回清除/组合搜索 | [CardSearchView.swift](file:///Users/metahumanz/codework/SimCamCard/SimCamCard/View/Search/CardSearchView.swift) | Unit 五范围；UI E14/E19 | `REF-search-01/02`（仅 name/company 已观察） | **PASS**；综合/企业分段搜索 = §15 排除 |
+| 五范围搜索 + 空结果/清除/返回清除/组合搜索 | [CardSearchView.swift](../../SimCamCard/View/Search/CardSearchView.swift) | Unit 五范围；UI E14/E19 | `REF-search-01/02`（仅 name/company 已观察） | **PASS**；综合/企业分段搜索 = §15 排除 |
 | 标签创建/指派/过滤/删除保留名片 | GroupManagementView + 独立 catalog | T16 Unit + UI；E12 双取消 | `REF-group-01..07` | **PASS** |
 
 ### A10. §12 Feature 9 — 本地持久化 (T18)
@@ -192,7 +194,7 @@ Final Delivery Phase 1 — 逐项审计作业要求 vs 代码 / 测试 / Referen
 
 ## D. CamCard 已观察对照范围（§5 B5 明细）
 
-Reference 版本 CamCard 8.63.1，观察源 = `evidence/screenshots/REF-*.png`（40 张，见 [image-manifest.md](file:///Users/metahumanz/codework/SimCamCard/evidence/image-manifest.md)）。
+Reference 版本 CamCard 8.63.1，观察源 = `evidence/screenshots/REF-*.png`（40 张，见 [image-manifest.md](../../evidence/image-manifest.md)）。
 
 | Dataset 卡 | CamCard 真实识别结果 |
 |---|---|
@@ -226,4 +228,5 @@ Reference 版本 CamCard 8.63.1，观察源 = `evidence/screenshots/REF-*.png`�
 
 - 确定性 T01–T20 行为层：**20/20 PASS 成立**；作业 §10 原验收盲区（三个点击行为 + 原图查看，记为 B-01/B-02）**已在 Phase 1.1 实现并通过 Unit/UI 测试**。
 - 概率层：检测器面积闸门（`minimumDetectedArea` = 0.05）已实施；34 张真实评估 present 字段准确率 **46.8% → 70.4%**；73 个 GT-absent 单元按四桶**同定义** before/after 报告（canonical absence **68→64**、alt exact **3→7**、alt partial **2→2**、genuine fabrication **0→0**）——strict canonical absence 与 genuine fabrication **均可跨运行比较**，只是衡量不同性质的问题（前者 = 缺席字段保持缺席的正确性，后者 = 缺席字段未被捏造值填充），不把 strict-before 与 relaxed-after 混为同一 safety 指标（`BioSystems`/`Secure Systems` 等部分重叠已标 **PARTIAL**，不计 exact）；before/after 逐卡对比完整记录于 summary §9；未修改 GT/数据集。
-- 交付建议：B-01/B-02/G-01 均已修复并验证（详见 [final-gap-list.md](./final-gap-list.md)）；**Human Decision：Accepted — 2026-10-18 (human review)**。归档状态：不自行 commit / push / merge / tag / 打包。
+- 交付建议：B-01/B-02/G-01 均已修复并验证（详见 [final-gap-list.md](./final-gap-list.md)）；**Human Decision：Accepted — 2026-10-18 (human review)**。
+- **归档状态（Phase 2A-1 更新，2026-10-19）**：修复范围已以 `de58eee` **commit + push** 至 `origin/week4/structured-recognition`（原“不自行 commit / push / merge / tag / 打包”的 Phase 1.1 语态为提交前历史记录，保留不改）。本轮文档刷新未改动 production / test / frozen 文件。

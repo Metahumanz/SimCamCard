@@ -6230,3 +6230,73 @@ Human Decision: Accepted — 2026-10-09 (human review)
 Submission readiness: READY FOR FINAL DELIVERY PREPARATION
 未 commit / push / merge / tag（等待 human 确认最终提交范围与时机）。
 ```
+
+## Retrospective Summary — Phase 1.1（2026-10-18 / 19，Phase 2A-1 事后补充）
+
+> 本节是 Phase 2A-1 追加的**事后回顾**，不是 Phase 1.1 增量当时的原始日志。
+> 内容仅引用已有的 Accepted 记录、Git 提交与评估产物，未追溯补造提示词、
+> 原始终端输出或人工审核细节。上方 W4I12 及更早正文原样保留、未改写。
+> 本节同时充当 G-14（W4I12 "未 commit/push" 历史语态）的补充语境说明。
+
+Phase 1.1 在 W4I12 之后继续推进：先按 Phase 1 复审结论实施修复，再经
+Human Review Calibration 补齐行为级证据与统计口径，最后归档提交。以下为
+可核验要点及其出处。
+
+### 1. 修复项（出处：`ai/delivery/final-gap-list.md` 的 Phase 1.1 段）
+
+- **B-01 — 详情页电话 / Email / Website 点击**
+  新增 `SimCamCard/View/CardDetail/CardDetailURLMapping.swift`
+  （`tel:` / `mailto:` / safe `https://`；最小结构校验，无效或缺失值返回 nil
+  不触发调用）；`CardDetailFieldRow` 按行包 `Button` + `openURL`。
+  校准轮引入 DEBUG-only `-SimCamCardCaptureOpenURL 1` 捕获 hook
+  （`SimCamCard/View/Debug/DebugOpenURLCapture.swift`），UI 测试实际 tap
+  mobile / office / email / website 四行并断言捕获到的绝对 URL。
+  状态：**FIXED — behavioral verification: PASS**（系统 App 最终接管行为未实测）。
+- **B-02 — 详情页"查看原始名片"**
+  `CardDetailView` 增加 `card-detail-original-image` 图条 + `fullScreenCover`
+  全屏查看器；`CardDetailViewModel.loadOriginalImage()` 复用既有
+  `ImageAssetStore`（无第二图片数据所有者）。
+  状态：**FIXED — behavioral verification: PASS**（正向 E2E：首次保存后与
+  terminate/relaunch 后各完成一次 缩略图 → 全屏 → 关闭）。
+- **G-01 — Vision 检测器 tiny-quad 误锁（auto-accept 路径）**
+  `CardRegionGeometry.minimumDetectedArea`（0.05）面积闸门 + 亚阈值 quad 回退；
+  仅在 `CardCropProcessor.prepare()` 的 auto-accept 分支应用，Core Image 主链
+  与实时预览路径未改。状态：**FIXED**（保持 FIXED，未扩大算法修改）。
+
+### 2. GT-absent 四桶统计口径校准
+
+`tools/assemble_real_vision34.py` 在宿主端从 observed value 与**只读**冻结 GT
+`companyLatin` 重算四个互斥桶（同一套定义用于 before / after），不再把
+strict-before 与 relaxed-after 当作同一 safety 指标：
+
+- strict canonical absence：68 → 64
+- alternate-language exact：3 → 7
+- alternate-language partial：2 → 2（PARTIAL 不计入 exact）
+- genuine fabrication：0 → 0
+
+产物：`ai/evaluation/real-vision-34/` 下 `summary.md`、`environment.md`、
+`comparison.csv`（新增 `absenceKind` 列）。未重跑 Vision，未修改 GT 或生产解析器。
+
+### 3. 门禁基线（Phase 1.1 校准；摘自已归档交付文档，非本节重跑）
+
+- Unit **466/466 PASS**
+- UI **62/62 PASS**（full UI regression，含 2 项真实 Contacts 集成
+  `System01` / `System02`；已知副作用：修改模拟器通讯录）
+- Debug 构建 PASS · Release 构建 PASS
+- Release hook 隔离 **16/16 ABSENT**；Debug `.debug.dylib` **16/16 PRESENT**
+
+### 4. 归档与提交
+
+- **Human Decision: Accepted — 2026-10-18 (human review)**
+  （记录于 `ai/delivery/final-gap-list.md` 与 `ai/delivery/course-compliance-matrix.md`）
+- 提交：`de58eee81326e6728080a2816ac718520c268366`
+  — "feat(detail): 完善名片交互、原图查看与识别评估"，
+  已 push 至 `origin/week4/structured-recognition`。
+- 冻结面（Domain / Repository 契约 / Persistence schema / `spec/` / `spec.md` /
+  `dataset/` / `evidence/` / `assignment/`）在 Phase 1.1 全程无改动。
+
+### 5. 仍开放事项（不在本回顾范围，详见 `ai/delivery/final-gap-list.md`）
+
+G-02 / G-03 / G-04 / G-05（证据与平台说明、CamCard 对照范围、UI Golden 口径）、
+G-07（AI 能力边界独立分析文档）、G-08（prompt 级归档）、G-10（最终演示制品）
+均待 Human Decision 或依 Canvas 要求补齐。
