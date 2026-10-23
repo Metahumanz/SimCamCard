@@ -122,7 +122,7 @@ struct RecognitionView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .environment(\.colorScheme, .dark)
     }
 
     // MARK: - Processing

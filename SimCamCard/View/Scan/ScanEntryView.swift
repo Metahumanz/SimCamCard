@@ -145,7 +145,6 @@ struct ScanEntryView: View {
                     }
                 }
             }
-
             // T07 raw recognition owns the full screen once a crop is
             // confirmed (processing / raw text / empty / failure) and
             // covers the lingering .confirmed crop image beneath it.
@@ -159,9 +158,20 @@ struct ScanEntryView: View {
             }
         }
         // The whole page is a dark full-screen surface in the Reference;
-        // force dark appearance so host-owned status bar content stays
-        // legible without any custom status-bar handling.
-        .preferredColorScheme(.dark)
+        // force dark appearance LOCAL to this subtree only.
+        //
+        // WHY NOT `.preferredColorScheme(.dark)`? That modifier is
+        // window-level — it propagates up to the UIWindow and persists
+        // during NavigationStack pop animations, making the Card Holder
+        // (which sits above this page in the nav stack) flash dark for
+        // one frame before snapping back to light (PD-B01).
+        //
+        // WHY `.environment(\.colorScheme, .dark)`? The older
+        // `.colorScheme(.dark)` modifier is now deprecated in SwiftUI;
+        // setting the environment key directly has identical view-local
+        // scoping — the dark scheme stays inside this scan subtree,
+        // the parent NavigationStack / root card holder never inherits it.
+        .environment(\.colorScheme, .dark)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .photosPicker(

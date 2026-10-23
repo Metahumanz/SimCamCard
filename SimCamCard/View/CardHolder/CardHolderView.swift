@@ -88,6 +88,14 @@ struct CardHolderView: View {
     /// touch the real CNContactStore.
     let contactExporter: any ContactExporting
 
+    /// PD-B02: the Scanner is pushed via `.navigationDestination(isPresented:)`
+    /// so it uses the standard right-to-left NavigationStack push. The
+    /// trailing "+" toolbar item is conditionally hidden while the scanner
+    /// is pushed, eliminating the mid-transition clip that occurred when
+    /// the destination page had no navigation bar to receive the source
+    /// bar's trailing item.
+    @State private var isScannerPushed = false
+
     init(
         viewModel: CardHolderViewModel,
         cardRepository: (any BusinessCardRepository)? = nil,
@@ -225,16 +233,36 @@ struct CardHolderView: View {
                 .accessibilityLabel("分组")
                 .accessibilityIdentifier("card-holder-groups")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                // Typed navigation entry to the Scanner shell (T02).
-                // Reuses the same NavigationStack + AppRoute system as
-                // card rows; no parallel Bool/sheet state.
-                NavigationLink(value: AppRoute.scan) {
+            // PD-B02 plan B (final controlled trial): the scan ToolbarItem
+            // carries a stable identity ("card-holder-scan-entry") AND its
+            // content — the Button — is always present. Neither the item nor
+            // its content is conditionally created or removed on push. This
+            // mirrors the community-reported iOS 26 Liquid Glass toolbar
+            // transition case, where keeping the ToolbarItem and its Button
+            // stable across navigation avoids residual artifacts; removing
+            // the Button mid-transaction (previous variant) still left a
+            // partial "+" clipped at the screen edge on device.
+            ToolbarItem(id: "card-holder-scan-entry", placement: .topBarTrailing) {
+                Button {
+                    isScannerPushed = true
+                } label: {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("扫描")
                 .accessibilityIdentifier("scan-entry")
             }
+        }
+        // PD-B02: push the Scanner via `.navigationDestination(isPresented:)`,
+        // which uses the standard right-to-left NavigationStack push
+        // animation. The trailing "+" ToolbarItem (stable id) and its Button
+        // stay present throughout — no mid-transaction toolbar mutation.
+        //
+        // Dependencies forwarded: the same cardRepository / imageStore
+        // that the original `.navigationDestination(for: .scan)` used,
+        // so the T12 save path writes into the Holder's repository and
+        // stores image assets identically.
+        .navigationDestination(isPresented: $isScannerPushed) {
+            ScanEntryView(cardRepository: cardRepository, imageStore: imageStore)
         }
     }
     // MARK: - Group filter banner

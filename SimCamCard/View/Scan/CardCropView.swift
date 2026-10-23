@@ -72,7 +72,7 @@ struct CardCropView: View {
                 failedContent(error)
             }
         }
-        .preferredColorScheme(.dark)
+        .environment(\.colorScheme, .dark)
     }
 
     // MARK: - Crop editing
