@@ -90,10 +90,12 @@ struct CardHolderView: View {
 
     /// PD-B02: the Scanner is pushed via `.navigationDestination(isPresented:)`
     /// so it uses the standard right-to-left NavigationStack push. The
-    /// trailing "+" toolbar item is conditionally hidden while the scanner
-    /// is pushed, eliminating the mid-transition clip that occurred when
-    /// the destination page had no navigation bar to receive the source
-    /// bar's trailing item.
+    /// trailing "+" ToolbarItem carries a stable identity
+    /// ("card-holder-scan-entry") and its Button stays present throughout the
+    /// transition — neither the item nor its content is conditionally
+    /// created or removed on push. Earlier variants (fully hiding the
+    /// destination bar, conditionally removing the Button mid-transaction)
+    /// left a partial "+" clipped at the screen edge on device.
     @State private var isScannerPushed = false
 
     init(
