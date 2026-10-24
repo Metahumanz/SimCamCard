@@ -170,11 +170,18 @@ confusion), which is why CR-11 is **PARTIAL** overall, not "all five done".
 
 ## 5. T01–T20 Behavioral Acceptance Matrix
 
+**Final manual acceptance source (2026-10-24):** the owner completed a full
+manual sweep of T01–T20 on a physical iPhone, all scenarios **USER-REPORTED
+PASS** — [final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md).
+This manual evidence class supplements, and does not rewrite, the automated
+per-row results below.
+
 Source: [final-acceptance.md](../final-acceptance.md) (baseline `5ec0803`,
 2026-10-05; **Human Decision: Accepted — 2026-10-09, phase-level**, `f5533b3`),
 carried through Phase 1.1 (`de58eee`, Accepted 2026-10-18). Specification
 column cites [spec/reference-tests.md](../../spec/reference-tests.md) reference
-status. All simulator-based; no physical-iPhone claim anywhere.
+status. Automated rows are simulator-based; physical-device evidence enters only
+through the 2026-10-23/24 user-reported sessions (G-11) referenced above.
 
 ### T01 — First Launch / Empty Holder
 - **Assignment:** §7.1 Feature 1 · **Spec:** T01 (Reference: Observed)
@@ -204,7 +211,7 @@ status. All simulator-based; no physical-iPhone claim anywhere.
 - **Implementation:** real AVCapture still capture → crop → OCR auto-chain; DEBUG capture fixtures
 - **Test:** UI capture/crop tests; capture units · **Evidence:** `ai/validation/2026-10-01-increment2-captured-photo-fixture.png`
 - **Observed result:** Captured card enters recognition workflow · **Status:** **PASS (simulator)**
-- **Baseline:** `f5533b3` · **Decision:** phase-level Accepted 2026-10-09 · **Limitation:** physical-iPhone capture **NOT TESTED** (G-11)
+- **Baseline:** `f5533b3` · **Decision:** phase-level Accepted 2026-10-09 · **Limitation:** automated evidence simulator-only; physical-iPhone capture **USER-REPORTED PASS** in the 2026-10-24 manual sweep (G-11)
 
 ### T05 — Photo Import
 - **Assignment:** §7.2 (import from photo library; cancel safe) · **Spec:** T05 (Observed)
@@ -220,7 +227,7 @@ status. All simulator-based; no physical-iPhone claim anywhere.
 - **Implementation:** real Vision rectangle detection; `CardRegionGeometry.minimumDetectedArea = 0.05` gate (SCL-11); `CardCropProcessor` perspective/orientation correction; `CardCropView` handles
 - **Test:** UI crop auto/manual/confirm/retake; crop units; real-pipeline dataset smoke (cards 001–004); `CardRegionGeometryTests` +3, `CardCropProcessorTests` +3 (Phase 1.1) · **Evidence:** `ai/validation/2026-10-01-increment5-crop-*.png`; [real-vision-34/summary.md](../evaluation/real-vision-34/summary.md) §2/§9
 - **Observed result:** All 14 historical tiny-quad lock-ons now fall back (zero-OCR-line cards 14→0, pipeline errors 2→0) · **Status:** **PASS (simulator; G-01 FIXED)**
-- **Baseline:** `de58eee` · **Decision:** phase-level Accepted 2026-10-18 · **Limitation:** physical-device detection accuracy **NOT TESTED**
+- **Baseline:** `de58eee` · **Decision:** phase-level Accepted 2026-10-18 · **Limitation:** physical-device detection **accuracy** not quantitatively measured (functional coverage user-reported 2026-10-24)
 
 ### T07 — OCR Raw Text
 - **Assignment:** §7.4 (preserve intermediate process) · **Spec:** T07 (Reference: **Partial** — CamCard never exposed a raw-text screen)
@@ -505,7 +512,7 @@ platform / frozen domain; **no explicit human-acceptance record** — explained 
 | G-08 | Prompt-level collaboration archive | course-required content, evidence unrecoverable | changes.md 6302 lines + 40+ Accepted markers; `ai/prompts/_local/` empty | **NOT DOCUMENTED (prompts) / PENDING HUMAN DECISION** | accept honest statement vs substitute form |
 | G-09 | README stale ("Week 1 Frozen") | doc debt | Phase 2A-1 rewrite | **RESOLVED** (`bdac7b0`) | none |
 | G-10 | Final demonstration artifact | course-required, form open | none | **PENDING HUMAN DECISION (artifact not produced)** | Canvas delivery-spec ruling — delivery **not yet due/held**, not "overdue and missing" |
-| G-11 | Physical-iPhone verification | platform limitation | all automated acceptance evidence simulator-based; **2026-10-23 user-reported device session** covered the PD-B01/PD-B02 core transition symptoms only ([PD-B01-PD-B02-device-validation.md](../validation/physical-device/PD-B01-PD-B02-device-validation.md), code `9c994c2`) | **PARTIAL — USER-REPORTED (core transition symptoms only)** | remaining device scenarios (persistence, PhotosPicker cancel, capture→save reload, backgrounding, system dark mode) **NOT TESTED**; status **cannot be upgraded to full PASS without explicit per-scenario testing** |
+| G-11 | Physical-iPhone verification | platform limitation | **2026-10-24 owner-reported full manual acceptance sweep on a physical iPhone** covering T01–T20 behaviours, PD-B01/PD-B02, capture/retake/cancel, PhotosPicker import+cancel, boundary detection + manual crop, OCR fields, manual edits, save/detail/edit, search/tags/delete, kill→relaunch persistence, contacts export, camera-permission denial + recovery, backgrounding/appearance/safe-area ([final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md)); earlier 2026-10-23 session covered the PD-B01/PD-B02 core transition symptoms ([PD-B01-PD-B02-device-validation.md](../validation/physical-device/PD-B01-PD-B02-device-validation.md), code `9c994c2`) | **USER-REPORTED PASS (full manual sweep)** | evidence class stays **user-reported**: no automated device runner, no captured artifacts, device model / iOS version NOT PROVIDED; quantitative device-side detection accuracy remains unmeasured |
 | G-12 | Contacts export surface differences | platform / frozen-domain | final-reference-audit P11 diff-1..5 | **DOCUMENTED PLATFORM DIFFERENCE** (diff-1..5 explained/classified; **no explicit human-acceptance record** — not "approved") | none on record |
 | G-13 | `evidence/image-manifest.md` header stale | doc debt (frozen file) | revision draft exists, not applied | **PENDING HUMAN DECISION** | file stays frozen; header revision decision |
 | G-14 | changes.md historical pre-commit voice | doc context | Retrospective Summary appended (Phase 2A-1) | **ADDRESSED (context note)** | none |
@@ -521,15 +528,15 @@ platform / frozen domain; **no explicit human-acceptance record** — explained 
 - **Not tested / not observed (platform or reference boundary, no ruling
   possible while the constraint stands): carried inside the pending set** —
   G-02 (NOT TESTED), G-04 (NOT OBSERVED). G-11 was previously carried here as
-  NOT TESTED; after the 2026-10-23 user-reported device session it is
-  **PARTIAL — USER-REPORTED (core transition symptoms only)**, with the
-  remaining device scenarios still **NOT TESTED** (see the G-11 row).
+  NOT TESTED; after the 2026-10-23 core-symptom session and the **2026-10-24
+  full manual acceptance sweep** it is **USER-REPORTED PASS (manual evidence
+  class — no automated device run, no captured artifacts)** (see the G-11 row).
 
 So the honest split is **3 items closed or context-only, 1 documented platform
-difference, 1 documented-debt ID, 8 awaiting a human decision, and 1 partially
-user-reported on device (G-11)** — the earlier shorthand "14 items, 9 remain
-open" is **withdrawn** (it merged debt, platform differences and pending
-decisions into one count).
+difference, 1 documented-debt ID, 8 awaiting a human decision, and 1
+user-reported on device across a full manual sweep (G-11)** — the earlier
+shorthand "14 items, 9 remain open" is **withdrawn** (it merged debt, platform
+differences and pending decisions into one count).
 
 ---
 
@@ -543,15 +550,21 @@ Evidence: code commit `9c994c2`, validation record commit `a12492e`
 
 | ID | Phenomenon (physical iPhone, user-reported) | Root cause (code-level judgement, **not** UIKit-log-proven) | Fix | Automated evidence on final code | Device result |
 |---|---|---|---|---|---|
-| PD-B01 | Card Holder flashed dark for one frame when returning from the Scanner | `.preferredColorScheme(.dark)` is window-level; its preference lingered during the NavigationStack pop | view-local `.environment(\.colorScheme, .dark)` on ScanEntryView / CardCropView / RecognitionView | Debug Build PASS; Unit 466/466; ScanEntryUITests 2/2 PASS (2026-10-23) | **USER-REPORTED PASS (core symptom)** — other device scenarios NOT TESTED |
-| PD-B02 | Source bar's trailing "+" ToolbarItem clipped at the screen edge during the push into the Scanner (bar hidden on destination) | destination page had no navigation bar to receive the source item; stable-id + always-present content matches the community-reported iOS 26+ Liquid Glass pattern | `.navigationDestination(isPresented:)` + `ToolbarItem(id: "card-holder-scan-entry")` + always-present Button (failed attempts — transparent bar + `ignoresSafeArea` regression, fullScreenCover vertical animation, conditional Button removal — recorded in the validation doc) | same as PD-B01 | **USER-REPORTED PASS (core transition symptom)** — per-scenario device coverage NOT TESTED |
+| PD-B01 | Card Holder flashed dark for one frame when returning from the Scanner | `.preferredColorScheme(.dark)` is window-level; its preference lingered during the NavigationStack pop | view-local `.environment(\.colorScheme, .dark)` on ScanEntryView / CardCropView / RecognitionView | Debug Build PASS; Unit 466/466; ScanEntryUITests 2/2 PASS (2026-10-23) | **USER-REPORTED PASS (core symptom)** 2026-10-23; no regression reported in the 2026-10-24 full manual sweep |
+| PD-B02 | Source bar's trailing "+" ToolbarItem clipped at the screen edge during the push into the Scanner (bar hidden on destination) | destination page had no navigation bar to receive the source item; stable-id + always-present content matches the community-reported iOS 26+ Liquid Glass pattern | `.navigationDestination(isPresented:)` + `ToolbarItem(id: "card-holder-scan-entry")` + always-present Button (failed attempts — transparent bar + `ignoresSafeArea` regression, fullScreenCover vertical animation, conditional Button removal — recorded in the validation doc) | same as PD-B01 | **USER-REPORTED PASS (core transition symptom)** 2026-10-23; no regression reported in the 2026-10-24 full manual sweep |
 
 Automated-test boundary for both fixes (2026-10-23): Unit **466/466 PASS**;
 ScanEntryUITests **2/2 PASS**; ScanCameraUITests (24) + ExceptionHandlingUITests
 (3) **BLOCKED — 0 executed** (`DTServiceHubClient` simulator service failure);
-other 33 UI tests **NOT RUN**. The historical Phase 1.1 **62/62** full-UI result
-is a pre-bugfix baseline and is **not** restated as verification of the final
-code.
+other 33 UI tests **NOT RUN**. A single re-run was attempted on 2026-10-24 and
+also **BLOCKED — 0 executed**: build-for-testing failed with
+`swift-plugin-server produced malformed response` (macro toolchain environment
+failure; the identical code compiled cleanly the same day). The historical
+Phase 1.1 **62/62** full-UI result is a pre-bugfix baseline and is **not**
+restated as verification of the final code. On 2026-10-24 the owner completed a
+**full manual acceptance sweep on a physical iPhone** — all scenarios
+user-reported PASS ([final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md));
+this manual evidence does not convert the automated gaps into passes.
 
 ---
 
@@ -588,7 +601,7 @@ TS = test · EV = evidence artifact · RS = observed result · HD = human decisi
 | T15 | **COMPLETE** | **COMPLETE** | **PARTIAL** (P08) | segmented surfaces excluded |
 | T16 | **COMPLETE** | **COMPLETE** | **PARTIAL** (P09) | both create-cancel paths exercised (E12) |
 | T17 | **COMPLETE** | **COMPLETE** | **PARTIAL** (P01) | — |
-| T18 | **COMPLETE** | **COMPLETE (simulator scope)** | **PARTIAL** (P06/P07 chrome) | terminate/relaunch exercised; physical device N/A here (G-11) |
+| T18 | **COMPLETE** | **COMPLETE (simulator scope)** | **PARTIAL** (P06/P07 chrome) | terminate/relaunch exercised; physical-device persistence **USER-REPORTED PASS** 2026-10-24 (G-11) |
 | T19 | **COMPLETE** | **COMPLETE** | **PARTIAL** (P11) | real CNContactStore gate (System01/02) exercised |
 | T20 | **COMPLETE** | **COMPLETE** | **PARTIAL** (P05) | two-layer fixture proof, layers not interchangeable |
 
@@ -669,10 +682,10 @@ No source verdict is overwritten anywhere in this document.
    ruling (see ledger §8 "Course-required — artifact form pending human
    ruling"); G-08 raw prompts stay **NOT DOCUMENTED**. G-10 (final
    demonstration) is **not yet due/held**, not "overdue and missing".
-6. G-11 physical iPhone — **PARTIAL — USER-REPORTED**: the 2026-10-23 device
-   session covered the PD-B01/PD-B02 core transition symptoms (§9.1); all other
-   device scenarios remain **NOT TESTED** and the status cannot be upgraded to
-   full PASS without explicit per-scenario testing.
+6. G-11 physical iPhone — **USER-REPORTED PASS (full manual sweep,
+   2026-10-24)** covering all acceptance scenarios ([final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md));
+   evidence class stays manual (no automated device run, no captured artifacts);
+   quantitative device-side detection accuracy remains unmeasured.
 7. G-13 image-manifest header — frozen file; revision decision pending.
 8. System phone/mail/Safari final handoff after B-01 URL initiation —
    **NOT TESTED** on simulator (DEBUG capture hook proves the initiated URL
@@ -727,8 +740,8 @@ PASS by this matrix.
   G-14 **ADDRESSED** (context note); G-12 **DOCUMENTED PLATFORM DIFFERENCE**
   (explained, **not** human-approved); G-06a/b/c **DOCUMENTED DEBT** (recorded,
   not fixed); **8 pending a human decision** (G-02, G-03, G-04, G-05, G-07,
-  G-08, G-10, G-13), with G-11 **PARTIAL — USER-REPORTED** (2026-10-23 device
-  session, core transition symptoms only; remaining scenarios **NOT TESTED**).
+  G-08, G-10, G-13), with G-11 **USER-REPORTED PASS (full manual sweep,
+  2026-10-24; manual evidence class)**.
   The earlier shorthand "14 items / 9 open" is **withdrawn**.
 - **§12 commit-diff spot-checks (SHA existence ≠ content support):**
   `minimumDetectedArea` **absent** at `68d242c`, **present** at `de58eee`

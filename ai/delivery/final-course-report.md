@@ -266,7 +266,8 @@ lives in the dylib, not the main executable).
 - **T18 — persistence.** Cards, edited fields, groups/tags, notes and both the original
   and processed images survive a full terminate → relaunch cycle (file repositories,
   `schemaVersion 1`; namespaced UI-test storage). Simulator-scoped; physical-device
-  persistence **NOT TESTED** (G-11).
+  persistence **USER-REPORTED PASS** on a physical iPhone in the 2026-10-24 full
+  manual sweep (G-11); automated persistence evidence remains simulator-scoped.
 - **T19 — Contacts export.** The real `CNContactStore.execute(CNSaveRequest)` path was
   exercised on the simulator (targeted `System01` / `System02` gates, run separately),
   with a real Contacts.app field check of name / company / title / phone / email /
@@ -310,7 +311,17 @@ Root causes above are code-level judgements supported by user observation —
 repository). Automated evidence on the final code is bounded: Debug Build PASS,
 Unit 466/466 PASS, ScanEntryUITests 2/2 PASS; ScanCamera (24) and
 ExceptionHandling (3) BLOCKED with 0 executed (simulator service failure); 33
-other UI tests NOT RUN (§4.2).
+other UI tests NOT RUN (§4.2). A single re-run of the two blocked suites was
+attempted on 2026-10-24 and also produced 0 executed tests — build-for-testing
+failed with `swift-plugin-server produced malformed response` (macro toolchain
+environment failure; the identical code compiled cleanly the same day).
+
+**Final physical-device acceptance (2026-10-24).** The owner completed the full
+manual acceptance checklist on a physical iPhone on the final code — every
+scenario user-reported PASS, with no PD-B01/PD-B02 regression. The record is
+[ai/validation/physical-device/final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md);
+the evidence class is manual (no automated device run, no captured artifacts),
+and it does not convert the automated gaps above into automated passes.
 
 ## 5. Black-Box Reference and UI Fidelity
 
@@ -635,12 +646,16 @@ Full status is maintained in
 - **G-08 — original prompt archive missing.** `NOT DOCUMENTED` (see §8.8).
 - **G-10 — final demonstration artifact.** **PENDING / not produced.** The course
   delivery has not yet taken place; this is *not* an "overdue-and-missing" item.
-- **G-11 — physical-iPhone verification.** **PARTIAL — USER-REPORTED**: a
-  2026-10-23 device session verified the PD-B01/PD-B02 core transition symptoms
-  (§4.4). All other device scenarios (persistence, PhotosPicker cancel,
-  capture→save reload, backgrounding, system appearance modes) remain **NOT
-  TESTED**; the status cannot be upgraded to full PASS without explicit
-  per-scenario testing.
+- **G-11 — physical-iPhone verification.** **USER-REPORTED PASS (full manual
+  sweep, 2026-10-24)**: the owner ran the complete acceptance checklist on a
+  physical iPhone — T01–T20 behaviours, PD-B01/PD-B02, capture/retake/cancel,
+  PhotosPicker import+cancel, boundary detection + manual crop, OCR fields,
+  manual edits, save/detail/edit, search/tags/delete, kill→relaunch
+  persistence, contacts export + field mapping, camera-permission denial +
+  recovery, backgrounding/appearance/safe-area — all reported passed
+  ([final-device-acceptance.md](../validation/physical-device/final-device-acceptance.md)).
+  The evidence class stays **manual/user-reported**: no automated device run,
+  no captured artifacts, device model/iOS version NOT PROVIDED.
 - **G-12 — Contacts export surface differences.** Classified as a
   **DOCUMENTED PLATFORM DIFFERENCE** (diff-1..5: denied-page vs alert, macOS account
   selector, label mapping to a generic label, website deliberately not exported,
@@ -708,9 +723,12 @@ incremental UI/unit gates are green at their recorded baselines (Phase 1.1
 historical baseline: Unit 466/466, UI 62/62, hook isolation 16/16, Debug/Release
 PASS). On the **final** code (`9c994c2`), Unit is re-verified at 466/466 and the
 scanner-entry UI tests re-pass 2/2, while the remaining UI suites were not
-re-run in full (27 BLOCKED by a simulator service failure, 33 NOT RUN — §4.2);
-two physical-device defects (PD-B01/PD-B02) were additionally found and fixed
-with user-reported core-symptom confirmation (§4.4). On the probabilistic side, the real Vision pipeline reaches
+re-run in full (27 BLOCKED by simulator-service/toolchain environment failures
+across two attempts, 33 NOT RUN — §4.2); two physical-device defects
+(PD-B01/PD-B02) were additionally found and fixed with user-reported
+core-symptom confirmation, and a full manual acceptance sweep on a physical
+iPhone on 2026-10-24 reported every scenario passed (§4.4, manual evidence
+class). On the probabilistic side, the real Vision pipeline reaches
 a **70.4% present-field match rate** against Ground Truth on the frozen 34-card dataset,
 with **0 genuine fabrication** — reported as a field-level match rate, not a
 character-level OCR accuracy, and not a direct CamCard comparison. Reference fidelity is
